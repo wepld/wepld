@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # WePLD Architecture & Master Plan
 
 **Status:** architecture complete; implementation deliberately not started.
@@ -19,4 +20,5 @@ Nothing in this repository is an implementation. Technology choices are architec
 - The documents in this repository are the current product and architecture source of truth.
 - A future implementation must preserve the stated boundaries or record an Architecture Decision Record (ADR) explaining a change.
 - The directory named `WePLD` elsewhere on the Desktop is not part of this project and was not used or changed.
+
 
