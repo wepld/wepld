@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 # WePLD Architecture & Master Plan
 
 **Status:** architecture complete; implementation deliberately not started.
