@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WePLD — Architecture Overview</title>
+  <style>
+    :root {
+      --ink: #122033;
+      --muted: #526577;
+      --line: #d7e0e8;
+      --paper: #f6f8fb;
+      --card: #ffffff;
+      --blue: #4299e1;
+      --orange: #ed8936;
+      --purple: #805ad5;
+      --green: #38a169;
+      --red: #d64b4b;
+      --teal: #168e8e;
+      --navy: #1b365d;
+      --shadow: 0 12px 32px rgba(18, 32, 51, .08);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+    }
+    header {
+      color: white;
+      background: radial-gradient(circle at 80% -20%, #6cddc5 0, transparent 35%), linear-gradient(135deg, #182b4d 0%, #3c3179 58%, #673d9b 100%);
+      padding: 76px max(24px, calc((100vw - 1140px) / 2));
+    }
+    header .eyebrow { color: #bfdef9; font-weight: 750; font-size: .79rem; letter-spacing: .13em; text-transform: uppercase; }
+    h1 { max-width: 850px; margin: 12px 0; font-size: clamp(2.25rem, 5vw, 4.7rem); line-height: 1.03; letter-spacing: -.045em; }
+    header p { max-width: 760px; margin: 20px 0 0; color: #e6eef9; font-size: 1.15rem; }
+    nav { background: #101d31; position: sticky; top: 0; z-index: 5; overflow-x: auto; }
+    nav div { display: flex; gap: 22px; max-width: 1140px; padding: 13px 24px; margin: auto; white-space: nowrap; }
+    nav a { color: #c7d7eb; text-decoration: none; font-size: .87rem; }
+    nav a:hover { color: white; }
+    main { max-width: 1140px; margin: auto; padding: 44px 24px 84px; }
+    section { margin: 0 0 68px; }
+    h2 { font-size: clamp(1.65rem, 3vw, 2.4rem); letter-spacing: -.03em; margin: 0 0 12px; }
+    h3 { margin: 0 0 8px; font-size: 1rem; }
+    .lede { color: var(--muted); max-width: 800px; font-size: 1.05rem; margin: 0 0 26px; }
+    .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; }
+    .card { background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow); border-radius: 16px; padding: 22px; }
+    .span-3 { grid-column: span 3; } .span-4 { grid-column: span 4; } .span-6 { grid-column: span 6; } .span-8 { grid-column: span 8; } .span-12 { grid-column: span 12; }
+    .kicker { font-weight: 760; font-size: .74rem; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 9px; }
+    .blue { color: #237bb9; } .purple { color: #6840b7; } .orange { color: #bd651a; } .green { color: #20784e; } .red { color: #b43131; } .teal { color: #087575; }
+    .metric { font-size: 1.68rem; font-weight: 800; letter-spacing: -.04em; }
+    .metric-label { color: var(--muted); font-size: .88rem; }
+    .diagram { background: #fff; border: 1px solid var(--line); box-shadow: var(--shadow); border-radius: 18px; padding: 14px; overflow-x: auto; }
+    svg { display: block; width: 100%; min-width: 720px; height: auto; }
+    .label { font: 700 14px Inter, system-ui, sans-serif; fill: #162a42; }
+    .small { font: 500 11px Inter, system-ui, sans-serif; fill: #486073; }
+    .white { fill: white; }
+    .note { background: #ecf5fc; border-left: 4px solid var(--blue); padding: 16px 18px; border-radius: 0 12px 12px 0; color: #284762; }
+    .table-wrap { overflow-x: auto; background: white; border-radius: 16px; border: 1px solid var(--line); box-shadow: var(--shadow); }
+    table { border-collapse: collapse; width: 100%; min-width: 720px; }
+    th, td { padding: 15px 17px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: #f0f4f8; color: #314860; font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; }
+    tr:last-child td { border-bottom: 0; }
+    .tag { display: inline-block; padding: 4px 8px; border-radius: 999px; font-size: .76rem; font-weight: 700; }
+    .tag.blue { background: #e3f2fc; } .tag.purple { background: #f0eaff; } .tag.orange { background: #fff0df; } .tag.green { background: #e5f7eb; } .tag.red { background: #ffe7e7; }
+    .timeline { position: relative; padding-left: 24px; }
+    .timeline:before { content: ""; position: absolute; top: 4px; bottom: 4px; left: 5px; width: 2px; background: #c6d5e3; }
+    .step { position: relative; margin: 0 0 19px; padding: 17px 19px; background: white; border: 1px solid var(--line); border-radius: 12px; }
+    .step:before { content: ""; position: absolute; left: -25px; top: 22px; width: 10px; height: 10px; border-radius: 100%; background: var(--purple); border: 3px solid var(--paper); }
+    .step p { margin: 0; color: var(--muted); }
+    footer { padding: 34px 24px; background: #101d31; color: #c7d7eb; font-size: .88rem; }
+    footer div { max-width: 1140px; margin: auto; }
+    @media (max-width: 760px) {
+      .span-3, .span-4, .span-6, .span-8 { grid-column: span 12; }
+      header { padding-top: 52px; padding-bottom: 52px; }
+      main { padding-top: 32px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="eyebrow">Architecture &amp; master plan · no implementation</div>
+    <h1>WePLD is an engineering organization, rendered as software.</h1>
+    <p>A local-first Autonomous Software Engineering Operating System where the human sets strategy, a governed organization executes, and every material outcome has evidence.</p>
+  </header>
+  <nav><div>
+    <a href="#context">Business context</a><a href="#flow">Mission flow</a><a href="#pipeline">Engineering loop</a><a href="#architecture">System architecture</a><a href="#features">Capabilities</a><a href="#deployment">Deployment</a><a href="#roadmap">Roadmap</a>
+  </div></nav>
+  <main>
+    <section id="context">
+      <h2>Business context</h2>
+      <p class="lede">WePLD is not an AI IDE. The editor is one workspace in a studio that coordinates planning, building, review, testing, security, knowledge, executive decisions, and releases.</p>
+      <div class="grid">
+        <article class="card span-4"><div class="kicker purple">Human role</div><h3>Executive decision maker</h3><p>Sets outcomes, constraints, priority, budget, and strategic direction—not every tool command.</p></article>
+        <article class="card span-4"><div class="kicker blue">Product role</div><h3>Governed engineering company</h3><p>Specialized workers plan and execute durable task graphs through a policy-controlled operating model.</p></article>
+        <article class="card span-4"><div class="kicker green">Trust model</div><h3>Evidence before assertion</h3><p>Tests, reviews, scans, artifacts, and causal history—not model confidence—establish completion.</p></article>
+        <article class="card span-3"><div class="metric">Local-first</div><div class="metric-label">Core control plane works on the user’s desktop.</div></article>
+        <article class="card span-3"><div class="metric">Replaceable</div><div class="metric-label">Brains, workers, skills, plugins, tools, and channels are versioned adapters.</div></article>
+        <article class="card span-3"><div class="metric">Observable</div><div class="metric-label">Every effect links intent, policy, actor, evidence, and outcome.</div></article>
+        <article class="card span-3"><div class="metric">Bounded</div><div class="metric-label">Full autonomy remains inside scope, budget, data, and hard-safety envelopes.</div></article>
+      </div>
+    </section>
+
+    <section id="flow">
+      <h2>From goal to verified outcome</h2>
+      <p class="lede">The Core Daemon makes the organization’s work durable and causal. Workers never directly message the human or mutate mission state.</p>
+      <div class="diagram">
+        <svg viewBox="0 0 1040 305" role="img" aria-label="WePLD mission flow from human goal through Studio, Core, workers and evidence back to Messenger">
+          <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#54708b"/></marker></defs>
+          <path d="M171 139 H254" stroke="#54708b" stroke-width="2.4" marker-end="url(#arrow)"/>
+          <path d="M421 139 H505" stroke="#54708b" stroke-width="2.4" marker-end="url(#arrow)"/>
+          <path d="M678 139 H761" stroke="#54708b" stroke-width="2.4" marker-end="url(#arrow)"/>
+          <path d="M845 189 C845 260, 345 260, 345 207" fill="none" stroke="#54708b" stroke-width="2.4" marker-end="url(#arrow)"/>
+          <rect x="24" y="92" width="147" height="94" rx="15" fill="#e8f4fd" stroke="#4299e1" stroke-width="2"/>
+          <text x="98" y="126" text-anchor="middle" class="label">Human executive</text><text x="98" y="149" text-anchor="middle" class="small">goal · scope · priority</text><text x="98" y="166" text-anchor="middle" class="small">budget · decisions</text>
+          <rect x="254" y="92" width="167" height="94" rx="15" fill="#f2eaff" stroke="#805ad5" stroke-width="2"/>
+          <text x="337" y="126" text-anchor="middle" class="label">Studio + Messenger</text><text x="337" y="149" text-anchor="middle" class="small">structured intent</text><text x="337" y="166" text-anchor="middle" class="small">reports + decision packets</text>
+          <rect x="505" y="69" width="173" height="140" rx="15" fill="#fff2e5" stroke="#ed8936" stroke-width="2.5"/>
+          <text x="592" y="107" text-anchor="middle" class="label">Local Core Daemon</text><text x="592" y="132" text-anchor="middle" class="small">orchestration · policy</text><text x="592" y="150" text-anchor="middle" class="small">event ledger · scheduling</text><text x="592" y="168" text-anchor="middle" class="small">knowledge + artifacts</text>
+          <rect x="761" y="92" width="166" height="94" rx="15" fill="#e9f7ed" stroke="#38a169" stroke-width="2"/>
+          <text x="844" y="126" text-anchor="middle" class="label">Specialized workers</text><text x="844" y="149" text-anchor="middle" class="small">leased tasks + scoped tools</text><text x="844" y="166" text-anchor="middle" class="small">isolated worktrees</text>
+          <rect x="458" y="231" width="264" height="55" rx="13" fill="#eef5f9" stroke="#80a0b8"/>
+          <text x="590" y="254" text-anchor="middle" class="label">Evidence &amp; projections</text><text x="590" y="273" text-anchor="middle" class="small">tests · review · security · timeline · Mission Control</text>
+          <text x="196" y="123" class="small">intent</text><text x="444" y="123" class="small">approved plan</text><text x="694" y="123" class="small">task lease</text><text x="765" y="244" class="small">verified progress / decisions</text>
+        </svg>
+      </div>
+      <p class="note"><strong>Key invariant:</strong> a Brain can propose an action, but only policy can permit it and only the Tool Executor can perform it. A worker reports artifacts; the Orchestrator alone advances task and mission state.</p>
+    </section>
+
+    <section id="pipeline">
+      <h2>Iterative engineering, not one-pass coding</h2>
+      <p class="lede">Every mission travels through an evidence-producing loop. Stages are governed by task type and risk; completion is a policy-evaluated fact, not a worker declaration.</p>
+      <div class="diagram">
+        <svg viewBox="0 0 1100 260" role="img" aria-label="Iterative engineering loop from understand through evaluate">
+          <defs><marker id="arrow2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#60798f"/></marker></defs>
+          <path d="M111 111 H180 M283 111 H352 M455 111 H524 M627 111 H696 M799 111 H868" stroke="#60798f" stroke-width="2" marker-end="url(#arrow2)"/>
+          <path d="M952 149 C952 231 79 231 79 151" fill="none" stroke="#805ad5" stroke-width="2.5" marker-end="url(#arrow2)"/>
+          <g>
+            <rect x="12" y="75" width="99" height="72" rx="12" fill="#e5f2fb"/><text x="62" y="105" text-anchor="middle" class="label">Understand</text><text x="62" y="124" text-anchor="middle" class="small">scope</text>
+            <rect x="180" y="75" width="103" height="72" rx="12" fill="#efe7fd"/><text x="232" y="105" text-anchor="middle" class="label">Plan</text><text x="232" y="124" text-anchor="middle" class="small">DAG + gates</text>
+            <rect x="352" y="75" width="103" height="72" rx="12" fill="#fff0df"/><text x="404" y="105" text-anchor="middle" class="label">Build</text><text x="404" y="124" text-anchor="middle" class="small">isolated change</text>
+            <rect x="524" y="75" width="103" height="72" rx="12" fill="#e4f7eb"/><text x="576" y="105" text-anchor="middle" class="label">Verify</text><text x="576" y="124" text-anchor="middle" class="small">compile + test</text>
+            <rect x="696" y="75" width="103" height="72" rx="12" fill="#e5f2fb"/><text x="748" y="105" text-anchor="middle" class="label">Review</text><text x="748" y="124" text-anchor="middle" class="small">quality + security</text>
+            <rect x="868" y="75" width="103" height="72" rx="12" fill="#f5e8ff"/><text x="920" y="105" text-anchor="middle" class="label">Evaluate</text><text x="920" y="124" text-anchor="middle" class="small">criteria + stop</text>
+          </g>
+          <rect x="982" y="84" width="100" height="55" rx="12" fill="#dff5e8" stroke="#38a169" stroke-width="1.5"/><text x="1032" y="108" text-anchor="middle" class="label">Complete</text><text x="1032" y="126" text-anchor="middle" class="small">proposal</text>
+          <path d="M971 111 H982" stroke="#60798f" stroke-width="2" marker-end="url(#arrow2)"/>
+          <text x="515" y="213" text-anchor="middle" class="small">Repeat only when new evidence, a changed hypothesis, or an approved decision can reduce a known gap.</text>
+        </svg>
+      </div>
+    </section>
+
+    <section id="architecture">
+      <h2>System architecture</h2>
+      <p class="lede">The V1 deployment is intentionally modest: a trusted local control plane, isolated execution, and explicit adapters around external systems. Clean ports make future cloud/enterprise evolution possible without bringing distributed-systems complexity into the first mission.</p>
+      <div class="diagram">
+        <svg viewBox="0 0 1090 550" role="img" aria-label="Layered WePLD architecture with Studio, Core, workers, storage and external adapters">
+          <rect x="20" y="16" width="1050" height="78" rx="16" fill="#e7f3fb" stroke="#4299e1" stroke-width="2"/>
+          <text x="44" y="48" class="label">Studio layer</text><text x="44" y="69" class="small">Mission Control · Executive · Architecture · Timeline · Knowledge · IDE · Settings</text>
+          <rect x="20" y="112" width="1050" height="145" rx="16" fill="#f2eaff" stroke="#805ad5" stroke-width="2"/>
+          <text x="44" y="144" class="label">Local Core control plane</text>
+          <g class="small"><rect x="43" y="164" width="160" height="66" rx="10" fill="#fff"/><text x="123" y="191" text-anchor="middle" class="label">Mission &amp; Portfolio</text><text x="123" y="211" text-anchor="middle" class="small">goals · decisions</text>
+          <rect x="218" y="164" width="160" height="66" rx="10" fill="#fff"/><text x="298" y="191" text-anchor="middle" class="label">Orchestration</text><text x="298" y="211" text-anchor="middle" class="small">DAGs · leases · retries</text>
+          <rect x="393" y="164" width="160" height="66" rx="10" fill="#fff"/><text x="473" y="191" text-anchor="middle" class="label">Policy &amp; Security</text><text x="473" y="211" text-anchor="middle" class="small">risk · approval · caps</text>
+          <rect x="568" y="164" width="160" height="66" rx="10" fill="#fff"/><text x="648" y="191" text-anchor="middle" class="label">Quality</text><text x="648" y="211" text-anchor="middle" class="small">gates · findings</text>
+          <rect x="743" y="164" width="140" height="66" rx="10" fill="#fff"/><text x="813" y="191" text-anchor="middle" class="label">Messenger</text><text x="813" y="211" text-anchor="middle" class="small">reports</text>
+          <rect x="898" y="164" width="145" height="66" rx="10" fill="#fff"/><text x="970" y="191" text-anchor="middle" class="label">Registry</text><text x="970" y="211" text-anchor="middle" class="small">packages</text></g>
+          <rect x="20" y="275" width="622" height="137" rx="16" fill="#ecf8ef" stroke="#38a169" stroke-width="2"/>
+          <text x="44" y="307" class="label">Execution plane</text>
+          <rect x="43" y="329" width="175" height="56" rx="10" fill="#fff"/><text x="130" y="353" text-anchor="middle" class="label">Worker Registry</text><text x="130" y="371" text-anchor="middle" class="small">roles + compatibility</text>
+          <rect x="234" y="329" width="175" height="56" rx="10" fill="#fff"/><text x="321" y="353" text-anchor="middle" class="label">Sandboxed Workers</text><text x="321" y="371" text-anchor="middle" class="small">task lease + skills</text>
+          <rect x="425" y="329" width="192" height="56" rx="10" fill="#fff"/><text x="521" y="353" text-anchor="middle" class="label">Tool / Worktree Executor</text><text x="521" y="371" text-anchor="middle" class="small">capability-mediated effects</text>
+          <rect x="663" y="275" width="407" height="137" rx="16" fill="#fff2e5" stroke="#ed8936" stroke-width="2"/>
+          <text x="687" y="307" class="label">Reasoning and external adapters</text>
+          <rect x="686" y="329" width="174" height="56" rx="10" fill="#fff"/><text x="773" y="353" text-anchor="middle" class="label">Brain Gateway</text><text x="773" y="371" text-anchor="middle" class="small">profiles + routing</text>
+          <rect x="876" y="329" width="168" height="56" rx="10" fill="#fff"/><text x="960" y="353" text-anchor="middle" class="label">Integrations</text><text x="960" y="371" text-anchor="middle" class="small">channels + MCP</text>
+          <rect x="20" y="430" width="1050" height="100" rx="16" fill="#f0f4f8" stroke="#7991a8" stroke-width="2"/>
+          <text x="44" y="462" class="label">Data and observability plane</text>
+          <text x="44" y="486" class="small">Event ledger + projections · SQLite operational state · content-addressed artifacts · Git/worktrees · knowledge indexes · traces/metrics/logs</text>
+          <text x="44" y="508" class="small">The control plane is the sole mission/task writer. Large bodies remain artifacts; source history remains in Git.</text>
+        </svg>
+      </div>
+    </section>
+
+    <section id="features">
+      <h2>Capability model</h2>
+      <p class="lede">Five primary systems, reinforced by policy, quality, observability, and a carefully governed extension model.</p>
+      <div class="grid">
+        <article class="card span-4"><div class="kicker blue">Studio</div><h3>Operational workspaces</h3><p>Mission Control, Executive, Architecture, Timeline, Knowledge, and IDE views share one durable source of truth.</p><span class="tag blue">No hidden client state</span></article>
+        <article class="card span-4"><div class="kicker purple">Orchestration</div><h3>Durable engineering flow</h3><p>Task DAGs, leases, retries, budgets, cancellation, and strategic decision boundaries make work recoverable.</p><span class="tag purple">Sole workflow writer</span></article>
+        <article class="card span-4"><div class="kicker green">Workers</div><h3>Specialized execution</h3><p>Roles combine selected brains, skills, limited tools, and isolated worktrees. They report artifacts, not direct messages.</p><span class="tag green">Least privilege</span></article>
+        <article class="card span-4"><div class="kicker orange">Brains</div><h3>Replaceable reasoning</h3><p>Provider-neutral requests, structured results, profile routing, privacy rules, costs, fallback, and evaluation.</p><span class="tag orange">No direct file editing</span></article>
+        <article class="card span-4"><div class="kicker teal">Knowledge</div><h3>Evidence-backed memory</h3><p>Architecture, decisions, patterns, findings, lessons, and project history have sources, freshness, and classification.</p><span class="tag blue">Not chat history</span></article>
+        <article class="card span-4"><div class="kicker red">Security</div><h3>Non-bypassable governance</h3><p>Policy evaluates every sensitive effect. Sandboxes, secret brokering, package trust, scans, and incident response are core.</p><span class="tag red">Hard gates remain</span></article>
+      </div>
+    </section>
+
+    <section id="deployment">
+      <h2>Local-first deployment and trust boundaries</h2>
+      <p class="lede">WePLD’s first deployment is one desktop with a local authority. External calls are optional, explicit, and policy-scoped. Remote collaboration becomes a later topology, not a hidden V1 dependency.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Component</th><th>Where it runs</th><th>Trust boundary</th><th>V1 responsibility</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Studio desktop shell</strong></td><td>User desktop</td><td>Presentation only</td><td>Renders authorized projections and submits typed commands</td></tr>
+          <tr><td><strong>Core Daemon</strong></td><td>User desktop</td><td>Local control-plane authority</td><td>Durable mission state, policy, event ledger, scheduler, projections</td></tr>
+          <tr><td><strong>Worker host</strong></td><td>Child process / supported sandbox</td><td>Untrusted execution</td><td>Runs a scoped task lease under resource/path/network limits</td></tr>
+          <tr><td><strong>Operational store</strong></td><td>User-controlled app data directory</td><td>Durable local state</td><td>Events and projections; single Core writer</td></tr>
+          <tr><td><strong>Git + artifact store</strong></td><td>Project and app data directories</td><td>Source/evidence integrity</td><td>Source history, isolated worktrees, hashed evidence bodies</td></tr>
+          <tr><td><strong>Brain / channel adapter</strong></td><td>Core-owned adapter</td><td>Data egress / identity</td><td>Only policy-approved context, credentials, and outbound content</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="roadmap">
+      <h2>Trust-first roadmap</h2>
+      <p class="lede">The delivery order prevents an attractive shell from outrunning the safety and recovery model.</p>
+      <div class="timeline">
+        <div class="step"><h3>M0 — Architecture gate</h3><p>Approve scope, contracts, threat model, evaluation fixtures, and technical spikes. Production implementation remains blocked until this gate clears.</p></div>
+        <div class="step"><h3>M1/M2 — Durable local core + safe task effect</h3><p>Prove authoritative recovery, authenticated local RPC, policy enforcement, event projections, isolated worktrees, and one capability-controlled effect.</p></div>
+        <div class="step"><h3>M3 — First full mission loop</h3><p>Planner → Builder → QA/Reviewer completes a bounded local mission with a reviewable change, decision queue, and evidence timeline.</p></div>
+        <div class="step"><h3>M4/M5 — Governed autonomy + memory</h3><p>Add bounded parallelism, retries, budgets, gates, Mission Control health, skills, knowledge, and full-autonomy envelopes.</p></div>
+        <div class="step"><h3>M6/M7 — Studio beta, then ecosystem</h3><p>Expand workspaces, package lifecycle, selected integrations, release operations, and only then enterprise/remote collaboration.</p></div>
+      </div>
+    </section>
+  </main>
+  <footer><div>WePLD Architecture &amp; Master Plan · Generated as a documentation artifact. Refer to the numbered Markdown documents for normative decisions, risks, contracts, and implementation gates.</div></footer>
+</body>
+</html>
