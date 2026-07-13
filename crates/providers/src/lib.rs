@@ -12,9 +12,13 @@
 //! provider.
 
 mod fixture;
+mod openai;
+mod record;
 mod schema;
 
-pub use fixture::{cassette_key, write_cassette_entry, FixtureAdapter};
+pub use fixture::{cassette_key, write_cassette_entry, write_recorded, FixtureAdapter};
+pub use openai::OpenAiCompatAdapter;
+pub use record::RecordingAdapter;
 pub use schema::SchemaRegistry;
 
 use std::collections::HashMap;

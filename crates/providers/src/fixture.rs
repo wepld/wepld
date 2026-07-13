@@ -41,32 +41,56 @@ pub fn cassette_key(intent: &str, pack_hash: &str, output_schema_id: &str, model
     s
 }
 
-/// Author or append a cassette entry (used by tests now; by the record-mode
-/// proxy against real providers from M1).
+/// Author or append a synthetic cassette entry (used by tests). Provider is
+/// "fixture" with zero usage.
 pub fn write_cassette_entry(
     path: &Path,
     key: &str,
     output: &serde_json::Value,
     model: &str,
 ) -> std::io::Result<()> {
+    append_entry(
+        path,
+        &CassetteEntry {
+            key: key.to_owned(),
+            output: output.clone(),
+            provider: "fixture".to_owned(),
+            model: model.to_owned(),
+            tokens_in: 0,
+            tokens_out: 0,
+            cost_usd: 0.0,
+            latency_ms: 0,
+        },
+    )
+}
+
+/// Record a real adapter response to a cassette, preserving the real provider,
+/// model, and usage so replay reproduces them exactly (record mode, IADR-0002).
+pub fn write_recorded(path: &Path, key: &str, resp: &AdapterResponse) -> std::io::Result<()> {
+    append_entry(
+        path,
+        &CassetteEntry {
+            key: key.to_owned(),
+            output: resp.output.clone(),
+            provider: resp.usage.provider.clone(),
+            model: resp.usage.model.clone(),
+            tokens_in: resp.usage.tokens_in,
+            tokens_out: resp.usage.tokens_out,
+            cost_usd: resp.usage.cost_usd,
+            latency_ms: resp.usage.latency_ms,
+        },
+    )
+}
+
+fn append_entry(path: &Path, entry: &CassetteEntry) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    let entry = CassetteEntry {
-        key: key.to_owned(),
-        output: output.clone(),
-        provider: "fixture".to_owned(),
-        model: model.to_owned(),
-        tokens_in: 0,
-        tokens_out: 0,
-        cost_usd: 0.0,
-        latency_ms: 0,
-    };
     let mut f = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
         .open(path)?;
-    writeln!(f, "{}", serde_json::to_string(&entry)?)?;
+    writeln!(f, "{}", serde_json::to_string(entry)?)?;
     Ok(())
 }
 

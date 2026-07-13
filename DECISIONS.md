@@ -17,5 +17,7 @@ One line per decision made under way. Anything decided under pressure gets writt
   - IADR-0001…0008 merged ✓
   - `wepld demo` runs the full loop self-contained (create→plan→approve→run→accept→timeline→verify), chain VERIFIED, edit merged to main ✓
   - 45 tests, fmt + clippy `-D warnings` clean.
-- **OPEN** — Obtain one hosted-provider API key (needed at M1 for the real brain adapter; M0 is cassette-only per IADR-0002).
+- **2026-07-13** — **M0 accepted; M1 authorized.** Repository publish tasks (push commits/tags, GitHub Release) are **BLOCKED**: the authenticated GitHub account `IamShehri` lacks write access to `wepld/wepld` (push → 403). Needs founder action: grant write access, push from an authorized account, or repoint `origin` to a fork. 14 commits + tags `v0.0.1-m0`, `v0.0.1-m0-gate` are staged locally. M1 proceeds locally in the meantime.
+- **2026-07-13** — M1 first real adapter is **OpenAI-compatible over HTTP** (Ollama/LM Studio/vLLM/llama.cpp) — local-first per the charter ("Hermes + Ollama"), no TLS/API-key dependency, vendor-neutral. `ureq` (no-default-features + json) is the blocking HTTP client. Hosted HTTPS (OpenAI/Anthropic) is a later TLS-enabled slice; the adapter contract is unchanged by it. Record mode (`RecordingAdapter`) turns real interactions into replayable cassettes — the record/replay harness, delivered as a side effect of the first real adapter (IADR-0002).
+- **OPEN** — Obtain one hosted-provider API key (needed for the hosted HTTPS adapter slice; local Ollama needs none).
 - **OPEN (M1)** — Pick a real OSS fixture repo for realism beyond the generated `notes-cli`.
