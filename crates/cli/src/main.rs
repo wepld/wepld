@@ -52,6 +52,13 @@ enum MissionCmd {
     Plan { mission_id: String },
     /// Execute a running mission's tasks (build + gates)
     Run { mission_id: String },
+    /// Accept a proposed completion (optionally merging into the base branch)
+    Accept {
+        mission_id: String,
+        /// Merge the final snapshot into the base branch
+        #[arg(long)]
+        merge: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -112,6 +119,12 @@ fn run(cli: Cli) -> Result<ExitCode, Box<dyn std::error::Error>> {
             MissionCmd::Run { mission_id } => {
                 let outcome = core.run_mission(&mission_id)?;
                 if !report(&outcome, "run") {
+                    return Ok(ExitCode::FAILURE);
+                }
+            }
+            MissionCmd::Accept { mission_id, merge } => {
+                let outcome = core.accept_mission(&mission_id, merge)?;
+                if !report(&outcome, "acceptance") {
                     return Ok(ExitCode::FAILURE);
                 }
             }

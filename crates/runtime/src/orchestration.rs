@@ -332,6 +332,77 @@ impl Core {
         }
     }
 
+    /// Accept a proposed completion. With `merge`, merge the final workspace
+    /// snapshot into the base branch — the completion hard gate — then record
+    /// MissionAccepted and mark the mission accepted.
+    pub fn accept_mission(
+        &mut self,
+        mission_id: &str,
+        merge: bool,
+    ) -> Result<CommandOutcome, RuntimeError> {
+        let Some((_title, state)) = self.mission_row(mission_id)? else {
+            return Ok(rejected(format!("no such mission: {mission_id}")));
+        };
+        if state != "completion_proposed" {
+            return Ok(rejected(format!(
+                "mission is {state}, expected completion_proposed before acceptance"
+            )));
+        }
+
+        // The final snapshot is the latest WorkspaceSnapshotRecorded fact.
+        let Some(snapshot_commit) = self
+            .timeline(mission_id)?
+            .into_iter()
+            .rev()
+            .find(|e| e.entry_type == EventType::WorkspaceSnapshotRecorded)
+            .and_then(|e| e.payload_json["commit"].as_str().map(str::to_owned))
+        else {
+            return Ok(rejected("no workspace snapshot to accept".to_owned()));
+        };
+
+        let brief: MissionBrief = serde_json::from_value(
+            self.store_brief(mission_id)?
+                .expect("completion-proposed mission has brief"),
+        )?;
+
+        let mut detail = serde_json::json!({
+            "mission_id": mission_id,
+            "merge": merge,
+            "snapshot_commit": snapshot_commit,
+            "state": "accepted",
+        });
+        let mut payload = detail.clone();
+
+        if merge {
+            let ws = Workspace::open(std::path::Path::new(&brief.scope.repo))?;
+            let merge_commit = ws.merge(
+                &snapshot_commit,
+                &format!("wepld: accept mission {mission_id}"),
+            )?;
+            detail["merge_commit"] = serde_json::json!(merge_commit);
+            payload["merge_commit"] = serde_json::json!(merge_commit);
+        }
+
+        let mid = mission_id.to_owned();
+        self.store_mut().transact(|tx| {
+            tx.append(&NewEntry {
+                entry_type: EventType::MissionAccepted,
+                schema_version: 1,
+                aggregate_type: AggregateType::Mission,
+                aggregate_id: mid.clone(),
+                actor_type: ActorType::Human,
+                actor_id: "principal_local".to_owned(),
+                correlation_id: mid.clone(),
+                causation_ref: None,
+                payload,
+            })?;
+            tx.set_mission_state(&mid, "accepted")?;
+            Ok(())
+        })?;
+
+        Ok(accepted(detail))
+    }
+
     /// The stored mission brief, if present.
     pub(crate) fn store_brief(
         &self,

@@ -152,6 +152,18 @@ impl Workspace {
         Ok(())
     }
 
+    /// Merge a commit into the currently checked-out branch (mission
+    /// acceptance — the completion hard gate). Returns the merge commit.
+    pub fn merge(&self, commit: &str, message: &str) -> Result<String, WorkspaceError> {
+        self.git(&["merge", "--no-ff", "--no-edit", "-m", message, commit])?;
+        Ok(self.git(&["rev-parse", "HEAD"])?.trim().to_owned())
+    }
+
+    /// The commit the given ref/branch currently points at.
+    pub fn rev_parse(&self, refname: &str) -> Result<String, WorkspaceError> {
+        Ok(self.git(&["rev-parse", refname])?.trim().to_owned())
+    }
+
     pub fn cleanup(&self, wt: Worktree) -> Result<(), WorkspaceError> {
         self.git(&[
             "worktree",
