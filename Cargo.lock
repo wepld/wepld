@@ -897,6 +897,7 @@ dependencies = [
  "wepld-contracts",
  "wepld-ledger",
  "wepld-providers",
+ "wepld-workspace",
  "wepld-wwp",
 ]
 

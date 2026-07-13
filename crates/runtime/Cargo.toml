@@ -10,6 +10,7 @@ wepld-ledger = { path = "../ledger" }
 wepld-wwp = { path = "../wwp" }
 wepld-artifacts = { path = "../artifacts" }
 wepld-providers = { path = "../providers" }
+wepld-workspace = { path = "../workspace" }
 serde_json.workspace = true
 thiserror = "2"
 

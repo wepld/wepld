@@ -50,6 +50,8 @@ enum MissionCmd {
     },
     /// Run the planner phase for a draft mission
     Plan { mission_id: String },
+    /// Execute a running mission's tasks (build + gates)
+    Run { mission_id: String },
 }
 
 #[derive(Subcommand)]
@@ -104,6 +106,12 @@ fn run(cli: Cli) -> Result<ExitCode, Box<dyn std::error::Error>> {
             MissionCmd::Plan { mission_id } => {
                 let outcome = core.plan_mission(&mission_id)?;
                 if !report(&outcome, "plan") {
+                    return Ok(ExitCode::FAILURE);
+                }
+            }
+            MissionCmd::Run { mission_id } => {
+                let outcome = core.run_mission(&mission_id)?;
+                if !report(&outcome, "run") {
                     return Ok(ExitCode::FAILURE);
                 }
             }

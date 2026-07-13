@@ -7,6 +7,7 @@
 //! of `wepld_ledger::Tx` in the workspace.
 
 mod commands;
+mod gates;
 mod orchestration;
 mod phase;
 
@@ -31,6 +32,8 @@ pub enum RuntimeError {
     Cas(#[from] wepld_artifacts::CasError),
     #[error("gateway error: {0}")]
     Gateway(#[from] wepld_providers::GatewayError),
+    #[error("workspace error: {0}")]
+    Workspace(#[from] wepld_workspace::WorkspaceError),
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
 }
@@ -42,6 +45,8 @@ pub struct Core {
     /// How to spawn the WWP worker runtime (default: `hermes` on PATH). The
     /// Runtime decides which runtime executes; Hermes is the flagship.
     worker_cmd: Vec<String>,
+    /// The operational store directory (worktrees are created beneath it).
+    root: std::path::PathBuf,
 }
 
 impl Core {
@@ -98,6 +103,7 @@ impl Core {
             cas,
             gateway,
             worker_cmd: vec!["hermes".to_owned()],
+            root: dir.to_path_buf(),
         })
     }
 
@@ -183,5 +189,9 @@ impl Core {
 
     pub(crate) fn worker_cmd(&self) -> Vec<String> {
         self.worker_cmd.clone()
+    }
+
+    pub(crate) fn root(&self) -> &Path {
+        &self.root
     }
 }
