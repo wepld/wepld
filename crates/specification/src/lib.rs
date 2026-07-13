@@ -8,15 +8,21 @@
 //! The Runtime composes it and owns all persistence and execution
 //! (docs/impl/M1_SPEC_KIT_INTEGRATION.md, boundary rules).
 
+mod convert;
+mod parse;
 mod quality;
+mod render;
 mod templates;
 mod validate;
 
+pub use convert::{convert, Conversion, ConversionError, ConvertInput};
+pub use parse::parse;
 pub use quality::score_quality;
+pub use render::render;
 pub use templates::{template, TemplateKind};
 pub use validate::{validate, ValidationIssue, ValidationReport};
 
 // Re-export the canonical contract types so consumers use one path.
 pub use wepld_contracts::specification::{
-    SpecAcceptanceCriterion, SpecQuality, SpecStatus, SpecificationDocument,
+    SpecAcceptanceCriterion, SpecProvenance, SpecQuality, SpecStatus, SpecificationDocument,
 };

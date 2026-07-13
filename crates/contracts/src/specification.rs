@@ -5,6 +5,7 @@
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 /// The living identity of a specification (a state-table row).
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -88,6 +89,11 @@ pub struct SpecificationDocument {
     pub success_metrics: Vec<String>,
     #[serde(default)]
     pub clarifications: Vec<Clarification>,
+    /// How each acceptance gate is verified: gate name → shell command. Makes
+    /// an engineering specification executable — the baseline gates a derived
+    /// mission runs. Ordered (BTreeMap) for deterministic rendering/hashing.
+    #[serde(default)]
+    pub verification: BTreeMap<String, String>,
     /// Unresolved `[NEEDS CLARIFICATION]` markers; must be empty before planning.
     #[serde(default)]
     pub open_questions: Vec<String>,
