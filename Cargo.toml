@@ -7,6 +7,8 @@ members = [
     "crates/cli",
     "crates/artifacts",
     "crates/workspace",
+    "crates/wwp",
+    "crates/hermes",
 ]
 exclude = ["fixtures"]
 

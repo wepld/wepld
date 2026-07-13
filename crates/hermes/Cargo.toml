@@ -1,0 +1,20 @@
+[package]
+name = "wepld-hermes"
+description = "Hermes — WePLD's flagship WWP worker runtime (skeleton). Stateless; owns execution, never persistence."
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "hermes"
+path = "src/main.rs"
+
+# BOUNDARY RULE (IMPL-02 #3): wwp + contracts ONLY. Any further dependency
+# here kills worker-runtime replaceability and must fail review.
+[dependencies]
+wepld-wwp = { path = "../wwp" }
+wepld-contracts = { path = "../contracts" }
+serde_json.workspace = true
+
+[dev-dependencies]
+wepld-runtime = { path = "../runtime" }
+tempfile = "3"

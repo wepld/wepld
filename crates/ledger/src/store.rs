@@ -256,6 +256,18 @@ impl LedgerStore {
             .optional()?)
     }
 
+    /// Current state of an attempt row, if it exists.
+    pub fn attempt_state(&self, attempt_id: &str) -> Result<Option<String>, LedgerError> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT state FROM attempts WHERE attempt_id = ?1",
+                [attempt_id],
+                |r| r.get::<_, String>(0),
+            )
+            .optional()?)
+    }
+
     /// Current (title, state) of a mission row, if it exists.
     pub fn mission_row(&self, mission_id: &str) -> Result<Option<(String, String)>, LedgerError> {
         Ok(self
@@ -369,6 +381,31 @@ impl Tx<'_> {
         self.inner.execute(
             "UPDATE missions SET state = ?2, revision = revision + 1 WHERE mission_id = ?1",
             params![mission_id, state],
+        )?;
+        Ok(())
+    }
+
+    pub fn insert_attempt(
+        &mut self,
+        attempt_id: &str,
+        task_id: &str,
+        phase: &str,
+        role_profile: &str,
+        envelope_json: &str,
+        idempotency_key: &str,
+    ) -> Result<(), LedgerError> {
+        self.inner.execute(
+            "INSERT INTO attempts (attempt_id, task_id, phase, role_profile, state, envelope_json, idempotency_key)
+             VALUES (?1,?2,?3,?4,'spawned',?5,?6)",
+            params![attempt_id, task_id, phase, role_profile, envelope_json, idempotency_key],
+        )?;
+        Ok(())
+    }
+
+    pub fn set_attempt_state(&mut self, attempt_id: &str, state: &str) -> Result<(), LedgerError> {
+        self.inner.execute(
+            "UPDATE attempts SET state = ?2 WHERE attempt_id = ?1",
+            params![attempt_id, state],
         )?;
         Ok(())
     }

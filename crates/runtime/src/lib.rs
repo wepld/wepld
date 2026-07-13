@@ -7,8 +7,10 @@
 //! of `wepld_ledger::Tx` in the workspace.
 
 mod commands;
+mod phase;
 
 pub use commands::command_id_for;
+pub use phase::{PhaseOutcome, PhaseSpec};
 
 use std::path::Path;
 use wepld_contracts::command::{Command, CommandOutcome};
@@ -100,5 +102,13 @@ impl Core {
 
     pub fn mission_row(&self, mission_id: &str) -> Result<Option<(String, String)>, RuntimeError> {
         Ok(self.store.mission_row(mission_id)?)
+    }
+
+    pub fn attempt_state(&self, attempt_id: &str) -> Result<Option<String>, RuntimeError> {
+        Ok(self.store.attempt_state(attempt_id)?)
+    }
+
+    pub(crate) fn store_mut(&mut self) -> &mut LedgerStore {
+        &mut self.store
     }
 }
