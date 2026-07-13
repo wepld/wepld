@@ -1,232 +1,172 @@
-# M1 — Engineering Specification Subsystem (Spec Kit adoption)
+# WePLD Engineering Specification System — Final Design
 
-**Status:** DESIGN v2 — incorporates the founder's approval + extensions. **Awaiting approval; no implementation until approved.** · **Date:** 2026-07-13
-**Founder decisions folded in:** Spec Kit adopted as the *official* specification workflow; Option B approved and extended; specifications become **first-class, permanent, living engineering objects**; a **dedicated permanent Specification subsystem** (not a temporary adapter); reverse synchronization, specification intelligence, quality, diff, replay, and DNA. Architecture v2, Chronicle, Hermes, and WWP remain **frozen** — this subsystem is **additive**, reusing the frozen substrate without modifying it.
+**Status:** DESIGN v3 (FINAL) — incorporates all founder decisions. **Awaiting go-ahead; no implementation in this turn.** · **Date:** 2026-07-13
+**Frozen:** Architecture v2, Chronicle engine, WWP, Hermes Runtime, single execution authority. This work is **additive** — new domains built on the frozen substrate; nothing frozen is modified (only sanctioned additive contract extensions, flagged).
 
----
-
-## 0. Founding principle (the frame for every decision)
-
-> Code is an implementation artifact. **The Engineering Specification is the product.** Hermes executes specifications; Chronicle remembers them; Knowledge grows from them; Skills evolve from them. WePLD is an Engineering Operating System, not an AI IDE.
-
-Everything below serves that: a specification is a durable, versioned, replayable, reviewable, comparable object that lives for the life of the project and drives — but never performs — execution.
-
-## 1. Governing boundary (unchanged, reaffirmed)
-
-**Spec Kit owns specification. WePLD owns execution.** Spec Kit phases 1–6 (constitution → specify → clarify → plan → tasks → analyze) are adopted as methodology; **phase 7 (`/implement`) is not adopted — the Runtime replaces it.** The flow:
-
-```
-Specify → Clarify → Research → Plan → Tasks → [Mission Conversion]
-  → Runtime → Hermes → WWP → Execution → Evidence → Verification → Ledger → Chronicle
-  → (Revision → Replay → Comparison → Future Specification)   ← the spec keeps living
-```
-
-**Hard boundary rules (enforced in code + CI):** specifications never execute code, never bypass the Runtime, never communicate with Hermes directly, never bypass the Ledger, never own execution state. The Runtime is the single execution *and persistence* authority; the Specification subsystem is a domain that flows through it.
+> **Founding principle.** Code is an implementation artifact. **Engineering Specifications are the engineering truth.** Chronicle records history; the Runtime governs execution; Hermes performs work; Knowledge captures learning; Skills preserve capability. WePLD evolves Spec Kit's philosophy into a permanent Engineering Specification System — Spec Kit is the starting point, not the destination. WePLD is an Engineering Operating System, not an AI IDE.
 
 ---
 
-## 2. The Specification Subsystem (permanent bounded context)
+## PART I — Principles & boundary
 
-A new **permanent** bounded context — a peer of Mission, Orchestration, Quality, Knowledge — with its own domain model and lifecycle, reusing the frozen substrate:
+**Spec Kit adopted as methodology; `/implement` not adopted — the Runtime replaces it.** Phases 1–6 (constitution → specify → clarify → plan → tasks → analyze) become WePLD specification work. Execution is always Mission → Runtime → Hermes → WWP → Evidence → Ledger → Chronicle.
 
-| It owns (domain) | It reuses (frozen substrate) | It never does |
-| --- | --- | --- |
-| Specification objects, versions, links, status, quality, findings, diffs, revision proposals | **CAS** (content), **Ledger** (lifecycle facts + state tables), **Gateway** (reasoning), **Context Assembly** (feeds specs to missions), **Chronicle** (replay/diff/DNA), **Runtime** (the single writer + execution authority) | execute code, hold `ledger::Tx`, call Hermes/WWP, own mission/execution state |
+**The Specification is a canonical object, not a markdown file.** Markdown (Spec Kit's `spec.md`/`plan.md`/`tasks.md`) is *one serialization*. The canonical `SpecificationDocument` is a structured, typed object stored in CAS; markdown is a bidirectional representation (`parse ⇄ render`) for human editing and Spec Kit compatibility. **Every WePLD component interacts with the object, never with markdown.**
 
-**Crate:** directory `crates/specification/`, package **`wepld-specification`**. *Naming note:* the meaningful, permanent name is `specification` (per the directive); the `wepld-` package prefix is retained only for workspace namespace consistency (all crates are `wepld-*`; cargo needs collision-free package names). This is the "strong architectural reason" the directive allows. **Confirm or override in §Open Decisions.**
+**Frozen vs. additive.** "Frozen" = the internals and contracts of the existing systems are unchanged. "Additive" = new domains (Specification, Recipes) + sanctioned additive contract extensions (vocabulary rev 3, `Specification` aggregate) + additive Chronicle derivation rules. This is the same additive path Chronicle used (rev 2). No frozen system is redesigned.
 
-**Layering:** `wepld-specification` is a pure domain library (depends on `contracts` + a structured-markdown parser). It performs no I/O to the ledger, no gateway calls, no execution. The **Runtime** hosts spec *orchestration* (commands, gateway reasoning, ledger writes) by composing `wepld-specification` — exactly as it composes the Mission domain. This preserves the single-writer boundary the M0 release gate verified: the Runtime remains the only `ledger::Tx` holder.
+**Boundary rules (CI-enforced):** Specifications never execute code, never bypass the Runtime, never talk to Hermes directly, never bypass the Ledger, never own execution state. The Runtime is the single execution *and persistence* authority.
+
+**Specification is now a core domain** — a first-class peer of Mission, Runtime, Chronicle, Knowledge, Skill, Decision, ADR, Artifact, Worker, Provider, Context. Not an adapter, not a plugin. Part of the language of WePLD.
 
 ---
 
-## 3. First-class Specification domain model
+## PART II — The Specification domain
 
-Contracts (`crates/contracts/src/specification.rs`, additive, contracts → 0.5.0):
+### II.1 Canonical object model (`crates/contracts/src/specification.rs`, contracts → 0.5.0)
 
 ```rust
-Specification {                       // the living object (state table row)
-  spec_id: String,                    // "spec_01J…" stable identity
-  number: u32,                        // NNN sequential (Spec Kit convention)
-  slug: String,                       // "user-authentication"
-  status: SpecStatus,
-  author: String,                     // authoring principal
-  current_version: u32,
-  created_at, updated_at,
+Specification {                       // living identity (state row)
+  spec_id, number, slug, status: SpecStatus, author, current_version, created_at, updated_at
 }
-SpecStatus = Draft | Clarifying | Planned | Tasked | Active | Revising | Superseded | Archived
+SpecStatus = Draft|Clarifying|Researching|Planned|Tasked|Active|Revising|Superseded|Archived
 
 SpecVersion {                         // immutable snapshot (append-only)
   spec_id, version, revision, timestamp, author,
-  spec_hash,                          // CAS: spec.md content
+  document_hash,                      // CAS: canonical SpecificationDocument (JSON) — the truth
+  render_hashes { markdown, plan_md, tasks_md, … },  // derived representations (also CAS)
   plan_hash?, tasks_hash?, research_hash?, data_model_hash?, contracts_hashes[], constitution_hash?,
-  supersedes: Option<u32>, reason: String,
-  quality: SpecQuality,               // evidence-based (§7)
+  supersedes: Option<u32>, reason, quality: SpecQuality
 }
-SpecLink { spec_id, kind: Mission|Adr|Knowledge|Skill|Spec, target_ref, relation }
-SpecFinding {                         // Specification Intelligence output (§6)
-  spec_id, version, class: FindingClass, severity, evidence_refs[], disposition
+
+SpecificationDocument {               // canonical structured content (serialization-independent)
+  overview, user_stories[], functional_requirements[], acceptance_criteria[]  (each: text + verify),
+  non_functional[], edge_cases[], constraints[], dependencies[], required_skills[],
+  success_metrics[], clarifications[]  (question→answer), open_questions[]  (NEEDS CLARIFICATION)
 }
-SpecRevisionProposal {                // Reverse Sync (§8) — proposal only
-  proposal_id, spec_id, from_version, proposed_by, trigger, diff_ref, rationale,
-  evidence_refs[], status: Proposed|Approved|Rejected
-}
-SpecQuality {                         // §7 — every score cites its evidence
-  completeness, consistency, ambiguity_count, risk, coverage,
-  missing_sections[], review_status, verification_status, evidence_refs[]
-}
-FindingClass = MissingAcceptanceCriteria | HiddenAssumption | ArchitectureContradiction
-  | MissingRollback | MissingBenchmark | MissingSecurity | MissingMigration
-  | MissingTesting | MissingDeployment | MissingPerformance | MissingObservability | MissingRecovery
+
+SpecLink { spec_id, kind: Mission|Adr|Knowledge|Skill|Spec|Context|Recipe, target_ref, relation }
+SpecFinding { spec_id, version, class: FindingClass, severity, evidence_refs[], disposition }
+SpecRevisionProposal { proposal_id, spec_id, from_version, proposed_by, trigger, diff_ref,
+                       rationale, evidence_refs[], status: Proposed|Approved|Rejected }
+SpecQuality { completeness, consistency, ambiguity, coverage, risk, maintainability,
+              review_status, verification_status, missing_sections[], evidence_refs[] }
+FindingClass = MissingAcceptanceCriteria|HiddenAssumption|ArchitectureContradiction|DependencyConflict
+  |MissingRollback|MissingBenchmark|MissingSecurity|MissingMigration|MissingTesting
+  |MissingDeployment|MissingPerformance|MissingObservability|MissingRecovery|MissingOperational
 ```
 
-**Links are first-class** (`spec_links` table): a spec ↔ missions derived from it, ADRs it aligns to, knowledge records it sources, skills it invokes, and other specs it depends on (multi-spec). Chronicle links are implicit via ledger correlation.
+### II.2 Living lifecycle (never finishes; supersession, never deletion)
+
+```
+Draft → Clarifying → Researching → Planned → Tasked → Active
+  ↑ (derived missions execute; evidence & verification accrue)          │
+  └── Revising ← revision approved ← (reverse-sync proposal | manual) ──┘
+Active/Revising → Superseded (a later spec replaces it) → Archived (retained, replayable)
+```
+
+### II.3 Versioning & storage (reuse CAS + Ledger; no second history)
+
+Canonical document + all renders/design-docs → **CAS** (immutable, hashed). Domain rows (`specifications`, `spec_versions`, `spec_links`, `spec_findings`, `spec_revision_proposals`) → ledger state tables, written **only** through the Runtime's single-writer transaction with the matching rev-3 event. Correlation id = `spec_id` → each spec has its own hash-chained, independently-replayable history.
 
 ---
 
-## 4. Living lifecycle & state machine
+## PART III — The Specification Graph
 
-A specification never "ends." Status transitions (each a recorded fact; supersession, never deletion):
+A first-class **graph**, not a flat link list. A derived, rebuildable projection over the ledger's link facts (`SpecLinked` + mission/knowledge/skill/adr/context/recipe references) plus Chronicle causal edges. Reuses the ledger as fact source (no new history), queryable/traversable via a graph API.
 
-```
-Draft ──specify──▶ Clarifying ──clarify──▶ Planned ──plan──▶ Tasked ──tasks──▶ Active
-   ▲                                                                              │
-   │                                       derived missions execute ─────────────┘
-   └────── Revising ◀── revision approved ◀── (reverse-sync proposal | manual edit)
-Active/Revising ──supersede──▶ Superseded    (a later spec replaces it)
-any ──archive──▶ Archived                     (retained, replayable, never deleted)
-```
-
-Chronicle replays the entire lifecycle (§10). Every transition is a ledger fact under the spec's correlation.
-
----
-
-## 5. Versioning & storage (reuse CAS + Ledger; no second history)
-
-- **Content** (spec.md, plan.md, tasks.md, research.md, data-model.md, contracts/, constitution.md) → **CAS**, immutable, content-addressed. A revision is a *new* `SpecVersion` referencing new hashes and `supersedes` the prior — the working copy in the repo `specs/NNN/` is mutable and human-editable; CAS holds the frozen versions.
-- **Domain rows** (`specifications`, `spec_versions`, `spec_links`, `spec_findings`, `spec_revision_proposals`) → the ledger DB state tables, written **only** through the Runtime's single-writer transaction alongside the corresponding spec event.
-- **Lifecycle facts** → the ledger (rev-3 events, §14). Correlation id = `spec_id`, so a spec has its own hash-chained history independent of any mission, and Chronicle can replay it standalone.
-
-Immutability, chain verification, and replay are inherited from the M0 substrate — no new history system.
-
----
-
-## 6. Specification Intelligence (`wepld spec review`)
-
-Hermes (reasoning via the Gateway, orchestrated by the Runtime) reviews a spec version and emits `SpecFinding`s across the twelve `FindingClass`es (missing acceptance criteria, hidden assumptions, architecture contradiction, missing rollback/benchmark/security/migration/testing/deployment/performance/observability/recovery). **Every finding is evidence-based** — it cites the spec section (or its absence) that produced it; nothing is invented (the v2-10 claims discipline applied to specs). Findings are recorded (`SpecReviewed`). Intelligence **never modifies** the spec — it informs the author and feeds Quality (§7). Deterministic under cassettes (fixture-first).
-
-## 7. Spec Quality model (evidence-based, never invented)
-
-`SpecQuality` per version, computed from structure + findings:
-
-| Score | Derivation |
+| Node types | Edge types (typed, directed) |
 | --- | --- |
-| Completeness | required sections present ÷ expected (template-driven) |
-| Consistency | contradiction findings (arch/assumption) → inverse |
-| Ambiguity | count of unresolved `[NEEDS CLARIFICATION]` markers |
-| Risk | severity-weighted open findings |
-| Coverage | acceptance criteria with a machine-checkable `verify` ÷ total |
-| Missing sections | explicit list (the "missing_*" finding classes) |
-| Review / Verification status | last review event / downstream mission gate evidence |
+| Specification, Mission, Knowledge, Skill, ADR, Context, Recipe, Artifact | `depends_on` (spec→spec), `creates` (spec→mission, recipe→spec), `produces` (mission→knowledge/artifact), `references` (spec→adr/knowledge), `requires` (spec→skill, mission→context), `derives` (spec-version→mission), `reverse_syncs` (mission→spec-proposal), `supersedes` (spec→spec) |
 
-Each score references the findings/evidence that produced it. Surfaced by `wepld spec validate` (deterministic checks) and `wepld spec review` (reasoning findings). Quality gates conversion: a spec below a policy threshold (e.g. unresolved clarifications, coverage < 100%) **cannot** be converted to a mission.
+Example traversal: `Recipe → creates → Specification → depends_on → Specification → creates → Mission → produces → Knowledge → creates → Skill → references → ADR`. Powers impact analysis ("which missions/ADRs/skills does revising this spec affect?") and Diff (Part IV). Implemented in `wepld-specification::graph` as a projection; Chronicle contributes temporal/causal edges. **Rebuildable from the ledger; not a source of truth.**
 
-## 8. Reverse Synchronization (proposal-only; approval mandatory)
+---
 
-During execution, Hermes may discover reality diverges from the spec (API/DB/architecture/ADR/dependency changed). It **never** edits the spec. It raises a `SpecRevisionProposal` — recorded as `SpecRevisionProposed` with the divergence evidence and a proposed `SpecDiff` — routed to the founder through the **existing decision/approval machinery** (a decision packet). The founder approves → a `ReviseSpec` command applies it → new `SpecVersion` + `SpecRevisionResolved{approved}`. Rejected → recorded, spec unchanged. This reuses WePLD's "human decides / evidence before assertion" invariants exactly; no new approval mechanism.
+## PART IV — Lifecycle intelligence (Intelligence · Quality · Reverse-Sync · Diff · Replay · DNA)
 
-## 9. Specification Diff (`wepld spec compare`)
+**Specification Intelligence** (`wepld spec review`) — Hermes (Gateway reasoning, Runtime-orchestrated) emits evidence-based `SpecFinding`s across the fourteen `FindingClass`es. Every finding cites the spec section (or its absence). Never invents, never hallucinates, never auto-modifies. Recorded (`SpecReviewed`). Deterministic under cassettes.
 
-Pure function `diff(version_a, version_b) → SpecDiff`:
+**Specification Quality** — per-version scores (completeness, consistency, ambiguity, coverage, risk, maintainability, review/verification status), each citing its evidence. `validate` computes deterministic scores; `review` adds reasoning findings. A spec below policy threshold cannot be converted to a mission.
 
-| Facet | Source |
+**Reverse Synchronization** — during execution Hermes may find reality diverged (architecture/API/DB/ADR/dependency/perf/security assumptions changed). It raises a `SpecRevisionProposal` (evidence + proposed diff) routed through the **existing decision/approval machinery**. It **never** edits the spec; founder approval is mandatory. Approve → `ReviseSpec` → new version + `SpecRevisionResolved`.
+
+**Specification Diff** (`wepld spec compare A B`) — pure `diff(v_a, v_b) → SpecDiff`: changed requirements/architecture/assumptions/tasks + affected missions/ADRs/knowledge/skills/runtime-history (from the graph + Chronicle edges).
+
+**Specification Replay** — Chronicle replays the full spec lifecycle (creation → clarification → research → planning → task/mission generation → execution → evidence → verification → revisions → comparisons → forks) as a session on a **Specification lens**. Reuses Chronicle's frozen engine.
+
+**Specification DNA** — Chronicle insight classes discover cross-spec patterns ("this team omits observability," "this project underestimates testing"). Evidence-based, **advisory only**, promoted by a human into lessons that improve future templates/reviews. Never auto-modifies.
+
+---
+
+## PART V — Engineering Memory & Skills
+
+**Engineering Memory** — approved specifications become **Knowledge**; **Context Assembly** includes relevant specs in future mission packs; future specs, mission planning, and skill discovery reference them via the graph. Specifications are a primary memory type in the compounding-memory thesis.
+
+**Skills integration** — a `SpecificationDocument.required_skills[]` (e.g. Rust, Tokio, PostgreSQL, Security, FHIR, Networking) flows spec → derived mission → worker profile skill pins → Hermes loads the pinned skill packages at mission execution, via the **existing v2-09 skill-resolution machinery**. *Sequencing:* the Skill *registry/packages* are a later milestone; until then `required_skills` is recorded, surfaced, and graph-linked but not auto-loaded (no conflict — a data field ahead of its consumer).
+
+---
+
+## PART VI — Product layer: Templates · Recipes · Quick Actions · Bootstrap
+
+**Specification Templates** — reusable engineering assets: structured spec skeletons per project type (REST API, CLI Application, Rust Library, Desktop Application, Database Migration, Microservice, FHIR Capability, SDK, AI Feature, Infrastructure Change). A template pre-populates the canonical document's sections and default gates/skills. Stored as versioned assets (CAS + registry). `wepld spec new --template rest-api`.
+
+**Engineering Recipes** (`crates/recipes`, `wepld-recipes` — a domain) — **the primary UX. Users use Recipes, not Spec Kit commands.** A Recipe is a named, parameterized orchestration that hides the pipeline: it selects a template, gathers minimal input, and drives specify → clarify → research → plan → tasks → **Mission Conversion → Runtime execution → evidence**, exposing none of the internal workflow. Initial recipes: ✨ Build Feature · 🐞 Fix Bug · ♻ Refactor Module · ⚡ Optimize Performance · 🔒 Security Audit · 📚 Understand Repository · 🧪 Generate Tests · 🚀 Prepare Release · 📦 Upgrade Dependencies · 🏗 Architecture Review. A Recipe **orchestrates** through the Runtime; it owns no execution and no state. Recipes are themselves graph nodes (`recipe → creates → spec`).
+
+**Quick Actions** — the Studio Home surface for Recipes (one-click: Build Feature, Understand Project, Fix Bug, Review Architecture, Generate ADR, Upgrade Dependencies, Security/Performance Audit, Generate Tests, Release Build). One click; the Runtime orchestrates everything. Studio, M3+ (reserved).
+
+**Project Bootstrap** (long-term strategic horizon) — a Recipe: Import Repository → Understand Repository (analysis missions) → Generate Engineering Specifications → Architecture → ADRs → Knowledge → Skills → Mission Backlog → Ready. Turns an existing codebase into a fully-specified WePLD project. Designed here; implemented Future.
+
+---
+
+## PART VII — Substrate integration
+
+**Contracts (rev 3, additive; approved Option B extended):** `Specification` aggregate; `specification.rs` (Part II); vocabulary events — `SpecificationCreated · SpecificationRevised · SpecClarified · SpecResearched · SpecPlanGenerated · SpecTasksGenerated · SpecValidated · SpecReviewed · MissionDerivedFromSpec · SpecRevisionProposed · SpecRevisionResolved · SpecLinked · SpecStatusChanged`. Lock test extended; old ledgers valid.
+
+**Chronicle (engine frozen; additive derivation rules only):** a Specification lens, the new graph/causal edges, a spec-diff comparison facet, and a DNA insight class — all new readers/rules over the same substrate, exactly as Chronicle was designed to grow (v2-11). No frozen Chronicle contract changes.
+
+**Runtime (minimal, additive):** a `spec` orchestration module — `create_spec, clarify_spec, research_spec, generate_spec_plan, generate_spec_tasks, validate_spec, review_spec, revise_spec, create_mission_from_spec, propose_spec_revision, resolve_spec_revision`. Each records its rev-3 event + spec state in one transaction; reasoning ones call the existing Gateway. **No change to the mission state machine, phase engine, Hermes, or WWP.**
+
+**CLI (additive; existing mission commands unchanged):** `wepld spec init|new|clarify|validate|plan|tasks|review|replay|compare` and `wepld mission create --from-spec`. Recipes later: `wepld recipe run <recipe>`. `wepld mission new -f` remains the lower-level primitive conversion builds on.
+
+**Mission Conversion (deterministic, multi-spec):** pure `convert(specs[], plan, tasks, constitution) → { MissionBrief, PlanDoc, SpecProvenance, ValidationReport }`; same hashes → same Mission. A mission may derive from multiple specs; it records all source refs and the spec→mission graph edges. Execution runs the unchanged M0 lifecycle.
+
+---
+
+## PART VIII — Long-term repository vision (guidance only; no restructuring now)
+
+Target domain crates as the platform matures (the founder's domain language): `runtime · chronicle · specification · mission · knowledge · skills · recipes · providers · workspace · ledger · studio` (+ current `contracts · artifacts · wwp · hermes · cli`). **Architectural guidance only — existing code is not restructured in this work.** Naming for the new subsystem: dir `crates/specification/`, package `wepld-specification` (the `wepld-` prefix retained solely for workspace package-namespace consistency — the strong architectural reason the directive allows); `crates/recipes/` → `wepld-recipes`.
+
+---
+
+## PART IX — Determinism · Migration · Compatibility · Gap Notes
+
+- **Determinism/replay:** canonical objects + conversion + diff are pure; reasoning is deterministic under cassettes (record/replay, M1-A); versions immutable in CAS; Chronicle reconstructs the full chain. Golden `spec-to-mission` pins the normative sequence.
+- **Migration:** additive/greenfield. Existing missions, data, and goldens unaffected. Spec-first (via Recipes) becomes the standard workflow; `mission new -f` stays as the primitive. Rev-3 is additive.
+- **Compatibility:** Spec Kit evolves — we adopt concepts+templates, not code; brittle markdown → canonical object + structured render/parse; additive contract change → flagged & lock-tested; `/implement` expectations → documented boundary; project constitution ≠ WePLD Charter.
+- **Gap Notes:** **none.** `/implement` resolved by substitution; every mechanism maps onto existing primitives (CAS, Ledger, Gateway, Context, Chronicle, Runtime, skill-resolution, decision machinery); rev-3 and Chronicle rules are additive-by-design; Skills registry & Bootstrap are *sequencing*, not conflicts.
+
+---
+
+## PART X — Implementation phases (only after go-ahead)
+
+| Phase | Delivers |
 | --- | --- |
-| Changed requirements / assumptions / architecture | spec.md section diff |
-| Changed tasks | tasks.md diff |
-| Affected missions | `spec_links` (missions derived from either version) |
-| Affected ADRs / skills / knowledge | `spec_links` |
-| Affected runtime history | Chronicle causal edges from the spec to executed missions |
+| **Spec-A** | `wepld-specification` crate: canonical model, markdown parse⇄render, templates v0, `validate`, `convert`, `quality`, `diff` (pure, unit-tested). Contracts rev-3 + `Specification` aggregate. `wepld spec init/new/validate`. |
+| **Spec-B** | Runtime spec orchestration (create/revise/status) + `wepld mission create --from-spec` (conversion, CAS capture, spec↔mission graph links, `MissionDerivedFromSpec`). Golden `spec-to-mission`. Runs the unchanged lifecycle. |
+| **Spec-C** | Gateway-backed `clarify/research/plan/tasks/review` (fixture-first + record mode); Spec Quality + Intelligence findings. |
+| **Spec-D** | Reverse synchronization (proposal → decision → approved revision) + `spec compare` diff. |
+| **Spec-E** | Specification Graph API; Chronicle Specification lens + `spec replay`; DNA insight class; Knowledge/Context-Assembly integration; Skills required-skills flow. |
+| **Recipe-A** | `wepld-recipes` + core recipes (Build Feature, Fix Bug) orchestrating the full pipeline; `wepld recipe run`. |
+| **Studio / Bootstrap** | Specification workspace + Quick Actions (M3+); Project Bootstrap (Future). |
 
-Analogous to Chronicle's mission comparison (v2-15 §6), applied to specifications. Deterministic; renders as a comparison document.
+Each phase: small commits, passing tests, fmt + clippy clean, fixture-first determinism, evidence-based verification, no drift.
 
-## 10. Specification Replay (Chronicle)
+## PART XI — Open decisions (confirm to start Spec-A)
 
-Chronicle replays a spec's full lifecycle — creation → clarifications → research → plan → tasks → derived missions → execution → completion → revisions → comparisons → forks — as a session scoped to the spec's ledger correlation. Reuses Chronicle's frame/session engine unchanged; the spec events become frames on a **Specification lens**. `wepld spec replay <spec>`.
+1. **Approve this final design.**
+2. **Crate names:** `wepld-specification` (`crates/specification`) and `wepld-recipes` (`crates/recipes`) — confirm or override the `wepld-` prefix.
+3. **Rev-3 event set** (Part VII, 13 events) — confirm or trim.
+4. **Phase order** (Spec-A → E → Recipe-A) — confirm; and whether to begin implementation now or hold.
 
-## 11. Specification DNA (Chronicle intelligence)
-
-Chronicle's insight pipeline (v2-16) gains spec-pattern insight classes computed across specs/projects: *"this project omits testing strategy 60% of the time," "this team writes strong rollback plans," "specs here average 2 clarification rounds."* Evidence-based, aggregated, **advisory** — promoted by a human into lesson candidates that improve future spec templates/reviews. **Never auto-modifies.** Reuses the existing insight → lesson → knowledge flywheel.
-
-## 12. Engineering Memory integration
-
-Specifications become **Knowledge**: approved specs and their lessons are knowledge records; **Context Assembly** includes relevant specs in future missions' packs (a spec is the highest-value context a real project has); skills and future specs reference them via `spec_links`. This is the compounding-memory thesis (v2-16 §5) with specifications as a primary memory type.
-
----
-
-## 13. Mission Conversion (deterministic; multi-spec)
-
-Pure transform in `wepld-specification`: `convert(specs[], plan, tasks, constitution) → { MissionBrief, PlanDoc, SpecProvenance, ValidationReport }`. Same inputs (same hashes) → same Mission (replayable). A mission may derive from **multiple** specs (dependency_links); the mission records all source spec+version refs. Field mapping as in v1 §5 (outcome, scope, acceptance_criteria→gates, tasks→PlanDoc). The Runtime then creates the mission via the existing command path, recording `MissionDerivedFromSpec` and the spec→mission link. Execution proceeds through the unchanged M0 lifecycle. Reverse-sync findings during execution flow back to the spec (§8).
-
----
-
-## 14. Contract changes (rev 3 — additive; approved as extended Option B)
-
-- **Aggregate type:** add `Specification`.
-- **Vocabulary rev 3** (additive, precedent = Chronicle rev 2): `SpecificationCreated · SpecificationRevised · SpecClarified · SpecPlanGenerated · SpecTasksGenerated · SpecValidated · SpecReviewed · MissionDerivedFromSpec · SpecRevisionProposed · SpecRevisionResolved · SpecLinked · SpecStatusChanged`.
-- **New contract module** `specification.rs` (§3 types), contracts → 0.5.0, lock test extended.
-
-All additive; existing meanings unchanged; old ledgers remain valid. Flagged as touching a frozen contract — proceeding on the founder's Option-B approval.
-
-## 15. Chronicle integration (additive derivation rules — engine frozen)
-
-Chronicle's **engine and substrate stay frozen**; it grows exactly as designed (v2-11: "every item is a new reader or frame/edge rule over the same substrate"). Additive derivation rules: a **Specification lens** (spec events → frames), new causal edges (`derived` spec→mission, `reverse_sync` mission→spec-proposal, `depends` spec→spec), a comparison facet (spec diff), and a DNA insight class. No frozen Chronicle contract changes — it consumes the rev-3 events through its existing projection.
-
-## 16. Repository & crate changes
-
-- New crate `crates/specification/` (`wepld-specification`) — permanent subsystem, pure domain.
-- `contracts`: `specification.rs` + rev-3 vocabulary + `Specification` aggregate (0.5.0).
-- `ledger`: spec state tables + read/write methods (writes only via Runtime Tx).
-- `runtime`: `spec` orchestration module (commands, gateway reasoning, conversion wiring).
-- `cli`: `wepld spec *` commands.
-- `fixtures/spec-templates/` (constitution, spec, plan, tasks — adopted from Spec Kit with structured anchors for robust parsing) + `fixtures/golden/spec-to-mission.trace`.
-- Existing crates, frozen contracts (beyond the additive rev-3), Hermes, WWP, and existing golden traces: **untouched**.
-
-## 17. CLI (additive; existing mission commands unchanged)
-
-`wepld spec init | new <name> | clarify <spec> | validate <spec> | plan <spec> | tasks <spec> | review <spec> | replay <spec> | compare <a> <b>` and `wepld mission create --from-spec <spec…>`. `validate` and `compare` are deterministic/pure; `clarify/plan/tasks/review` use the Gateway (fixture-first, record/replay). `wepld mission new -f` remains as the lower-level primitive the conversion builds on.
-
-## 18. Runtime changes (minimal, additive)
-
-New `spec` orchestration: `create_spec`, `revise_spec`, `clarify_spec`, `generate_spec_plan`, `generate_spec_tasks`, `review_spec`, `validate_spec` (pure), `create_mission_from_spec`, `propose_spec_revision`, `resolve_spec_revision`. Each records the rev-3 event + spec state in one transaction; reasoning ones call the existing Gateway. No change to the mission state machine, phase engine, Hermes, or WWP.
-
-## 19. Studio (reserved, M3+)
-
-When Studio begins, **Specification is its own workspace** — an engineering specification environment (spec objects, versions, quality, findings, diff, replay), v0-generated per IADR-0008. Not a chat, not a markdown editor. Design reserves it; out of scope now.
-
----
-
-## 20. Determinism, migration, risks
-
-- **Determinism/replay:** conversion + diff are pure; reasoning is deterministic under cassettes; spec versions are immutable in CAS; Chronicle reconstructs the full chain. Golden `spec-to-mission` pins the normative sequence.
-- **Migration:** purely additive/greenfield. Existing missions, data, and goldens unaffected. Spec-first becomes the *standard* workflow; `mission new -f` remains the internal primitive. Rev-3 bump is additive.
-- **Compatibility risks:** Spec Kit evolves — we adopt concepts+templates, not code; brittle markdown → WePLD templates use structured anchors; additive contract change → flagged & lock-tested; users expecting `/implement` code-gen → documented boundary (Runtime executes); project constitution ≠ WePLD Charter (never overrides architecture).
-- **Gap Notes:** none. The `/implement` tension is resolved by substitution; everything else maps onto existing primitives; rev-3 is additive-by-design.
-
-## 21. Implementation slices (only after approval)
-
-1. **Spec-A:** `wepld-specification` crate (model, structured templates, parse, `validate`, `convert`, `quality`, `diff` — pure, unit-tested) + `wepld spec init/new/validate`. Contracts rev-3 + `Specification` aggregate.
-2. **Spec-B:** Runtime spec orchestration (create/revise/status) + `wepld mission create --from-spec` (conversion, CAS capture, spec↔mission links, `MissionDerivedFromSpec`) + golden `spec-to-mission`. Executes through the unchanged lifecycle.
-3. **Spec-C:** gateway-backed `spec clarify/plan/tasks/review` (fixture-first + record mode) + Spec Quality + Intelligence findings.
-4. **Spec-D:** reverse synchronization (proposal → decision → approved revision) + `spec compare` diff.
-5. **Spec-E:** Chronicle Specification lens/edges + `spec replay`; DNA insight class; Knowledge/Context-Assembly integration.
-6. **(M3+):** Specification Studio workspace.
-
-Each slice: small commits, passing tests, fmt + clippy clean, fixture-first determinism, evidence-based verification, no drift.
-
-## 22. Open decisions for approval
-
-1. **Approve this updated design** (permanent Specification subsystem, all models).
-2. **Crate name:** `wepld-specification` (dir `crates/specification/`) — confirm, or prefer a non-`wepld-` package name (e.g. `engineering-specification`) despite the workspace-namespace consistency cost.
-3. **Rev-3 event set** (§14) — confirm the twelve events (or trim).
-4. **Slice order** (Spec-A → E) — confirm.
-
-No code will be written until you approve. Protect the Runtime. The Engineering Specification is the product.
+No code will be written until you confirm. Protect the Runtime. Protect the Architecture. The Engineering Specification is the product.
