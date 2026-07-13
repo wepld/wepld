@@ -11,5 +11,7 @@ path = "src/main.rs"
 [dependencies]
 wepld-contracts = { path = "../contracts" }
 wepld-runtime = { path = "../runtime" }
+wepld-providers = { path = "../providers" }
+wepld-artifacts = { path = "../artifacts" }
 serde_json.workspace = true
 clap = { version = "4", features = ["derive"] }

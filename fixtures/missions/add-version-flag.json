@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "mission_id": "mis_demo",
+  "title": "Add a --version flag",
+  "outcome": "notes-cli prints its version when passed --version",
+  "scope": {
+    "repo": "<set by the demo at runtime>",
+    "base_branch": "main",
+    "paths": ["src/**"],
+    "forbidden_paths": []
+  },
+  "acceptance_criteria": [
+    { "id": "AC1", "text": "a VERSION constant is present", "verify": "gate:build" },
+    { "id": "AC2", "text": "the --version flag is handled", "verify": "gate:test" }
+  ],
+  "gates_required": ["build", "test"],
+  "gate_commands": {
+    "build": "grep -q VERSION src/main.rs",
+    "test": "grep -q -- --version src/main.rs"
+  },
+  "autonomy_mode": "bounded_auto",
+  "envelope_declared": { "network": "deny", "dependency_install": "ask", "secrets": [] },
+  "budget": { "max_cost_usd": 5.0, "max_wall_minutes": 90, "max_interrupts": 3 },
+  "classification": "internal",
+  "owner": "principal_local"
+}

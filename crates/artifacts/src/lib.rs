@@ -129,6 +129,12 @@ impl Cas {
     }
 }
 
+/// The content address (sha256 hex) of a body — the same hash [`Cas::put`]
+/// assigns. Lets callers compute an artifact's key without storing it.
+pub fn hash_hex(body: &[u8]) -> String {
+    hex(&Sha256::digest(body))
+}
+
 fn validate_hash(hash: &str) -> Result<(), CasError> {
     if hash.len() != 64 || !hash.chars().all(|c| c.is_ascii_hexdigit()) {
         return Err(CasError::InvalidHash(hash.to_owned()));

@@ -1,6 +1,8 @@
 //! `wepld` — CLI over the Core. Presentation only: every mutation goes
 //! through the Core; every read comes from ledger-backed queries.
 
+mod demo;
+
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -39,6 +41,8 @@ enum Cmd {
     Timeline { mission_id: String },
     /// Verify the ledger hash chain
     Verify,
+    /// Run the full M0 bounded loop on a bundled fixture (self-contained)
+    Demo,
 }
 
 #[derive(Subcommand)]
@@ -79,6 +83,13 @@ fn main() -> ExitCode {
 }
 
 fn run(cli: Cli) -> Result<ExitCode, Box<dyn std::error::Error>> {
+    // The demo is self-contained (its own scratch store); handle it before
+    // touching the default operational store.
+    if matches!(cli.cmd, Cmd::Demo) {
+        demo::run(locate_hermes())?;
+        return Ok(ExitCode::SUCCESS);
+    }
+
     let dir = store_dir(cli.store)?;
     let mut core = Core::open(&dir)?;
     core.set_worker_cmd(locate_hermes());
@@ -168,6 +179,7 @@ fn run(cli: Cli) -> Result<ExitCode, Box<dyn std::error::Error>> {
                 }
             }
         }
+        Cmd::Demo => unreachable!("handled before store open"),
     }
     Ok(ExitCode::SUCCESS)
 }
