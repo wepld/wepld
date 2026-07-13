@@ -1,0 +1,14 @@
+[package]
+name = "wepld-runtime"
+description = "WePLD mission engine: command pipeline, transition function, phase engine (v2-02)"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+wepld-contracts = { path = "../contracts" }
+wepld-ledger = { path = "../ledger" }
+serde_json.workspace = true
+thiserror = "2"
+
+[dev-dependencies]
+tempfile = "3"

@@ -7,6 +7,7 @@
 //! Changing anything here is a contract change: bump [`CONTRACTS_VERSION`],
 //! update the lock tests, and cite the authorizing document in the PR.
 
+pub mod command;
 pub mod envelope;
 pub mod ledger;
 pub mod mission;
@@ -15,7 +16,8 @@ pub mod wwp;
 
 /// Semantic version of the contracts crate (additive minors only; a breaking
 /// change requires a new major and a coexistence window per v2-07).
-pub const CONTRACTS_VERSION: &str = "0.1.0";
+/// 0.2.0: added the Command contract (additive).
+pub const CONTRACTS_VERSION: &str = "0.2.0";
 
 /// Event vocabulary revision (v2-07 §5: rev 2 = base 32 + Chronicle 7).
 pub const EVENT_VOCABULARY_REVISION: u32 = 2;

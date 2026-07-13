@@ -98,8 +98,8 @@ Public APIs are specified in IMPL-02; this document adds purpose, internals, dep
 **Future:** channels mount here (V3); second-seat read-only tokens (V2 candidate).
 
 ### `studio` (app)
-**Purpose:** the product surface — Mission (brief form, plan matrix, status, tier/budget display), Decisions (packet inbox, claims rendering), Cinema at M6 (player, scrubber, drawers; Contact Sheet from M3).
-**Internal:** `surfaces/`, `components/` (evidence chip, claim renderer, envelope badge), `api/` (typed client generated from contracts).
+**Purpose:** the product surface — Mission (brief form, plan matrix, status, tier/budget display), Decisions (packet inbox, claims rendering), Cinema at M6 (player, scrubber, drawers; Contact Sheet from M3). Visual screens are v0-generated per [IADR-0008](adr/IADR-0008-v0-ui-integration.md); engineering owns the integration layers.
+**Internal:** `screens/` (v0-generated, presentation-only — lint-enforced), `viewmodels/`, `state/`, `transport/` (typed dual-transport client), `design/` (versioned v0 prompts).
 **Deps:** none in-workspace (HTTP only); React, Vite.
 **Tests:** component tests for claim rendering (verified vs. unverified styling — the v2-10 invariant); Playwright E2E: create→decide→accept; M6: scrub/step/follow flows.
 **Acceptance (M3):** a mission is completable start-to-finish without the CLI; nothing renders a gate/status not backed by a ledger query.

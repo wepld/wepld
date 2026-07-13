@@ -240,6 +240,22 @@ impl LedgerStore {
         })
     }
 
+    /// Stored (payload_hash, outcome_json) of a processed command, if any —
+    /// the idempotency lookup (v2-02 §2 step 1).
+    pub fn command_record(
+        &self,
+        command_id: &str,
+    ) -> Result<Option<(String, String)>, LedgerError> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT payload_hash, outcome FROM commands WHERE command_id = ?1",
+                [command_id],
+                |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
+            )
+            .optional()?)
+    }
+
     /// Current (title, state) of a mission row, if it exists.
     pub fn mission_row(&self, mission_id: &str) -> Result<Option<(String, String)>, LedgerError> {
         Ok(self
@@ -356,6 +372,36 @@ impl Tx<'_> {
         )?;
         Ok(())
     }
+
+    /// Record a processed command (same transaction as its effects — v2-02 §2).
+    pub fn record_command(
+        &mut self,
+        command_id: &str,
+        command_type: &str,
+        actor: &str,
+        payload_hash: &str,
+        outcome_json: &str,
+    ) -> Result<(), LedgerError> {
+        let ts = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+        self.inner.execute(
+            "INSERT INTO commands (command_id, type, actor, payload_hash, outcome, processed_at)
+             VALUES (?1,?2,?3,?4,?5,?6)",
+            params![
+                command_id,
+                command_type,
+                actor,
+                payload_hash,
+                outcome_json,
+                ts
+            ],
+        )?;
+        Ok(())
+    }
+}
+
+/// Hash payload text for command idempotency comparisons.
+pub fn payload_hash(payload: &serde_json::Value) -> String {
+    hex(&Sha256::digest(payload.to_string().as_bytes()))
 }
 
 fn link_hash(prev_hash: &str, payload_hash: &str, entry_id: &str) -> String {
