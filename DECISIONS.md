@@ -6,5 +6,5 @@ One line per decision made under way. Anything decided under pressure gets writt
 - **2026-07-13** — Stack contradiction (charter Rust/Tauri vs. IADR-0001 TypeScript) resolved by founder: **Rust core + Tauri v2 governs** → IADR-0006 recorded, IADR-0001 superseded, program docs banner-patched.
 - **2026-07-13** — Founder OS: **Windows 11** → development and M4 sandbox path via **WSL2** (IADR-0005/0006). Rust toolchain not yet installed on this machine — first item on the Day-1 checklist.
 - **2026-07-13** — M0 Day 1 executed: Cargo workspace, `wepld-contracts` crate (mission, ledger entry, envelope+tiers, WWP subset, event vocabulary rev 2 with lock test), CI workflow. Local `cargo test` pending toolchain install; CI will verify on first push.
-- **OPEN** — Select the two fixture repositories (needed by Day 3–4; suggestions in IMPL-00).
+- **2026-07-13** — Fixture repositories: **locally generated**, not vendored OSS (no downloads, no licenses, fully deterministic). Workspace tests build a tiny `notes-cli` repo inline in temp dirs; a committed `fixtures/repos/notes-cli` source tree lands on Day 7 when missions first consume it. A real OSS repo for M1 realism remains an open founder pick.
 - **OPEN** — Obtain one hosted-provider API key (not needed until M1; Sprint 1 is cassette-only per IADR-0002).

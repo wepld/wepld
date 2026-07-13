@@ -819,6 +819,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "wepld-artifacts"
+version = "0.1.0"
+dependencies = [
+ "sha2",
+ "tempfile",
+ "thiserror",
+]
+
+[[package]]
 name = "wepld-cli"
 version = "0.1.0"
 dependencies = [
@@ -861,6 +870,14 @@ dependencies = [
  "thiserror",
  "wepld-contracts",
  "wepld-ledger",
+]
+
+[[package]]
+name = "wepld-workspace"
+version = "0.1.0"
+dependencies = [
+ "tempfile",
+ "thiserror",
 ]
 
 [[package]]

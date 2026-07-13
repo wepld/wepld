@@ -1,6 +1,14 @@
 [workspace]
 resolver = "2"
-members = ["crates/contracts", "crates/ledger", "crates/runtime", "crates/cli"]
+members = [
+    "crates/contracts",
+    "crates/ledger",
+    "crates/runtime",
+    "crates/cli",
+    "crates/artifacts",
+    "crates/workspace",
+]
+exclude = ["fixtures"]
 
 [workspace.package]
 version = "0.1.0"
