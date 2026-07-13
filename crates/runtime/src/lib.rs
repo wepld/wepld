@@ -7,17 +7,19 @@
 //! of `wepld_ledger::Tx` in the workspace.
 
 mod commands;
+mod orchestration;
 mod phase;
 
 pub use commands::command_id_for;
-pub use phase::{PhaseOutcome, PhaseSpec};
+pub use orchestration::{builder_pack, planner_pack};
+pub use phase::{PhaseOutcome, PhaseRun, PhaseSpec};
 
 use std::path::Path;
 use wepld_contracts::command::{Command, CommandOutcome};
 use wepld_contracts::envelope::SandboxTier;
 use wepld_contracts::ledger::{ActorType, AggregateType, LedgerEntry};
 use wepld_contracts::vocabulary::EventType;
-use wepld_ledger::{ChainReport, LedgerError, LedgerStore, NewEntry};
+use wepld_ledger::{ChainReport, LedgerError, LedgerStore, NewEntry, TaskRow};
 
 #[derive(Debug, thiserror::Error)]
 pub enum RuntimeError {
@@ -37,6 +39,9 @@ pub struct Core {
     store: LedgerStore,
     cas: wepld_artifacts::Cas,
     gateway: wepld_providers::Gateway,
+    /// How to spawn the WWP worker runtime (default: `hermes` on PATH). The
+    /// Runtime decides which runtime executes; Hermes is the flagship.
+    worker_cmd: Vec<String>,
 }
 
 impl Core {
@@ -92,7 +97,14 @@ impl Core {
             store,
             cas,
             gateway,
+            worker_cmd: vec!["hermes".to_owned()],
         })
+    }
+
+    /// Point the Core at a specific WWP worker binary (tests and the CLI,
+    /// which locate `hermes` next to `wepld`).
+    pub fn set_worker_cmd(&mut self, cmd: Vec<String>) {
+        self.worker_cmd = cmd;
     }
 
     /// The command pipeline (v2-02 §2): idempotency, validation, transition —
@@ -153,6 +165,10 @@ impl Core {
         Ok(self.cas.get(hash)?)
     }
 
+    pub fn tasks(&self, mission_id: &str) -> Result<Vec<TaskRow>, RuntimeError> {
+        Ok(self.store.tasks_for_mission(mission_id)?)
+    }
+
     pub(crate) fn store_mut(&mut self) -> &mut LedgerStore {
         &mut self.store
     }
@@ -163,5 +179,9 @@ impl Core {
 
     pub(crate) fn gateway(&self) -> &wepld_providers::Gateway {
         &self.gateway
+    }
+
+    pub(crate) fn worker_cmd(&self) -> Vec<String> {
+        self.worker_cmd.clone()
     }
 }

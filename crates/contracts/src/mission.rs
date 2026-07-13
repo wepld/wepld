@@ -3,6 +3,7 @@
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct MissionBrief {
@@ -13,11 +14,32 @@ pub struct MissionBrief {
     pub scope: Scope,
     pub acceptance_criteria: Vec<AcceptanceCriterion>,
     pub gates_required: Vec<String>,
+    /// Gate name → shell command run in the task worktree (v2-10 gate
+    /// evidence). Deterministic exit code + captured log become the gate
+    /// result. Under the DEV tier (IADR-0003) the Core runs these directly.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub gate_commands: BTreeMap<String, String>,
     pub autonomy_mode: AutonomyMode,
     pub envelope_declared: DeclaredEnvelope,
     pub budget: Budget,
     pub classification: Classification,
     pub owner: String,
+}
+
+/// A plan produced by the planner phase (brain output, schema `plan.v1`):
+/// the task decomposition a mission executes.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct PlanDoc {
+    pub tasks: Vec<TaskSpec>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct TaskSpec {
+    pub id: String,
+    pub title: String,
+    /// Acceptance-criterion ids this task is responsible for satisfying.
+    #[serde(default)]
+    pub satisfies: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

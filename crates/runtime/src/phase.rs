@@ -26,6 +26,9 @@ pub struct PhaseSpec {
     pub pack: serde_json::Value,
     /// Brain profile the phase may use; reasoning is optional (IADR-0007 §1).
     pub brain_profile: String,
+    /// The worktree the worker may write (build phases). Passed to the worker
+    /// as the envelope's single writable path; empty for read-only phases.
+    pub workspace_path: Option<String>,
     pub heartbeat_timeout_ms: u64,
     pub deadline_ms: u64,
 }
@@ -40,10 +43,22 @@ pub enum PhaseOutcome {
     Uncertain(String),
 }
 
+/// The result of running a phase: its outcome plus the worker's reported
+/// summary (empty when the phase did not complete).
+pub struct PhaseRun {
+    pub outcome: PhaseOutcome,
+    pub summary: serde_json::Value,
+}
+
 impl Core {
-    /// Run one stub phase end-to-end (Day-5 engine; context packs and real
-    /// envelopes deepen on Days 6–8).
+    /// Backwards-compatible wrapper returning only the outcome.
     pub fn run_phase_stub(&mut self, spec: &PhaseSpec) -> Result<PhaseOutcome, RuntimeError> {
+        Ok(self.run_phase(spec)?.outcome)
+    }
+
+    /// Run one phase end-to-end: capture pack, spawn worker, mediate brain
+    /// requests, record every ending honestly, return outcome + summary.
+    pub fn run_phase(&mut self, spec: &PhaseSpec) -> Result<PhaseRun, RuntimeError> {
         // Capture the context pack: store once, reference by hash forever.
         let pack_bytes = serde_json::to_vec(&spec.pack)?;
         let stored = self.cas().put(&pack_bytes)?;
@@ -52,7 +67,7 @@ impl Core {
             hash: stored.hash.clone(),
         };
 
-        let envelope = dev_envelope(&spec.attempt_id);
+        let envelope = dev_envelope(&spec.attempt_id, spec.workspace_path.as_deref());
         let start = AttemptStart {
             attempt_id: spec.attempt_id.clone(),
             task_id: spec.task_id.clone(),
@@ -95,7 +110,10 @@ impl Core {
             Err(e) => {
                 let reason = format!("spawn failed: {e}");
                 self.record_attempt_end(spec, "failed", EventType::AttemptCompleted, &reason)?;
-                return Ok(PhaseOutcome::Failed);
+                return Ok(PhaseRun {
+                    outcome: PhaseOutcome::Failed,
+                    summary: serde_json::json!({}),
+                });
             }
         };
         self.transact_phase_entry(spec, EventType::PhaseStarted, None, |_| Ok(()))?;
@@ -107,7 +125,10 @@ impl Core {
                 handle.kill();
                 let reason = "phase deadline exceeded".to_owned();
                 self.record_attempt_end(spec, "uncertain", EventType::AttemptUncertain, &reason)?;
-                return Ok(PhaseOutcome::Uncertain(reason));
+                return Ok(PhaseRun {
+                    outcome: PhaseOutcome::Uncertain(reason),
+                    summary: serde_json::json!({}),
+                });
             }
             match handle.events.recv_timeout(remaining) {
                 Ok(WorkerEvent::Message(frame)) => match frame.msg {
@@ -127,7 +148,7 @@ impl Core {
                             |_| Ok(()),
                         )?;
                         self.record_attempt_end(spec, state, EventType::AttemptCompleted, state)?;
-                        return Ok(outcome);
+                        return Ok(PhaseRun { outcome, summary });
                     }
                     WwpMessage::BrainRequest(req) => {
                         let Some(rpc_id) = frame.id else {
@@ -139,7 +160,10 @@ impl Core {
                                 EventType::AttemptUncertain,
                                 &reason,
                             )?;
-                            return Ok(PhaseOutcome::Uncertain(reason));
+                            return Ok(PhaseRun {
+                                outcome: PhaseOutcome::Uncertain(reason),
+                                summary: serde_json::json!({}),
+                            });
                         };
                         let result = self.handle_brain_request(spec, &req, rpc_id)?;
                         // A failed respond means the worker is going away;
@@ -158,7 +182,10 @@ impl Core {
                         EventType::AttemptUncertain,
                         &reason,
                     )?;
-                    return Ok(PhaseOutcome::Uncertain(reason));
+                    return Ok(PhaseRun {
+                        outcome: PhaseOutcome::Uncertain(reason),
+                        summary: serde_json::json!({}),
+                    });
                 }
                 Ok(WorkerEvent::Malformed(e)) => {
                     handle.kill();
@@ -169,7 +196,10 @@ impl Core {
                         EventType::AttemptUncertain,
                         &reason,
                     )?;
-                    return Ok(PhaseOutcome::Uncertain(reason));
+                    return Ok(PhaseRun {
+                        outcome: PhaseOutcome::Uncertain(reason),
+                        summary: serde_json::json!({}),
+                    });
                 }
                 Ok(WorkerEvent::Eof) => {
                     let code = handle.wait_exit().ok().flatten();
@@ -180,7 +210,10 @@ impl Core {
                         EventType::AttemptUncertain,
                         &reason,
                     )?;
-                    return Ok(PhaseOutcome::Uncertain(reason));
+                    return Ok(PhaseRun {
+                        outcome: PhaseOutcome::Uncertain(reason),
+                        summary: serde_json::json!({}),
+                    });
                 }
                 Err(_) => continue, // recv timeout tick; deadline re-checked above
             }
@@ -333,13 +366,17 @@ impl Core {
     }
 }
 
-fn dev_envelope(attempt_id: &str) -> Envelope {
+fn dev_envelope(attempt_id: &str, workspace_path: Option<&str>) -> Envelope {
+    let write = match workspace_path {
+        Some(p) => vec![p.to_owned()],
+        None => vec![],
+    };
     Envelope {
         envelope_id: format!("env_{attempt_id}"),
         attempt_id: attempt_id.to_owned(),
         sandbox_tier: SandboxTier::Dev,
         fs: FsScope {
-            write: vec![],
+            write,
             read: vec![],
             deny: vec!["*".to_owned()],
         },

@@ -37,6 +37,7 @@ fn brain_spec(attempt: &str) -> PhaseSpec {
         worker_cmd: hermes_cmd("brain"),
         pack: pack(),
         brain_profile: "fixture-default".to_owned(),
+        workspace_path: None,
         heartbeat_timeout_ms: 2000,
         deadline_ms: 10_000,
     }

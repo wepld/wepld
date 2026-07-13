@@ -1,5 +1,5 @@
 //! `wepld` — CLI over the Core. Presentation only: every mutation goes
-//! through `Core::submit`; every read comes from ledger-backed queries.
+//! through the Core; every read comes from ledger-backed queries.
 
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
@@ -30,6 +30,11 @@ enum Cmd {
         #[command(subcommand)]
         cmd: MissionCmd,
     },
+    /// Plan operations
+    Plan {
+        #[command(subcommand)]
+        cmd: PlanCmd,
+    },
     /// Print a mission's ledger timeline
     Timeline { mission_id: String },
     /// Verify the ledger hash chain
@@ -43,6 +48,14 @@ enum MissionCmd {
         #[arg(short = 'f', long)]
         file: PathBuf,
     },
+    /// Run the planner phase for a draft mission
+    Plan { mission_id: String },
+}
+
+#[derive(Subcommand)]
+enum PlanCmd {
+    /// Approve the proposed plan and materialize its tasks
+    Approve { mission_id: String },
 }
 
 fn main() -> ExitCode {
@@ -59,6 +72,7 @@ fn main() -> ExitCode {
 fn run(cli: Cli) -> Result<ExitCode, Box<dyn std::error::Error>> {
     let dir = store_dir(cli.store)?;
     let mut core = Core::open(&dir)?;
+    core.set_worker_cmd(locate_hermes());
 
     match cli.cmd {
         Cmd::Init => {
@@ -82,19 +96,23 @@ fn run(cli: Cli) -> Result<ExitCode, Box<dyn std::error::Error>> {
                     actor: "principal_local".to_owned(),
                     payload,
                 };
-                match core.submit(&command)? {
-                    CommandOutcome::Accepted { detail } => {
-                        println!(
-                            "ACCEPTED  mission {} → {}",
-                            detail["mission_id"].as_str().unwrap_or("?"),
-                            detail["state"].as_str().unwrap_or("?")
-                        );
-                    }
-                    CommandOutcome::Rejected { reason } => {
-                        println!("REJECTED  {reason}");
-                        return Ok(ExitCode::FAILURE);
-                    }
-                    other => println!("{other:?}"),
+                let outcome = core.submit(&command)?;
+                if !report(&outcome, "mission") {
+                    return Ok(ExitCode::FAILURE);
+                }
+            }
+            MissionCmd::Plan { mission_id } => {
+                let outcome = core.plan_mission(&mission_id)?;
+                if !report(&outcome, "plan") {
+                    return Ok(ExitCode::FAILURE);
+                }
+            }
+        },
+        Cmd::Plan { cmd } => match cmd {
+            PlanCmd::Approve { mission_id } => {
+                let outcome = core.approve_plan(&mission_id)?;
+                if !report(&outcome, "approval") {
+                    return Ok(ExitCode::FAILURE);
                 }
             }
         },
@@ -131,6 +149,46 @@ fn run(cli: Cli) -> Result<ExitCode, Box<dyn std::error::Error>> {
         }
     }
     Ok(ExitCode::SUCCESS)
+}
+
+/// Print a command outcome; return false if it was not accepted.
+fn report(outcome: &CommandOutcome, noun: &str) -> bool {
+    match outcome {
+        CommandOutcome::Accepted { detail } => {
+            let state = detail["state"].as_str().unwrap_or("");
+            let extra = if detail.get("task_count").is_some() {
+                format!(" ({} task(s))", detail["task_count"])
+            } else {
+                String::new()
+            };
+            println!("ACCEPTED  {noun} → {state}{extra}");
+            true
+        }
+        CommandOutcome::Rejected { reason } => {
+            println!("REJECTED  {reason}");
+            false
+        }
+        other => {
+            println!("{other:?}");
+            true
+        }
+    }
+}
+
+/// The `hermes` binary lives next to `wepld` (same Cargo target dir / install).
+fn locate_hermes() -> Vec<String> {
+    let exe = std::env::current_exe().ok();
+    if let Some(dir) = exe.as_ref().and_then(|e| e.parent()) {
+        let candidate = dir.join(if cfg!(windows) {
+            "hermes.exe"
+        } else {
+            "hermes"
+        });
+        if candidate.exists() {
+            return vec![candidate.to_string_lossy().into_owned()];
+        }
+    }
+    vec!["hermes".to_owned()]
 }
 
 fn store_dir(explicit: Option<PathBuf>) -> Result<PathBuf, Box<dyn std::error::Error>> {

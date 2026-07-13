@@ -29,6 +29,7 @@ fn spec(attempt: &str, mode: &str, hb_ms: u64, heartbeat_timeout_ms: u64) -> Pha
         worker_cmd: hermes_cmd(mode, hb_ms),
         pack: serde_json::json!({ "schema_version": 1, "tiers": {} }),
         brain_profile: "fixture-default".to_owned(),
+        workspace_path: None,
         heartbeat_timeout_ms,
         deadline_ms: 10_000,
     }

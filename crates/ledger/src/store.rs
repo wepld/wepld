@@ -158,6 +158,16 @@ pub struct BrainInvocationRow {
     pub latency_ms: u64,
 }
 
+/// A task row (Orchestration-owned unit of work).
+#[derive(Debug, Clone)]
+pub struct TaskRow {
+    pub task_id: String,
+    pub mission_id: String,
+    pub spec_json: String,
+    pub state: String,
+    pub sequence_no: i64,
+}
+
 /// Chain verification result. `broken_at == None` means every hash checks out.
 pub struct ChainReport {
     pub total: u64,
@@ -335,6 +345,66 @@ impl LedgerStore {
             .optional()?)
     }
 
+    /// The stored mission brief (as submitted), if the mission exists.
+    pub fn mission_brief(
+        &self,
+        mission_id: &str,
+    ) -> Result<Option<serde_json::Value>, LedgerError> {
+        let text: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT brief_json FROM missions WHERE mission_id = ?1",
+                [mission_id],
+                |r| r.get(0),
+            )
+            .optional()?;
+        match text {
+            Some(t) => Ok(Some(serde_json::from_str(&t)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// The latest plan (plan_id, plan_json) for a mission, if any.
+    pub fn latest_plan(
+        &self,
+        mission_id: &str,
+    ) -> Result<Option<(String, serde_json::Value)>, LedgerError> {
+        let row: Option<(String, String)> = self
+            .conn
+            .query_row(
+                "SELECT plan_id, plan_json FROM plans WHERE mission_id = ?1
+                 ORDER BY version DESC LIMIT 1",
+                [mission_id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()?;
+        match row {
+            Some((id, json)) => Ok(Some((id, serde_json::from_str(&json)?))),
+            None => Ok(None),
+        }
+    }
+
+    pub fn tasks_for_mission(&self, mission_id: &str) -> Result<Vec<TaskRow>, LedgerError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT task_id, mission_id, spec_json, state, sequence_no
+             FROM tasks WHERE mission_id = ?1 ORDER BY sequence_no",
+        )?;
+        let rows = stmt.query_map([mission_id], |r| {
+            Ok(TaskRow {
+                task_id: r.get(0)?,
+                mission_id: r.get(1)?,
+                spec_json: r.get(2)?,
+                state: r.get(3)?,
+                sequence_no: r.get(4)?,
+            })
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
     /// Current (title, state) of a mission row, if it exists.
     pub fn mission_row(&self, mission_id: &str) -> Result<Option<(String, String)>, LedgerError> {
         Ok(self
@@ -448,6 +518,59 @@ impl Tx<'_> {
         self.inner.execute(
             "UPDATE missions SET state = ?2, revision = revision + 1 WHERE mission_id = ?1",
             params![mission_id, state],
+        )?;
+        Ok(())
+    }
+
+    pub fn insert_plan(
+        &mut self,
+        plan_id: &str,
+        mission_id: &str,
+        version: i64,
+        plan_json: &serde_json::Value,
+    ) -> Result<(), LedgerError> {
+        self.inner.execute(
+            "INSERT INTO plans (plan_id, mission_id, version, plan_json) VALUES (?1,?2,?3,?4)",
+            params![plan_id, mission_id, version, plan_json.to_string()],
+        )?;
+        Ok(())
+    }
+
+    pub fn approve_plan_row(&mut self, plan_id: &str, approver: &str) -> Result<(), LedgerError> {
+        let ts = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+        self.inner.execute(
+            "UPDATE plans SET approved_by = ?2, approved_at = ?3 WHERE plan_id = ?1",
+            params![plan_id, approver, ts],
+        )?;
+        Ok(())
+    }
+
+    pub fn insert_task(
+        &mut self,
+        task_id: &str,
+        mission_id: &str,
+        spec_json: &serde_json::Value,
+        state: &str,
+        sequence_no: i64,
+    ) -> Result<(), LedgerError> {
+        self.inner.execute(
+            "INSERT INTO tasks (task_id, mission_id, spec_json, state, sequence_no)
+             VALUES (?1,?2,?3,?4,?5)",
+            params![
+                task_id,
+                mission_id,
+                spec_json.to_string(),
+                state,
+                sequence_no
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn set_task_state(&mut self, task_id: &str, state: &str) -> Result<(), LedgerError> {
+        self.inner.execute(
+            "UPDATE tasks SET state = ?2 WHERE task_id = ?1",
+            params![task_id, state],
         )?;
         Ok(())
     }

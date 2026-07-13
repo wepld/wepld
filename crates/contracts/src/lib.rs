@@ -19,7 +19,8 @@ pub mod wwp;
 /// change requires a new major and a coexistence window per v2-07).
 /// 0.2.0: added the Command contract (additive).
 /// 0.3.0: added the Brain result contract (additive).
-pub const CONTRACTS_VERSION: &str = "0.3.0";
+/// 0.4.0: added gate_commands, PlanDoc, TaskSpec (additive).
+pub const CONTRACTS_VERSION: &str = "0.4.0";
 
 /// Event vocabulary revision (v2-07 §5: rev 2 = base 32 + Chronicle 7).
 pub const EVENT_VOCABULARY_REVISION: u32 = 2;
