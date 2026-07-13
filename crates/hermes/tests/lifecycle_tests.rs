@@ -27,6 +27,8 @@ fn spec(attempt: &str, mode: &str, hb_ms: u64, heartbeat_timeout_ms: u64) -> Pha
         attempt_id: attempt.to_owned(),
         phase: "build".to_owned(),
         worker_cmd: hermes_cmd(mode, hb_ms),
+        pack: serde_json::json!({ "schema_version": 1, "tiers": {} }),
+        brain_profile: "fixture-default".to_owned(),
         heartbeat_timeout_ms,
         deadline_ms: 10_000,
     }
@@ -145,19 +147,23 @@ fn cancel_is_honored_cooperatively() {
     // Wait for first heartbeat (worker is alive), then cancel.
     loop {
         match handle.events.recv_timeout(Duration::from_secs(5)).unwrap() {
-            WorkerEvent::Message(WwpMessage::Heartbeat(_)) => break,
-            WorkerEvent::Message(_) => continue,
+            WorkerEvent::Message(f) => match f.msg {
+                WwpMessage::Heartbeat(_) => break,
+                _ => continue,
+            },
             other => panic!("unexpected before heartbeat: {other:?}"),
         }
     }
     handle.cancel("att_cxl").unwrap();
     loop {
         match handle.events.recv_timeout(Duration::from_secs(5)).unwrap() {
-            WorkerEvent::Message(WwpMessage::PhaseResult(r)) => {
-                assert_eq!(r.status, PhaseStatus::Cancelled);
-                break;
-            }
-            WorkerEvent::Message(_) => continue,
+            WorkerEvent::Message(f) => match f.msg {
+                WwpMessage::PhaseResult(r) => {
+                    assert_eq!(r.status, PhaseStatus::Cancelled);
+                    break;
+                }
+                _ => continue,
+            },
             other => panic!("expected cancelled result, got {other:?}"),
         }
     }

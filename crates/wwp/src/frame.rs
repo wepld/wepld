@@ -36,6 +36,29 @@ impl FrameMsg {
             msg,
         }
     }
+
+    pub fn request(id: u64, msg: WwpMessage) -> Self {
+        Self {
+            jsonrpc: "2.0".to_owned(),
+            id: Some(id),
+            msg,
+        }
+    }
+}
+
+/// JSON-RPC 2.0 response (Core → worker; first used for `brain.request`).
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ResponseMsg {
+    pub jsonrpc: String,
+    pub id: u64,
+    pub result: serde_json::Value,
+}
+
+/// Anything a WWP peer may receive.
+#[derive(Debug)]
+pub enum Incoming {
+    Message(FrameMsg),
+    Response(ResponseMsg),
 }
 
 pub fn write_frame<W: Write>(w: &mut W, msg: &FrameMsg) -> Result<(), WwpError> {
@@ -46,8 +69,41 @@ pub fn write_frame<W: Write>(w: &mut W, msg: &FrameMsg) -> Result<(), WwpError> 
     Ok(())
 }
 
-/// Read one frame. `Ok(None)` = clean EOF (peer closed the pipe).
+pub fn write_response<W: Write>(w: &mut W, resp: &ResponseMsg) -> Result<(), WwpError> {
+    let body = serde_json::to_vec(resp)?;
+    write!(w, "Content-Length: {}\r\n\r\n", body.len())?;
+    w.write_all(&body)?;
+    w.flush()?;
+    Ok(())
+}
+
+/// Read one frame of either kind. `Ok(None)` = clean EOF.
+pub fn read_incoming<R: BufRead>(r: &mut R) -> Result<Option<Incoming>, WwpError> {
+    let Some(raw) = read_raw(r)? else {
+        return Ok(None);
+    };
+    let value: serde_json::Value = serde_json::from_slice(&raw)?;
+    if value.get("method").is_some() {
+        Ok(Some(Incoming::Message(serde_json::from_value(value)?)))
+    } else if value.get("result").is_some() {
+        Ok(Some(Incoming::Response(serde_json::from_value(value)?)))
+    } else {
+        Err(WwpError::Malformed(serde::de::Error::custom(
+            "frame is neither request nor response",
+        )))
+    }
+}
+
+/// Read one request/notification frame. `Ok(None)` = clean EOF (peer closed
+/// the pipe).
 pub fn read_frame<R: BufRead>(r: &mut R) -> Result<Option<FrameMsg>, WwpError> {
+    match read_raw(r)? {
+        None => Ok(None),
+        Some(buf) => Ok(Some(serde_json::from_slice(&buf)?)),
+    }
+}
+
+fn read_raw<R: BufRead>(r: &mut R) -> Result<Option<Vec<u8>>, WwpError> {
     let mut line = String::new();
     let mut len: Option<usize> = None;
     loop {
@@ -70,7 +126,7 @@ pub fn read_frame<R: BufRead>(r: &mut R) -> Result<Option<FrameMsg>, WwpError> {
     let len = len.ok_or(WwpError::MissingLength)?;
     let mut buf = vec![0u8; len];
     r.read_exact(&mut buf)?;
-    Ok(Some(serde_json::from_slice(&buf)?))
+    Ok(Some(buf))
 }
 
 #[cfg(test)]

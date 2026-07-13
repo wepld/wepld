@@ -8,6 +8,8 @@ edition.workspace = true
 wepld-contracts = { path = "../contracts" }
 wepld-ledger = { path = "../ledger" }
 wepld-wwp = { path = "../wwp" }
+wepld-artifacts = { path = "../artifacts" }
+wepld-providers = { path = "../providers" }
 serde_json.workspace = true
 thiserror = "2"
 

@@ -9,6 +9,7 @@ members = [
     "crates/workspace",
     "crates/wwp",
     "crates/hermes",
+    "crates/providers",
 ]
 exclude = ["fixtures"]
 

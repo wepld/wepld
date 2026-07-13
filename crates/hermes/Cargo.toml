@@ -17,4 +17,6 @@ serde_json.workspace = true
 
 [dev-dependencies]
 wepld-runtime = { path = "../runtime" }
+wepld-providers = { path = "../providers" }
+wepld-artifacts = { path = "../artifacts" }
 tempfile = "3"

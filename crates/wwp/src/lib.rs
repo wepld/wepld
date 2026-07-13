@@ -13,6 +13,9 @@ mod frame;
 mod host;
 mod worker;
 
-pub use frame::{read_frame, write_frame, FrameMsg, WwpError};
+pub use frame::{
+    read_frame, read_incoming, write_frame, write_response, FrameMsg, Incoming, ResponseMsg,
+    WwpError,
+};
 pub use host::{spawn_worker, WorkerEvent, WorkerHandle};
-pub use worker::{send_to_core, worker_read_frame};
+pub use worker::{send_request_to_core, send_to_core, worker_read_incoming};

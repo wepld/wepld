@@ -1,7 +1,9 @@
 //! Host (Core) side: spawn a worker process, deliver `attempt.start`, stream
 //! its messages as events, watch heartbeats, cancel or kill.
 
-use crate::frame::{read_frame, write_frame, FrameMsg, WwpError};
+use crate::frame::{
+    read_incoming, write_frame, write_response, FrameMsg, Incoming, ResponseMsg, WwpError,
+};
 use std::io::BufReader;
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -12,8 +14,9 @@ use wepld_contracts::wwp::{AttemptCancel, AttemptStart, WwpMessage};
 
 #[derive(Debug)]
 pub enum WorkerEvent {
-    /// A message from the worker (any message counts as liveness).
-    Message(WwpMessage),
+    /// A message from the worker (any message counts as liveness). Carries
+    /// the JSON-RPC id so the Runtime can respond to requests.
+    Message(FrameMsg),
     /// The worker's stdout closed (process ending). The Runtime must probe
     /// exit status and decide — EOF is never assumed to be success.
     Eof,
@@ -77,6 +80,18 @@ impl WorkerHandle {
         )
     }
 
+    /// Answer a worker request (e.g. a `BrainResult` for `brain.request`).
+    pub fn respond(&mut self, id: u64, result: serde_json::Value) -> Result<(), WwpError> {
+        write_response(
+            &mut self.stdin,
+            &ResponseMsg {
+                jsonrpc: "2.0".to_owned(),
+                id,
+                result,
+            },
+        )
+    }
+
     pub fn kill(&mut self) {
         self.stopped.store(true, Ordering::Relaxed);
         let _ = self.child.kill();
@@ -107,12 +122,19 @@ fn spawn_reader(
     std::thread::spawn(move || {
         let mut reader = BufReader::new(stdout);
         loop {
-            match read_frame(&mut reader) {
-                Ok(Some(frame)) => {
+            match read_incoming(&mut reader) {
+                Ok(Some(Incoming::Message(frame))) => {
                     *last_seen.lock().expect("liveness lock") = Instant::now();
-                    if tx.send(WorkerEvent::Message(frame.msg)).is_err() {
+                    if tx.send(WorkerEvent::Message(frame)).is_err() {
                         break;
                     }
+                }
+                Ok(Some(Incoming::Response(_))) => {
+                    stopped.store(true, Ordering::Relaxed);
+                    let _ = tx.send(WorkerEvent::Malformed(
+                        "worker sent a response frame".to_owned(),
+                    ));
+                    break;
                 }
                 Ok(None) => {
                     stopped.store(true, Ordering::Relaxed);

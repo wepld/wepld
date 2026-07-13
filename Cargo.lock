@@ -839,7 +839,7 @@ dependencies = [
 
 [[package]]
 name = "wepld-contracts"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "schemars",
  "serde",
@@ -852,7 +852,9 @@ version = "0.1.0"
 dependencies = [
  "serde_json",
  "tempfile",
+ "wepld-artifacts",
  "wepld-contracts",
+ "wepld-providers",
  "wepld-runtime",
  "wepld-wwp",
 ]
@@ -873,14 +875,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "wepld-providers"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror",
+ "wepld-contracts",
+]
+
+[[package]]
 name = "wepld-runtime"
 version = "0.1.0"
 dependencies = [
  "serde_json",
  "tempfile",
  "thiserror",
+ "wepld-artifacts",
  "wepld-contracts",
  "wepld-ledger",
+ "wepld-providers",
  "wepld-wwp",
 ]
 

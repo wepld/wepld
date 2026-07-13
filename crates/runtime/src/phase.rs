@@ -4,13 +4,14 @@
 
 use crate::{Core, RuntimeError};
 use std::time::{Duration, Instant};
+use wepld_contracts::brain::{BrainResult, BrainStatus, Usage};
 use wepld_contracts::envelope::{Envelope, FsScope, NetworkPolicy, ProcessLimits, SandboxTier};
 use wepld_contracts::ledger::{ActorType, AggregateType};
 use wepld_contracts::vocabulary::EventType;
 use wepld_contracts::wwp::{
-    ArtifactRef, AttemptStart, PhaseBudget, PhaseStatus, RoleProfile, WwpMessage,
+    ArtifactRef, AttemptStart, BrainRequest, PhaseBudget, PhaseStatus, RoleProfile, WwpMessage,
 };
-use wepld_ledger::NewEntry;
+use wepld_ledger::{BrainInvocationRow, NewEntry};
 use wepld_wwp::{spawn_worker, WorkerEvent};
 
 pub struct PhaseSpec {
@@ -20,6 +21,11 @@ pub struct PhaseSpec {
     pub phase: String,
     /// Worker program + args (the Runtime decides which WWP runtime runs).
     pub worker_cmd: Vec<String>,
+    /// Context pack v0 (brief + task); captured to the CAS and referenced by
+    /// hash — never duplicated (v2-04 capture discipline).
+    pub pack: serde_json::Value,
+    /// Brain profile the phase may use; reasoning is optional (IADR-0007 §1).
+    pub brain_profile: String,
     pub heartbeat_timeout_ms: u64,
     pub deadline_ms: u64,
 }
@@ -38,6 +44,14 @@ impl Core {
     /// Run one stub phase end-to-end (Day-5 engine; context packs and real
     /// envelopes deepen on Days 6–8).
     pub fn run_phase_stub(&mut self, spec: &PhaseSpec) -> Result<PhaseOutcome, RuntimeError> {
+        // Capture the context pack: store once, reference by hash forever.
+        let pack_bytes = serde_json::to_vec(&spec.pack)?;
+        let stored = self.cas().put(&pack_bytes)?;
+        let pack_ref = ArtifactRef {
+            artifact: format!("art_{}", &stored.hash[..16]),
+            hash: stored.hash.clone(),
+        };
+
         let envelope = dev_envelope(&spec.attempt_id);
         let start = AttemptStart {
             attempt_id: spec.attempt_id.clone(),
@@ -46,17 +60,14 @@ impl Core {
             role_profile: RoleProfile {
                 name: "stub".to_owned(),
                 version: 0,
-                brain_profile: "none".to_owned(),
+                brain_profile: spec.brain_profile.clone(),
                 skills: vec![],
             },
-            context_pack_ref: ArtifactRef {
-                artifact: "none".to_owned(),
-                hash: "0".repeat(64),
-            },
+            context_pack_ref: pack_ref,
             envelope: envelope.clone(),
             gates: vec![],
             budget: PhaseBudget {
-                max_brain_calls: 0,
+                max_brain_calls: 8,
                 max_wall_minutes: 1,
             },
             idempotency_key: format!("{}:1", spec.attempt_id),
@@ -99,25 +110,45 @@ impl Core {
                 return Ok(PhaseOutcome::Uncertain(reason));
             }
             match handle.events.recv_timeout(remaining) {
-                Ok(WorkerEvent::Message(WwpMessage::Heartbeat(_))) => continue,
-                Ok(WorkerEvent::Message(WwpMessage::PhaseResult(result))) => {
-                    let _ = handle.wait_exit();
-                    let (state, outcome) = match result.status {
-                        PhaseStatus::Succeeded => ("succeeded", PhaseOutcome::Succeeded),
-                        PhaseStatus::Failed => ("failed", PhaseOutcome::Failed),
-                        PhaseStatus::Cancelled => ("cancelled", PhaseOutcome::Cancelled),
-                    };
-                    let summary = result.summary.clone();
-                    self.transact_phase_entry(
-                        spec,
-                        EventType::PhaseCompleted,
-                        Some(serde_json::json!({ "status": state, "summary": summary })),
-                        |_| Ok(()),
-                    )?;
-                    self.record_attempt_end(spec, state, EventType::AttemptCompleted, state)?;
-                    return Ok(outcome);
-                }
-                Ok(WorkerEvent::Message(_)) => continue, // other messages: Day 6+
+                Ok(WorkerEvent::Message(frame)) => match frame.msg {
+                    WwpMessage::Heartbeat(_) => continue,
+                    WwpMessage::PhaseResult(result) => {
+                        let _ = handle.wait_exit();
+                        let (state, outcome) = match result.status {
+                            PhaseStatus::Succeeded => ("succeeded", PhaseOutcome::Succeeded),
+                            PhaseStatus::Failed => ("failed", PhaseOutcome::Failed),
+                            PhaseStatus::Cancelled => ("cancelled", PhaseOutcome::Cancelled),
+                        };
+                        let summary = result.summary.clone();
+                        self.transact_phase_entry(
+                            spec,
+                            EventType::PhaseCompleted,
+                            Some(serde_json::json!({ "status": state, "summary": summary })),
+                            |_| Ok(()),
+                        )?;
+                        self.record_attempt_end(spec, state, EventType::AttemptCompleted, state)?;
+                        return Ok(outcome);
+                    }
+                    WwpMessage::BrainRequest(req) => {
+                        let Some(rpc_id) = frame.id else {
+                            handle.kill();
+                            let reason = "brain.request without an id".to_owned();
+                            self.record_attempt_end(
+                                spec,
+                                "uncertain",
+                                EventType::AttemptUncertain,
+                                &reason,
+                            )?;
+                            return Ok(PhaseOutcome::Uncertain(reason));
+                        };
+                        let result = self.handle_brain_request(spec, &req, rpc_id)?;
+                        // A failed respond means the worker is going away;
+                        // the Eof/timeout paths will classify it.
+                        let _ = handle.respond(rpc_id, serde_json::to_value(&result)?);
+                        continue;
+                    }
+                    _ => continue, // remaining messages: Days 7–8
+                },
                 Ok(WorkerEvent::HeartbeatTimeout) => {
                     handle.kill();
                     let reason = "heartbeat timeout".to_owned();
@@ -154,6 +185,98 @@ impl Core {
                 Err(_) => continue, // recv timeout tick; deadline re-checked above
             }
         }
+    }
+
+    /// Gateway round-trip + invocation recording (v2-07 §3): pack fetched by
+    /// hash, response body stored to the CAS, row + `BrainInvoked` fact in
+    /// one transaction. The gateway stays pure; the Runtime owns persistence.
+    fn handle_brain_request(
+        &mut self,
+        spec: &PhaseSpec,
+        req: &BrainRequest,
+        rpc_id: u64,
+    ) -> Result<BrainResult, RuntimeError> {
+        let invocation_id = format!("brn_{}_{rpc_id}", spec.attempt_id);
+
+        let result = match self.cas().get(&req.pack_ref.hash) {
+            Ok(bytes) => {
+                let pack: serde_json::Value = serde_json::from_slice(&bytes)?;
+                self.gateway().invoke(
+                    &invocation_id,
+                    &spec.brain_profile,
+                    &req.intent,
+                    &pack,
+                    &req.pack_ref.hash,
+                    &req.output_schema_id,
+                )?
+            }
+            Err(e) => BrainResult {
+                schema_version: 1,
+                invocation_id: invocation_id.clone(),
+                status: BrainStatus::ProviderError,
+                output: serde_json::json!({}),
+                usage: Usage {
+                    provider: "none".to_owned(),
+                    model: "none".to_owned(),
+                    tokens_in: 0,
+                    tokens_out: 0,
+                    cost_usd: 0.0,
+                    latency_ms: 0,
+                },
+                reason: Some(format!("unknown context pack: {e}")),
+            },
+        };
+
+        let response_ref = self.cas().put(&serde_json::to_vec(&result.output)?)?;
+        let status = serde_json::to_value(result.status)?
+            .as_str()
+            .unwrap_or("unknown")
+            .to_owned();
+        let row = BrainInvocationRow {
+            invocation_id: result.invocation_id.clone(),
+            attempt_id: spec.attempt_id.clone(),
+            profile: spec.brain_profile.clone(),
+            provider: result.usage.provider.clone(),
+            model: result.usage.model.clone(),
+            intent: req.intent.clone(),
+            pack_hash: req.pack_ref.hash.clone(),
+            response_artifact: Some(response_ref.hash.clone()),
+            status: status.clone(),
+            tokens_in: result.usage.tokens_in,
+            tokens_out: result.usage.tokens_out,
+            cost_usd: result.usage.cost_usd,
+            latency_ms: result.usage.latency_ms,
+        };
+        let payload = serde_json::json!({
+            "invocation_id": row.invocation_id,
+            "profile": row.profile,
+            "provider": row.provider,
+            "model": row.model,
+            "intent": row.intent,
+            "pack_hash": row.pack_hash,
+            "response_artifact": row.response_artifact,
+            "status": status,
+            "cost_usd": row.cost_usd,
+            "latency_ms": row.latency_ms,
+        });
+        let attempt_id = spec.attempt_id.clone();
+        let mission_id = spec.mission_id.clone();
+        self.store_mut().transact(|tx| {
+            tx.record_brain_invocation(&row)?;
+            tx.append(&NewEntry {
+                entry_type: EventType::BrainInvoked,
+                schema_version: 1,
+                aggregate_type: AggregateType::Attempt,
+                aggregate_id: attempt_id,
+                actor_type: ActorType::BrainAdapter,
+                actor_id: "gateway".to_owned(),
+                correlation_id: mission_id,
+                causation_ref: None,
+                payload,
+            })?;
+            Ok(())
+        })?;
+        Ok(result)
     }
 
     fn transact_phase_entry(

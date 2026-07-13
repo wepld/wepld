@@ -90,6 +90,21 @@ CREATE TABLE IF NOT EXISTS commands (
   outcome      TEXT NOT NULL,
   processed_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS brain_invocations (
+  invocation_id     TEXT PRIMARY KEY,
+  attempt_id        TEXT NOT NULL,
+  profile           TEXT NOT NULL,
+  provider          TEXT NOT NULL,
+  model             TEXT NOT NULL,
+  intent            TEXT NOT NULL,
+  pack_hash         TEXT NOT NULL,
+  response_artifact TEXT,
+  status            TEXT NOT NULL,
+  tokens_in         INTEGER NOT NULL,
+  tokens_out        INTEGER NOT NULL,
+  cost_usd          REAL NOT NULL,
+  latency_ms        INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS work_queue (
   id           INTEGER PRIMARY KEY,
   kind         TEXT NOT NULL,
@@ -122,6 +137,25 @@ pub struct AppendedRef {
     pub seq: i64,
     pub entry_id: String,
     pub entry_hash: String,
+}
+
+/// One recorded reasoning invocation (v2-07 §3 invocation record; the pack
+/// is referenced by content hash — record once, derive forever).
+#[derive(Debug, Clone)]
+pub struct BrainInvocationRow {
+    pub invocation_id: String,
+    pub attempt_id: String,
+    pub profile: String,
+    pub provider: String,
+    pub model: String,
+    pub intent: String,
+    pub pack_hash: String,
+    pub response_artifact: Option<String>,
+    pub status: String,
+    pub tokens_in: u64,
+    pub tokens_out: u64,
+    pub cost_usd: f64,
+    pub latency_ms: u64,
 }
 
 /// Chain verification result. `broken_at == None` means every hash checks out.
@@ -254,6 +288,39 @@ impl LedgerStore {
                 |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
             )
             .optional()?)
+    }
+
+    pub fn brain_invocations(
+        &self,
+        attempt_id: &str,
+    ) -> Result<Vec<BrainInvocationRow>, LedgerError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT invocation_id, attempt_id, profile, provider, model, intent, pack_hash,
+                    response_artifact, status, tokens_in, tokens_out, cost_usd, latency_ms
+             FROM brain_invocations WHERE attempt_id = ?1 ORDER BY invocation_id",
+        )?;
+        let rows = stmt.query_map([attempt_id], |r| {
+            Ok(BrainInvocationRow {
+                invocation_id: r.get(0)?,
+                attempt_id: r.get(1)?,
+                profile: r.get(2)?,
+                provider: r.get(3)?,
+                model: r.get(4)?,
+                intent: r.get(5)?,
+                pack_hash: r.get(6)?,
+                response_artifact: r.get(7)?,
+                status: r.get(8)?,
+                tokens_in: r.get::<_, i64>(9)? as u64,
+                tokens_out: r.get::<_, i64>(10)? as u64,
+                cost_usd: r.get(11)?,
+                latency_ms: r.get::<_, i64>(12)? as u64,
+            })
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
     }
 
     /// Current state of an attempt row, if it exists.
@@ -406,6 +473,30 @@ impl Tx<'_> {
         self.inner.execute(
             "UPDATE attempts SET state = ?2 WHERE attempt_id = ?1",
             params![attempt_id, state],
+        )?;
+        Ok(())
+    }
+
+    pub fn record_brain_invocation(&mut self, row: &BrainInvocationRow) -> Result<(), LedgerError> {
+        self.inner.execute(
+            "INSERT INTO brain_invocations (invocation_id, attempt_id, profile, provider, model,
+                    intent, pack_hash, response_artifact, status, tokens_in, tokens_out, cost_usd, latency_ms)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)",
+            params![
+                row.invocation_id,
+                row.attempt_id,
+                row.profile,
+                row.provider,
+                row.model,
+                row.intent,
+                row.pack_hash,
+                row.response_artifact,
+                row.status,
+                row.tokens_in as i64,
+                row.tokens_out as i64,
+                row.cost_usd,
+                row.latency_ms as i64,
+            ],
         )?;
         Ok(())
     }

@@ -25,17 +25,47 @@ pub enum RuntimeError {
     Ledger(#[from] LedgerError),
     #[error("serialization error: {0}")]
     Serde(#[from] serde_json::Error),
+    #[error("artifact store error: {0}")]
+    Cas(#[from] wepld_artifacts::CasError),
+    #[error("gateway error: {0}")]
+    Gateway(#[from] wepld_providers::GatewayError),
+    #[error("io error: {0}")]
+    Io(#[from] std::io::Error),
 }
 
 pub struct Core {
     store: LedgerStore,
+    cas: wepld_artifacts::Cas,
+    gateway: wepld_providers::Gateway,
 }
 
 impl Core {
+    /// Open with default configuration: cassettes from `<dir>/cassettes`.
+    pub fn open(dir: &Path) -> Result<Self, RuntimeError> {
+        let cassettes = dir.join("cassettes");
+        Self::open_with(dir, &[&cassettes])
+    }
+
     /// Open (or create) the operational store and ensure the tier fact exists.
     /// Until M4 implements real tier detection, the honest tier is `DEV`
     /// (IADR-0003): no isolation, disclosed, Manual-mode caps.
-    pub fn open(dir: &Path) -> Result<Self, RuntimeError> {
+    ///
+    /// All provider access is constructed here: the fixture adapter is the
+    /// default and only M0 adapter (IADR-0002); reasoning stays optional
+    /// (IADR-0007 §1).
+    pub fn open_with(dir: &Path, cassette_dirs: &[&Path]) -> Result<Self, RuntimeError> {
+        let cas = wepld_artifacts::Cas::open(&dir.join("artifacts"))?;
+        let mut gateway = wepld_providers::Gateway::new(wepld_providers::SchemaRegistry::default());
+        gateway.register_adapter(Box::new(wepld_providers::FixtureAdapter::load(
+            cassette_dirs,
+        )?));
+        gateway.register_profile(wepld_providers::Profile {
+            name: "fixture-default".to_owned(),
+            adapter: "fixture".to_owned(),
+            model: "fixture-model".to_owned(),
+            timeout_ms: 5000,
+        })?;
+
         let mut store = LedgerStore::open(dir)?;
         if store.last_seq()? == 0 {
             let tier = serde_json::to_value(SandboxTier::Dev)?;
@@ -58,7 +88,11 @@ impl Core {
                 Ok(())
             })?;
         }
-        Ok(Self { store })
+        Ok(Self {
+            store,
+            cas,
+            gateway,
+        })
     }
 
     /// The command pipeline (v2-02 §2): idempotency, validation, transition —
@@ -108,7 +142,26 @@ impl Core {
         Ok(self.store.attempt_state(attempt_id)?)
     }
 
+    pub fn brain_invocations(
+        &self,
+        attempt_id: &str,
+    ) -> Result<Vec<wepld_ledger::BrainInvocationRow>, RuntimeError> {
+        Ok(self.store.brain_invocations(attempt_id)?)
+    }
+
+    pub fn artifact(&self, hash: &str) -> Result<Vec<u8>, RuntimeError> {
+        Ok(self.cas.get(hash)?)
+    }
+
     pub(crate) fn store_mut(&mut self) -> &mut LedgerStore {
         &mut self.store
+    }
+
+    pub(crate) fn cas(&self) -> &wepld_artifacts::Cas {
+        &self.cas
+    }
+
+    pub(crate) fn gateway(&self) -> &wepld_providers::Gateway {
+        &self.gateway
     }
 }
