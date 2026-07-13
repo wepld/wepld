@@ -55,11 +55,25 @@ pub enum EventType {
     InsightRecorded,
     AnnotationRecorded,
     ReplayExported,
+    // ── Engineering Specification System additions (rev 3) ─────────────
+    SpecificationCreated,
+    SpecificationRevised,
+    SpecClarified,
+    SpecResearched,
+    SpecPlanGenerated,
+    SpecTasksGenerated,
+    SpecValidated,
+    SpecReviewed,
+    MissionDerivedFromSpec,
+    SpecRevisionProposed,
+    SpecRevisionResolved,
+    SpecLinked,
+    SpecStatusChanged,
 }
 
 impl EventType {
     /// Every member of the vocabulary, in normative order.
-    pub const ALL: [EventType; 39] = [
+    pub const ALL: [EventType; 52] = [
         EventType::MissionCreated,
         EventType::MissionRevised,
         EventType::PlanProposed,
@@ -99,6 +113,19 @@ impl EventType {
         EventType::InsightRecorded,
         EventType::AnnotationRecorded,
         EventType::ReplayExported,
+        EventType::SpecificationCreated,
+        EventType::SpecificationRevised,
+        EventType::SpecClarified,
+        EventType::SpecResearched,
+        EventType::SpecPlanGenerated,
+        EventType::SpecTasksGenerated,
+        EventType::SpecValidated,
+        EventType::SpecReviewed,
+        EventType::MissionDerivedFromSpec,
+        EventType::SpecRevisionProposed,
+        EventType::SpecRevisionResolved,
+        EventType::SpecLinked,
+        EventType::SpecStatusChanged,
     ];
 
     /// The wire spelling of the fact. Exhaustive by construction: a new
@@ -144,6 +171,19 @@ impl EventType {
             EventType::InsightRecorded => "InsightRecorded",
             EventType::AnnotationRecorded => "AnnotationRecorded",
             EventType::ReplayExported => "ReplayExported",
+            EventType::SpecificationCreated => "SpecificationCreated",
+            EventType::SpecificationRevised => "SpecificationRevised",
+            EventType::SpecClarified => "SpecClarified",
+            EventType::SpecResearched => "SpecResearched",
+            EventType::SpecPlanGenerated => "SpecPlanGenerated",
+            EventType::SpecTasksGenerated => "SpecTasksGenerated",
+            EventType::SpecValidated => "SpecValidated",
+            EventType::SpecReviewed => "SpecReviewed",
+            EventType::MissionDerivedFromSpec => "MissionDerivedFromSpec",
+            EventType::SpecRevisionProposed => "SpecRevisionProposed",
+            EventType::SpecRevisionResolved => "SpecRevisionResolved",
+            EventType::SpecLinked => "SpecLinked",
+            EventType::SpecStatusChanged => "SpecStatusChanged",
         }
     }
 }
@@ -152,7 +192,7 @@ impl EventType {
 mod tests {
     use super::*;
 
-    const EXPECTED: [&str; 39] = [
+    const EXPECTED: [&str; 52] = [
         "MissionCreated",
         "MissionRevised",
         "PlanProposed",
@@ -192,11 +232,24 @@ mod tests {
         "InsightRecorded",
         "AnnotationRecorded",
         "ReplayExported",
+        "SpecificationCreated",
+        "SpecificationRevised",
+        "SpecClarified",
+        "SpecResearched",
+        "SpecPlanGenerated",
+        "SpecTasksGenerated",
+        "SpecValidated",
+        "SpecReviewed",
+        "MissionDerivedFromSpec",
+        "SpecRevisionProposed",
+        "SpecRevisionResolved",
+        "SpecLinked",
+        "SpecStatusChanged",
     ];
 
     #[test]
-    fn vocabulary_is_locked_at_revision_2() {
-        assert_eq!(crate::EVENT_VOCABULARY_REVISION, 2);
+    fn vocabulary_is_locked_at_revision_3() {
+        assert_eq!(crate::EVENT_VOCABULARY_REVISION, 3);
         assert_eq!(EventType::ALL.len(), EXPECTED.len());
         for (ev, name) in EventType::ALL.iter().zip(EXPECTED.iter()) {
             assert_eq!(ev.code(), *name, "code() disagrees with the lock list");

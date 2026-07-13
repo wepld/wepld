@@ -41,6 +41,9 @@ pub enum AggregateType {
     Attempt,
     Decision,
     System,
+    /// Engineering Specification aggregate (rev 3) — a spec has its own
+    /// hash-chained history, correlated by spec_id, independent of any mission.
+    Specification,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

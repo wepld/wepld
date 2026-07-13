@@ -12,6 +12,7 @@ pub mod command;
 pub mod envelope;
 pub mod ledger;
 pub mod mission;
+pub mod specification;
 pub mod vocabulary;
 pub mod wwp;
 
@@ -20,7 +21,10 @@ pub mod wwp;
 /// 0.2.0: added the Command contract (additive).
 /// 0.3.0: added the Brain result contract (additive).
 /// 0.4.0: added gate_commands, PlanDoc, TaskSpec (additive).
-pub const CONTRACTS_VERSION: &str = "0.4.0";
+/// 0.5.0: Engineering Specification System — specification contract +
+///        rev-3 vocabulary + Specification aggregate (additive).
+pub const CONTRACTS_VERSION: &str = "0.5.0";
 
-/// Event vocabulary revision (v2-07 §5: rev 2 = base 32 + Chronicle 7).
-pub const EVENT_VOCABULARY_REVISION: u32 = 2;
+/// Event vocabulary revision (rev 2 = base 32 + Chronicle 7;
+/// rev 3 = + Specification System 13).
+pub const EVENT_VOCABULARY_REVISION: u32 = 3;

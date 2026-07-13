@@ -1,0 +1,9 @@
+[package]
+name = "wepld-specification"
+description = "WePLD Engineering Specification domain: canonical spec objects, validation, quality, templates (pure; the Runtime owns persistence & execution)"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+wepld-contracts = { path = "../contracts" }
+serde_json.workspace = true
