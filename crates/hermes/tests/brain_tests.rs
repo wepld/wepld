@@ -38,6 +38,7 @@ fn brain_spec(attempt: &str) -> PhaseSpec {
         pack: pack(),
         brain_profile: "fixture-default".to_owned(),
         workspace_path: None,
+        max_brain_calls: 8,
         heartbeat_timeout_ms: 2000,
         deadline_ms: 10_000,
     }

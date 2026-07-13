@@ -160,6 +160,32 @@ fn tampering_is_detected_by_chain_verification() {
 }
 
 #[test]
+fn failed_transaction_rolls_back_atomically() {
+    let (_dir, mut store) = open_store();
+    create_mission(&mut store, "mis_1", "t");
+    let before = store.last_seq().unwrap();
+
+    // A transaction that appends and mutates, then errors, must persist nothing.
+    let result: Result<(), LedgerError> = store.transact(|tx| {
+        tx.set_mission_state("mis_1", "running")?;
+        tx.append(&entry(
+            "mis_1",
+            EventType::PlanApproved,
+            serde_json::json!({}),
+        ))?;
+        Err(LedgerError::IdGeneration)
+    });
+    assert!(result.is_err());
+    assert_eq!(store.last_seq().unwrap(), before, "append rolled back");
+    assert_eq!(
+        store.mission_row("mis_1").unwrap().unwrap().1,
+        "draft",
+        "state mutation rolled back"
+    );
+    assert!(store.verify_chain().unwrap().is_valid());
+}
+
+#[test]
 fn synced_folders_are_refused() {
     let err = LedgerStore::open(std::path::Path::new("/tmp/OneDrive/wepld-store"))
         .err()

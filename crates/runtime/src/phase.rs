@@ -29,6 +29,9 @@ pub struct PhaseSpec {
     /// The worktree the worker may write (build phases). Passed to the worker
     /// as the envelope's single writable path; empty for read-only phases.
     pub workspace_path: Option<String>,
+    /// Hard cap on brain calls per attempt. Enforced by the Core: a worker
+    /// that exceeds it is killed and the attempt fails (bounds request spam).
+    pub max_brain_calls: u32,
     pub heartbeat_timeout_ms: u64,
     pub deadline_ms: u64,
 }
@@ -82,7 +85,7 @@ impl Core {
             envelope: envelope.clone(),
             gates: vec![],
             budget: PhaseBudget {
-                max_brain_calls: 8,
+                max_brain_calls: spec.max_brain_calls,
                 max_wall_minutes: 1,
             },
             idempotency_key: format!("{}:1", spec.attempt_id),
@@ -119,6 +122,7 @@ impl Core {
         self.transact_phase_entry(spec, EventType::PhaseStarted, None, |_| Ok(()))?;
 
         let deadline = Instant::now() + Duration::from_millis(spec.deadline_ms);
+        let mut brain_calls: u32 = 0;
         loop {
             let remaining = deadline.saturating_duration_since(Instant::now());
             if remaining.is_zero() {
@@ -165,6 +169,24 @@ impl Core {
                                 summary: serde_json::json!({}),
                             });
                         };
+                        brain_calls += 1;
+                        if brain_calls > spec.max_brain_calls {
+                            handle.kill();
+                            let reason = format!(
+                                "brain call budget exceeded ({} > {})",
+                                brain_calls, spec.max_brain_calls
+                            );
+                            self.record_attempt_end(
+                                spec,
+                                "failed",
+                                EventType::AttemptCompleted,
+                                &reason,
+                            )?;
+                            return Ok(PhaseRun {
+                                outcome: PhaseOutcome::Failed,
+                                summary: serde_json::json!({}),
+                            });
+                        }
                         let result = self.handle_brain_request(spec, &req, rpc_id)?;
                         // A failed respond means the worker is going away;
                         // the Eof/timeout paths will classify it.

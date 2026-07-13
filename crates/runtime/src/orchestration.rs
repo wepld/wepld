@@ -42,6 +42,7 @@ impl Core {
             pack,
             brain_profile: "fixture-default".to_owned(),
             workspace_path: None,
+            max_brain_calls: 8,
             heartbeat_timeout_ms: 4000,
             deadline_ms: 30_000,
         };
@@ -175,7 +176,15 @@ impl Core {
             .expect("running mission has brief");
         let brief: MissionBrief = serde_json::from_value(brief_json.clone())?;
 
-        let ws = Workspace::open(std::path::Path::new(&brief.scope.repo))?;
+        let ws = match Workspace::open(std::path::Path::new(&brief.scope.repo)) {
+            Ok(w) => w,
+            Err(e) => {
+                return Ok(rejected(format!(
+                    "cannot open repository {}: {e}",
+                    brief.scope.repo
+                )))
+            }
+        };
         let base = brief.scope.base_branch.clone();
         let worktrees_root = self.root().join("worktrees");
 
@@ -205,6 +214,7 @@ impl Core {
                 pack: builder_pack(&brief_json, &task_spec),
                 brain_profile: "fixture-default".to_owned(),
                 workspace_path: Some(worktree.path.to_string_lossy().into_owned()),
+                max_brain_calls: 8,
                 heartbeat_timeout_ms: 4000,
                 deadline_ms: 30_000,
             };

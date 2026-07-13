@@ -5,6 +5,14 @@ use serde::{Deserialize, Serialize};
 use std::io::{BufRead, Write};
 use wepld_contracts::wwp::WwpMessage;
 
+/// A single frame body may not exceed this size. Bounds the allocation a
+/// misbehaving or malicious worker can force via `Content-Length` (a WWP peer
+/// is untrusted — v2-03). Context packs and results are far smaller.
+pub const MAX_CONTENT_LEN: usize = 64 * 1024 * 1024;
+/// A frame's headers may not exceed this size (bounds a headerless byte
+/// stream that would otherwise grow a line buffer without limit).
+pub const MAX_HEADER_BYTES: usize = 16 * 1024;
+
 #[derive(Debug, thiserror::Error)]
 pub enum WwpError {
     #[error("io error: {0}")]
@@ -13,6 +21,10 @@ pub enum WwpError {
     MissingLength,
     #[error("invalid Content-Length: {0}")]
     BadLength(String),
+    #[error("frame Content-Length {0} exceeds maximum {MAX_CONTENT_LEN}")]
+    ContentTooLarge(usize),
+    #[error("frame headers exceed maximum {MAX_HEADER_BYTES} bytes")]
+    HeaderTooLarge,
     #[error("malformed message: {0}")]
     Malformed(#[from] serde_json::Error),
 }
@@ -104,13 +116,19 @@ pub fn read_frame<R: BufRead>(r: &mut R) -> Result<Option<FrameMsg>, WwpError> {
 }
 
 fn read_raw<R: BufRead>(r: &mut R) -> Result<Option<Vec<u8>>, WwpError> {
-    let mut line = String::new();
     let mut len: Option<usize> = None;
+    let mut header_budget = MAX_HEADER_BYTES;
     loop {
-        line.clear();
-        if r.read_line(&mut line)? == 0 {
-            return Ok(None);
-        }
+        let Some(line) = read_header_line(r, &mut header_budget)? else {
+            // Clean EOF only if it happened before any header byte.
+            return if header_budget == MAX_HEADER_BYTES {
+                Ok(None)
+            } else {
+                Err(WwpError::Io(std::io::Error::from(
+                    std::io::ErrorKind::UnexpectedEof,
+                )))
+            };
+        };
         let t = line.trim();
         if t.is_empty() {
             break;
@@ -124,9 +142,39 @@ fn read_raw<R: BufRead>(r: &mut R) -> Result<Option<Vec<u8>>, WwpError> {
         }
     }
     let len = len.ok_or(WwpError::MissingLength)?;
+    if len > MAX_CONTENT_LEN {
+        return Err(WwpError::ContentTooLarge(len));
+    }
     let mut buf = vec![0u8; len];
     r.read_exact(&mut buf)?;
     Ok(Some(buf))
+}
+
+/// Read one header line (up to the `\n`) without allocating beyond the shared
+/// header budget. Returns `None` on EOF with no bytes read.
+fn read_header_line<R: BufRead>(r: &mut R, budget: &mut usize) -> Result<Option<String>, WwpError> {
+    let mut line: Vec<u8> = Vec::new();
+    let mut saw_any = false;
+    loop {
+        let mut byte = [0u8; 1];
+        let n = r.read(&mut byte)?;
+        if n == 0 {
+            return if saw_any {
+                Ok(Some(String::from_utf8_lossy(&line).into_owned()))
+            } else {
+                Ok(None)
+            };
+        }
+        saw_any = true;
+        if *budget == 0 {
+            return Err(WwpError::HeaderTooLarge);
+        }
+        *budget -= 1;
+        if byte[0] == b'\n' {
+            return Ok(Some(String::from_utf8_lossy(&line).into_owned()));
+        }
+        line.push(byte[0]);
+    }
 }
 
 #[cfg(test)]
@@ -169,5 +217,39 @@ mod tests {
         let mut buf = b"Content-Length: 9\r\n\r\nnot-json!".to_vec();
         let mut r = Cursor::new(&mut buf);
         assert!(matches!(read_frame(&mut r), Err(WwpError::Malformed(_))));
+    }
+
+    #[test]
+    fn huge_content_length_is_refused_without_allocating() {
+        // A malicious worker claims a terabyte body. Must error, not OOM.
+        let mut r = Cursor::new(b"Content-Length: 1099511627776\r\n\r\n".to_vec());
+        assert!(matches!(
+            read_frame(&mut r),
+            Err(WwpError::ContentTooLarge(1099511627776))
+        ));
+    }
+
+    #[test]
+    fn headerless_byte_stream_is_bounded() {
+        // No newline ever: the header budget stops it instead of growing forever.
+        let flood = vec![b'A'; MAX_HEADER_BYTES + 1024];
+        let mut r = Cursor::new(flood);
+        assert!(matches!(read_frame(&mut r), Err(WwpError::HeaderTooLarge)));
+    }
+
+    #[test]
+    fn truncated_body_is_an_error_not_a_hang() {
+        // Content-Length promises 100 bytes; only 3 arrive, then EOF.
+        let mut r = Cursor::new(b"Content-Length: 100\r\n\r\nabc".to_vec());
+        assert!(matches!(read_frame(&mut r), Err(WwpError::Io(_))));
+    }
+
+    #[test]
+    fn max_valid_frame_still_parses() {
+        // A large-but-legal body round-trips.
+        let mut buf = Vec::new();
+        write_frame(&mut buf, &hb(&"x".repeat(100_000))).unwrap();
+        let mut r = Cursor::new(buf);
+        assert!(read_frame(&mut r).unwrap().is_some());
     }
 }

@@ -44,6 +44,16 @@ fn main() {
         std::process::exit(9);
     }
 
+    if mode == "garbage" {
+        // Protocol violation: emit non-frame bytes on stdout.
+        use std::io::Write as _;
+        let mut out = std::io::stdout().lock();
+        let _ = out.write_all(b"this is not a valid wwp frame\n\n");
+        let _ = out.flush();
+        std::thread::sleep(Duration::from_secs(30));
+        return;
+    }
+
     if mode != "mute" {
         let hb_attempt = attempt_id.clone();
         std::thread::spawn(move || loop {
@@ -94,6 +104,23 @@ fn main() {
                 Post::PassSummary,
             ),
         },
+        // brainspam: flood the Core with brain.requests (exercises the
+        // Core-side brain-call budget enforcement).
+        "brainspam" => {
+            for i in 0..1000u64 {
+                let _ = send_request_to_core(
+                    WwpMessage::BrainRequest(BrainRequest {
+                        attempt_id: attempt_id.clone(),
+                        intent: "stub_step".to_owned(),
+                        pack_ref: start.context_pack_ref.clone(),
+                        output_schema_id: "phase_summary.v1".to_owned(),
+                        budget_hint: None,
+                    }),
+                    i + 1,
+                );
+                std::thread::sleep(Duration::from_millis(1));
+            }
+        }
         // mute: no heartbeats, wait for cancel (exercises the watchdog).
         // hang: heartbeats forever, wait for cancel (exercises cancellation).
         "mute" | "hang" => loop {

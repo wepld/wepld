@@ -20,3 +20,4 @@ wepld-runtime = { path = "../runtime" }
 wepld-providers = { path = "../providers" }
 wepld-artifacts = { path = "../artifacts" }
 tempfile = "3"
+rusqlite = { version = "0.40.1", features = ["bundled"] }

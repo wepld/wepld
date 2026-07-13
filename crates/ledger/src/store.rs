@@ -195,6 +195,9 @@ impl LedgerStore {
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "synchronous", "FULL")?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
+        // If another process holds the write lock, wait rather than failing
+        // instantly (the single-writer design means this is transient).
+        conn.busy_timeout(std::time::Duration::from_secs(5))?;
         conn.execute_batch(SCHEMA)?;
         Ok(Self {
             conn,
