@@ -19,6 +19,11 @@ impl Default for SchemaRegistry {
             "review_findings.v1".to_owned(),
             vec!["findings", "disposition"],
         );
+        // A model-generated engineering specification (Build Feature recipe).
+        required.insert(
+            "specification.v1".to_owned(),
+            vec!["overview", "acceptance_criteria"],
+        );
         Self { required }
     }
 }

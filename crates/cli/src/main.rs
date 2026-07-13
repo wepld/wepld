@@ -2,6 +2,7 @@
 //! through the Core; every read comes from ledger-backed queries.
 
 mod demo;
+mod recipe_demo;
 mod spec_demo;
 
 use clap::{Parser, Subcommand};
@@ -44,11 +45,22 @@ enum Cmd {
         #[command(subcommand)]
         cmd: SpecCmd,
     },
+    /// Engineering Recipes — the one-command way to get engineering done
+    Recipe {
+        #[command(subcommand)]
+        cmd: RecipeCmd,
+    },
     /// Print a mission's ledger timeline
     Timeline { mission_id: String },
     /// Verify the ledger hash chain
     Verify,
     /// Run the full M0 bounded loop on a bundled fixture (self-contained)
+    Demo,
+}
+
+#[derive(Subcommand)]
+enum RecipeCmd {
+    /// Run the Build Feature recipe end-to-end on a bundled fixture (self-contained)
     Demo,
 }
 
@@ -130,6 +142,13 @@ fn run(cli: Cli) -> Result<ExitCode, Box<dyn std::error::Error>> {
     }
     if let Cmd::Spec { cmd } = &cli.cmd {
         return run_spec(cmd);
+    }
+    if let Cmd::Recipe {
+        cmd: RecipeCmd::Demo,
+    } = &cli.cmd
+    {
+        recipe_demo::run(locate_hermes())?;
+        return Ok(ExitCode::SUCCESS);
     }
 
     let dir = store_dir(cli.store)?;
@@ -235,7 +254,9 @@ fn run(cli: Cli) -> Result<ExitCode, Box<dyn std::error::Error>> {
                 }
             }
         }
-        Cmd::Demo | Cmd::Spec { .. } => unreachable!("handled before store open"),
+        Cmd::Demo | Cmd::Spec { .. } | Cmd::Recipe { .. } => {
+            unreachable!("handled before store open")
+        }
     }
     Ok(ExitCode::SUCCESS)
 }

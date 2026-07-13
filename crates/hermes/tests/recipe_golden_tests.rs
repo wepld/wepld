@@ -1,0 +1,206 @@
+//! Build Feature recipe golden: the one-command flow (request → Hermes reasons
+//! a spec → mission → execution → evidence → accept → report) must produce
+//! exactly the recorded trace and a full-confidence, evidence-derived report.
+//! Deterministic under cassettes.
+
+use std::path::Path;
+use std::process::Command;
+use wepld_runtime::{builder_pack, Core, RecipeOutcome};
+use wepld_specification::{convert, ConvertInput, SpecAcceptanceCriterion, SpecificationDocument};
+
+const EXPECTED_TRACE: &str = include_str!("../../../fixtures/golden/build-feature.trace");
+const REQUEST: &str = "Add a --version flag to notes-cli";
+const SLUG: &str = "version-flag";
+const EDITED_MAIN: &str = "fn main() {\n    const VERSION: &str = \"0.1.0\";\n    if std::env::args().any(|a| a == \"--version\") { println!(\"{VERSION}\"); }\n}\n";
+
+fn hermes_bin() -> String {
+    env!("CARGO_BIN_EXE_hermes").to_owned()
+}
+
+fn git(dir: &Path, args: &[&str]) {
+    let out = Command::new("git")
+        .args(args)
+        .current_dir(dir)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "git {args:?}: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+fn fixture_repo(root: &Path) -> std::path::PathBuf {
+    let repo = root.join("notes-cli");
+    std::fs::create_dir_all(repo.join("src")).unwrap();
+    std::fs::write(repo.join("src/main.rs"), "fn main() {}\n").unwrap();
+    git(&repo, &["init", "-q", "-b", "main"]);
+    git(&repo, &["config", "user.name", "Fixture"]);
+    git(&repo, &["config", "user.email", "fixture@local"]);
+    git(&repo, &["add", "-A"]);
+    git(&repo, &["commit", "-q", "-m", "initial"]);
+    repo
+}
+
+fn reasoned_spec() -> SpecificationDocument {
+    let mut d = SpecificationDocument {
+        overview: "Add a --version flag to notes-cli".to_owned(),
+        functional_requirements: vec!["Print the version on --version".to_owned()],
+        acceptance_criteria: vec![SpecAcceptanceCriterion {
+            id: "AC1".to_owned(),
+            text: "VERSION present".to_owned(),
+            verify: "gate:build".to_owned(),
+        }],
+        ..Default::default()
+    };
+    d.verification
+        .insert("build".to_owned(), "grep -q VERSION src/main.rs".to_owned());
+    d
+}
+
+fn write_cassettes(store: &Path, repo: &str) {
+    let doc = reasoned_spec();
+    let specify_pack =
+        serde_json::json!({ "schema_version": 1, "intent": "specify", "request": REQUEST });
+    let specify_key = wepld_providers::cassette_key(
+        "specify",
+        &wepld_artifacts::hash_hex(&serde_json::to_vec(&specify_pack).unwrap()),
+        "specification.v1",
+        "fixture-model",
+    );
+    let cassette = store.join("cassettes/r.jsonl");
+    wepld_providers::write_cassette_entry(
+        &cassette,
+        &specify_key,
+        &serde_json::to_value(&doc).unwrap(),
+        "fixture-model",
+    )
+    .unwrap();
+
+    let conv = convert(ConvertInput {
+        doc: &doc,
+        spec_id: "spec_version-flag",
+        version: 1,
+        document_hash: "x",
+        slug: SLUG,
+        repo,
+        base_branch: "main",
+        paths: vec!["src/**".to_owned()],
+    })
+    .unwrap();
+    let pack = builder_pack(
+        &serde_json::to_value(&conv.brief).unwrap(),
+        &serde_json::to_value(&conv.plan.tasks[0]).unwrap(),
+    );
+    let build_key = wepld_providers::cassette_key(
+        "build",
+        &wepld_artifacts::hash_hex(&serde_json::to_vec(&pack).unwrap()),
+        "builder_step.v1",
+        "fixture-model",
+    );
+    wepld_providers::write_cassette_entry(
+        &cassette,
+        &build_key,
+        &serde_json::json!({ "edits": [ { "path": "src/main.rs", "content": EDITED_MAIN } ] }),
+        "fixture-model",
+    )
+    .unwrap();
+}
+
+#[test]
+fn build_feature_recipe_matches_golden_and_reports_full_confidence() {
+    let workdir = tempfile::tempdir().unwrap();
+    let store = tempfile::tempdir().unwrap();
+    let repo = fixture_repo(workdir.path());
+    let repo_str = repo.to_string_lossy().into_owned();
+    write_cassettes(store.path(), &repo_str);
+
+    let mut core = Core::open(store.path()).unwrap();
+    core.set_worker_cmd(vec![hermes_bin()]);
+
+    let outcome = core
+        .run_build_feature(REQUEST, SLUG, &repo_str, "main")
+        .unwrap();
+    let report = match outcome {
+        RecipeOutcome::Completed(r) => *r,
+        other => panic!(
+            "expected completion, got {:?}",
+            std::mem::discriminant(&other)
+        ),
+    };
+
+    // Evidence-derived report.
+    assert_eq!(report.state, "accepted");
+    assert_eq!(report.gates_passed(), 1);
+    assert_eq!(report.criteria_met(), 1);
+    assert!(report.chain_verified);
+    assert_eq!(report.uncertain_attempts, 0);
+    // Mission-scoped: the build-phase reasoning. Spec generation is a separate
+    // spec-scoped fact (still on the ledger, seen by the golden trace below).
+    assert_eq!(report.brain_calls, 1);
+    assert_eq!(
+        report.confidence, 1.0,
+        "all evidence green → full confidence"
+    );
+    assert_eq!(report.spec_id.as_deref(), Some("spec_version-flag"));
+
+    // Golden trace.
+    let actual: Vec<String> = core
+        .all_entries()
+        .unwrap()
+        .iter()
+        .map(|e| e.entry_type.code().to_owned())
+        .collect();
+    let expected: Vec<String> = EXPECTED_TRACE
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .map(str::to_owned)
+        .collect();
+    assert_eq!(
+        actual, expected,
+        "recipe trace diverged from the golden file"
+    );
+
+    // The feature landed on main.
+    let main = std::fs::read_to_string(repo.join("src/main.rs")).unwrap();
+    assert!(main.contains("VERSION"));
+    assert!(core.verify().unwrap().is_valid());
+}
+
+#[test]
+fn recipe_asks_for_clarification_when_the_spec_has_open_questions() {
+    // The specify cassette returns a spec with an unresolved question.
+    let workdir = tempfile::tempdir().unwrap();
+    let store = tempfile::tempdir().unwrap();
+    let repo = fixture_repo(workdir.path());
+    let repo_str = repo.to_string_lossy().into_owned();
+
+    let mut doc = reasoned_spec();
+    doc.open_questions
+        .push("Which version string source?".to_owned());
+    let specify_pack =
+        serde_json::json!({ "schema_version": 1, "intent": "specify", "request": REQUEST });
+    let key = wepld_providers::cassette_key(
+        "specify",
+        &wepld_artifacts::hash_hex(&serde_json::to_vec(&specify_pack).unwrap()),
+        "specification.v1",
+        "fixture-model",
+    );
+    wepld_providers::write_cassette_entry(
+        &store.path().join("cassettes/r.jsonl"),
+        &key,
+        &serde_json::to_value(&doc).unwrap(),
+        "fixture-model",
+    )
+    .unwrap();
+
+    let mut core = Core::open(store.path()).unwrap();
+    core.set_worker_cmd(vec![hermes_bin()]);
+    let outcome = core
+        .run_build_feature(REQUEST, SLUG, &repo_str, "main")
+        .unwrap();
+    assert!(matches!(outcome, RecipeOutcome::NeedsClarification { .. }));
+    // No mission was created — the recipe stopped to ask.
+    assert!(core.mission_row("mis_version-flag_v1").unwrap().is_none());
+}
