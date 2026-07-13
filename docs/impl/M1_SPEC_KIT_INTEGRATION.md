@@ -1,6 +1,6 @@
 # WePLD Engineering Specification System — Final Design
 
-**Status:** DESIGN v3 (FINAL) — incorporates all founder decisions. **Awaiting go-ahead; no implementation in this turn.** · **Date:** 2026-07-13
+**Status:** DESIGN v4 (APPROVED) — incorporates all founder decisions incl. the platform elevation (Recipes as a first-class capability with SDK + Marketplace; true typed Specification Graph; Engineering/Organization Packs + Expert Profiles). Foundation implementation (Spec-A) authorized and begun. · **Date:** 2026-07-13
 **Frozen:** Architecture v2, Chronicle engine, WWP, Hermes Runtime, single execution authority. This work is **additive** — new domains built on the frozen substrate; nothing frozen is modified (only sanctioned additive contract extensions, flagged).
 
 > **Founding principle.** Code is an implementation artifact. **Engineering Specifications are the engineering truth.** Chronicle records history; the Runtime governs execution; Hermes performs work; Knowledge captures learning; Skills preserve capability. WePLD evolves Spec Kit's philosophy into a permanent Engineering Specification System — Spec Kit is the starting point, not the destination. WePLD is an Engineering Operating System, not an AI IDE.
@@ -71,15 +71,15 @@ Canonical document + all renders/design-docs → **CAS** (immutable, hashed). Do
 
 ---
 
-## PART III — The Specification Graph
+## PART III — The Engineering Graph (a true typed graph)
 
-A first-class **graph**, not a flat link list. A derived, rebuildable projection over the ledger's link facts (`SpecLinked` + mission/knowledge/skill/adr/context/recipe references) plus Chronicle causal edges. Reuses the ledger as fact source (no new history), queryable/traversable via a graph API.
+A **true typed graph** — a first-class query surface with an explicit node/edge type schema, a derived typed-edge store, and a traversal/query API. It is *derived* (rebuildable from ledger link facts, never a second source of truth) yet *first-class* (a real graph model, not a flat link list).
 
-| Node types | Edge types (typed, directed) |
-| --- | --- |
-| Specification, Mission, Knowledge, Skill, ADR, Context, Recipe, Artifact | `depends_on` (spec→spec), `creates` (spec→mission, recipe→spec), `produces` (mission→knowledge/artifact), `references` (spec→adr/knowledge), `requires` (spec→skill, mission→context), `derives` (spec-version→mission), `reverse_syncs` (mission→spec-proposal), `supersedes` (spec→spec) |
+**Node types** (each a stable ref into its owning domain): `Specification · SpecVersion · Mission · Task · Knowledge · Skill · ADR · Context · Recipe · Pack · ExpertProfile · Artifact · Decision`.
 
-Example traversal: `Recipe → creates → Specification → depends_on → Specification → creates → Mission → produces → Knowledge → creates → Skill → references → ADR`. Powers impact analysis ("which missions/ADRs/skills does revising this spec affect?") and Diff (Part IV). Implemented in `wepld-specification::graph` as a projection; Chronicle contributes temporal/causal edges. **Rebuildable from the ledger; not a source of truth.**
+**Edge types** (typed, directed, each carrying provenance + confidence): `depends_on` (spec→spec), `creates` (recipe→spec, spec→mission), `derives` (spec_version→mission), `produces` (mission→knowledge/artifact/adr), `references` (spec→adr/knowledge), `requires` (spec→skill, mission→context, recipe→pack), `provides` (pack→template/recipe/skill, expert→recipe/skill), `reverse_syncs` (mission→spec_proposal), `supersedes` (spec→spec), `governs` (org_pack→spec/recipe).
+
+**Storage:** a derived `graph_edges` table (from, to, type, provenance_ref, confidence), rebuilt deterministically from ledger link facts (`SpecLinked`, `MissionDerivedFromSpec`, produce/require facts) + Chronicle causal edges. **Query API** in `wepld-specification::graph`: typed traversal, impact cone ("what does revising this spec affect?"), dependency resolution (multi-spec, pack requirements), and shortest-provenance path — the substrate for Diff (Part IV), Recipes (Part VI), and Packs. Rebuildable at any time; `DROP TABLE` + re-derive is the recovery model (per ADR-0011's projection discipline). This is the engineering knowledge graph the platform reasons over.
 
 ---
 
@@ -107,15 +107,55 @@ Example traversal: `Recipe → creates → Specification → depends_on → Spec
 
 ---
 
-## PART VI — Product layer: Templates · Recipes · Quick Actions · Bootstrap
+## PART VI — Engineering Recipes: a first-class platform capability
 
-**Specification Templates** — reusable engineering assets: structured spec skeletons per project type (REST API, CLI Application, Rust Library, Desktop Application, Database Migration, Microservice, FHIR Capability, SDK, AI Feature, Infrastructure Change). A template pre-populates the canonical document's sections and default gates/skills. Stored as versioned assets (CAS + registry). `wepld spec new --template rest-api`.
+**Recipes are executable engineering knowledge** — reusable engineering workflows that orchestrate Specifications, Missions, Runtime, Hermes, Chronicle, Knowledge, and Skills. They are a **first-class platform capability and a plugin ecosystem** (SDK + Marketplace), not merely a UX veneer. **The primary UX is one-click Recipes; users never learn internal workflows.**
 
-**Engineering Recipes** (`crates/recipes`, `wepld-recipes` — a domain) — **the primary UX. Users use Recipes, not Spec Kit commands.** A Recipe is a named, parameterized orchestration that hides the pipeline: it selects a template, gathers minimal input, and drives specify → clarify → research → plan → tasks → **Mission Conversion → Runtime execution → evidence**, exposing none of the internal workflow. Initial recipes: ✨ Build Feature · 🐞 Fix Bug · ♻ Refactor Module · ⚡ Optimize Performance · 🔒 Security Audit · 📚 Understand Repository · 🧪 Generate Tests · 🚀 Prepare Release · 📦 Upgrade Dependencies · 🏗 Architecture Review. A Recipe **orchestrates** through the Runtime; it owns no execution and no state. Recipes are themselves graph nodes (`recipe → creates → spec`).
+### VI.1 The Recipe object & SDK
+
+A Recipe is a versioned, signed **package** (reusing the v2-15 plugin lifecycle: identity, semver, integrity hash, signature, capabilities, trust tier, revocation). Its manifest is a declarative pipeline — **not executable code that touches the Runtime**; the Runtime interprets it:
+
+```
+Recipe {
+  id, version, publisher, trust_tier,
+  action: "build-feature" | "fix-bug" | …,        // the one-click identity
+  inputs[],                                        // minimal user prompts (typed)
+  template_ref,                                    // Specification Template to instantiate
+  pipeline: [ specify, clarify?, research?, plan, tasks, convert, execute, verify ],  // declarative steps
+  required_skills[], required_packs[],             // resolved before execution
+  gates[], autonomy_default, capability_requests[] // policy-mediated, never ambient
+}
+```
+
+**Recipe SDK** = the authoring contract: the manifest schema + template/step vocabulary + a validator + a local test harness (fixture-first: a recipe is proven against recorded cassettes before publication). Third parties author recipes against the SDK; the Runtime is the only interpreter. A recipe **owns no execution and no state** — it declares intent; the Runtime + Hermes perform, Chronicle records.
+
+### VI.2 Recipe Marketplace (plugin ecosystem)
+
+Recipes are distributed through the **registry/marketplace** (v2-15 stance): local + organization registries first; signed community publication later, with publisher verification, permission transparency, evaluations, ratings that cannot override policy, and rapid revocation. Installing a recipe is a policy-governed transaction; a recipe can request no capability it wasn't granted. **No recipe bypasses the Runtime, Ledger, or policy** — the marketplace distributes *declarative engineering knowledge*, never execution authority.
+
+### VI.3 Initial recipes (one-click)
+
+✨ Build Feature · 🐞 Fix Bug · ♻ Refactor Module · ⚡ Optimize Performance · 🔒 Security Audit · 📚 Understand Repository · 🧪 Generate Tests · 🚀 Prepare Release · 📦 Upgrade Dependencies · 🏗 Architecture Review. Each instantiates a template → spec → (clarify/research/plan/tasks) → Mission → execution → evidence, with the workflow hidden. Recipes are graph nodes (`recipe → creates → spec`, `recipe → requires → pack`).
+
+## PART VI-B — Engineering Packs, Organization Packs, Expert Profiles
+
+All three are **signed, versioned packages** in the same registry/marketplace lifecycle (v2-15) — curated, distributable engineering assets. Graph nodes with `provides`/`governs`/`requires` edges.
+
+| Pack type | Contents | Purpose |
+| --- | --- | --- |
+| **Engineering Pack** | curated templates + recipes + skills + knowledge for a domain/stack (e.g. "Rust Backend", "FHIR Healthcare", "React Frontend") | one install = a ready engineering capability set |
+| **Organization Pack** | an org's constitution, conventions, approved templates/recipes/skills, policy, gate standards | the organization's engineering standards as a versioned, `governs`-linked, distributable artifact (enterprise governance) |
+| **Expert Profile** | a curated bundle capturing an expert's approach — preferred recipes, review criteria, spec patterns, skills, brain-profile preferences | "apply an expert's engineering judgment" — the human-expertise-marketplace thesis (v2-29), as installable, policy-bounded assets |
+
+These reuse the frozen registry/skills/knowledge machinery; they add **no** execution path. An Organization Pack's `governs` edges let policy/Context Assembly apply org standards to every spec/recipe/mission in that org.
+
+## PART VI-C — Quick Actions & Project Bootstrap
 
 **Quick Actions** — the Studio Home surface for Recipes (one-click: Build Feature, Understand Project, Fix Bug, Review Architecture, Generate ADR, Upgrade Dependencies, Security/Performance Audit, Generate Tests, Release Build). One click; the Runtime orchestrates everything. Studio, M3+ (reserved).
 
-**Project Bootstrap** (long-term strategic horizon) — a Recipe: Import Repository → Understand Repository (analysis missions) → Generate Engineering Specifications → Architecture → ADRs → Knowledge → Skills → Mission Backlog → Ready. Turns an existing codebase into a fully-specified WePLD project. Designed here; implemented Future.
+**Project Bootstrap** (strategic horizon) — a Recipe: Import Repository → Understand Repository (analysis missions) → Generate Engineering Specifications → Architecture → ADRs → Knowledge → Skills → Mission Backlog → Ready. Turns an existing codebase into a fully-specified WePLD project. Designed here; implemented Future.
+
+**Specification Templates** — reusable structured spec skeletons per project type (REST API, CLI, Rust Library, Desktop App, DB Migration, Microservice, FHIR Capability, SDK, AI Feature, Infrastructure Change), pre-populating the canonical document's sections + default gates/skills; versioned assets (CAS + registry), shippable inside Engineering Packs. `wepld spec new --template rest-api`.
 
 ---
 
@@ -157,16 +197,16 @@ Target domain crates as the platform matures (the founder's domain language): `r
 | **Spec-C** | Gateway-backed `clarify/research/plan/tasks/review` (fixture-first + record mode); Spec Quality + Intelligence findings. |
 | **Spec-D** | Reverse synchronization (proposal → decision → approved revision) + `spec compare` diff. |
 | **Spec-E** | Specification Graph API; Chronicle Specification lens + `spec replay`; DNA insight class; Knowledge/Context-Assembly integration; Skills required-skills flow. |
-| **Recipe-A** | `wepld-recipes` + core recipes (Build Feature, Fix Bug) orchestrating the full pipeline; `wepld recipe run`. |
+| **Recipe-A** | `wepld-recipes` domain + Recipe object/manifest + core recipes (Build Feature, Fix Bug) orchestrating the full pipeline through the Runtime; `wepld recipe run`. |
+| **Recipe-B** | Recipe SDK (manifest schema + validator + fixture test harness) + local/org registry install lifecycle. |
+| **Ecosystem** | Engineering Packs, Organization Packs, Expert Profiles (registry packages, `provides`/`governs` edges); Marketplace distribution (signed community publication) — reuses v2-15 lifecycle. |
+| **Graph** | typed `graph_edges` store + query/traversal API (impact cone, dependency resolution). |
 | **Studio / Bootstrap** | Specification workspace + Quick Actions (M3+); Project Bootstrap (Future). |
 
 Each phase: small commits, passing tests, fmt + clippy clean, fixture-first determinism, evidence-based verification, no drift.
 
-## PART XI — Open decisions (confirm to start Spec-A)
+## PART XI — Status: APPROVED; foundation authorized
 
-1. **Approve this final design.**
-2. **Crate names:** `wepld-specification` (`crates/specification`) and `wepld-recipes` (`crates/recipes`) — confirm or override the `wepld-` prefix.
-3. **Rev-3 event set** (Part VII, 13 events) — confirm or trim.
-4. **Phase order** (Spec-A → E → Recipe-A) — confirm; and whether to begin implementation now or hold.
+The founder approved the design and elevated the vision (this v4). **Confirmed:** crate names `wepld-specification` (`crates/specification`) and `wepld-recipes` (`crates/recipes`) with the `wepld-` namespace prefix; the rev-3 event set; the phase order. **Spec-A (the stable foundation — contracts rev-3 + the pure `wepld-specification` canonical model, validate, quality) is authorized and begun.** The higher ecosystem layers (Recipe SDK/Marketplace, Packs, Expert Profiles, Bootstrap) remain design-only until their phases; they are additive and build on this foundation without churn.
 
-No code will be written until you confirm. Protect the Runtime. Protect the Architecture. The Engineering Specification is the product.
+Protect the Runtime. Protect the Architecture. The Engineering Specification is the product; Recipes are executable engineering knowledge.
