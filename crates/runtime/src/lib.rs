@@ -10,6 +10,7 @@ mod commands;
 mod gates;
 mod orchestration;
 mod phase;
+mod spec;
 
 pub use commands::command_id_for;
 pub use orchestration::{builder_pack, planner_pack};

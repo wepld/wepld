@@ -2,12 +2,14 @@
 //! through the Core; every read comes from ledger-backed queries.
 
 mod demo;
+mod spec_demo;
 
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use std::process::ExitCode;
 use wepld_contracts::command::{Command, CommandOutcome};
 use wepld_runtime::{command_id_for, Core};
+use wepld_specification::{parse, render, template, validate, TemplateKind};
 
 #[derive(Parser)]
 #[command(
@@ -37,11 +39,34 @@ enum Cmd {
         #[command(subcommand)]
         cmd: PlanCmd,
     },
+    /// Engineering Specification operations
+    Spec {
+        #[command(subcommand)]
+        cmd: SpecCmd,
+    },
     /// Print a mission's ledger timeline
     Timeline { mission_id: String },
     /// Verify the ledger hash chain
     Verify,
     /// Run the full M0 bounded loop on a bundled fixture (self-contained)
+    Demo,
+}
+
+#[derive(Subcommand)]
+enum SpecCmd {
+    /// Scaffold a new specification from a template
+    New {
+        slug: String,
+        /// Template: blank | rest-api | cli | rust-library
+        #[arg(long, default_value = "blank")]
+        template: String,
+        /// Output file (default: <slug>.spec.md)
+        #[arg(short = 'o', long)]
+        out: Option<PathBuf>,
+    },
+    /// Validate a specification markdown file (deterministic completeness gate)
+    Validate { file: PathBuf },
+    /// Run the end-to-end Specification → Mission vertical slice (self-contained)
     Demo,
 }
 
@@ -63,6 +88,20 @@ enum MissionCmd {
         #[arg(long)]
         merge: bool,
     },
+    /// Create a mission from a specification markdown file
+    Create {
+        #[arg(long = "from-spec")]
+        from_spec: PathBuf,
+        /// Repository the mission operates on
+        #[arg(long)]
+        repo: PathBuf,
+        /// Base branch (default: main)
+        #[arg(long, default_value = "main")]
+        base: String,
+        /// Slug (default: the spec file stem)
+        #[arg(long)]
+        slug: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -83,11 +122,14 @@ fn main() -> ExitCode {
 }
 
 fn run(cli: Cli) -> Result<ExitCode, Box<dyn std::error::Error>> {
-    // The demo is self-contained (its own scratch store); handle it before
+    // Self-contained commands (own scratch store, or none) are handled before
     // touching the default operational store.
     if matches!(cli.cmd, Cmd::Demo) {
         demo::run(locate_hermes())?;
         return Ok(ExitCode::SUCCESS);
+    }
+    if let Cmd::Spec { cmd } = &cli.cmd {
+        return run_spec(cmd);
     }
 
     let dir = store_dir(cli.store)?;
@@ -139,6 +181,20 @@ fn run(cli: Cli) -> Result<ExitCode, Box<dyn std::error::Error>> {
                     return Ok(ExitCode::FAILURE);
                 }
             }
+            MissionCmd::Create {
+                from_spec,
+                repo,
+                base,
+                slug,
+            } => {
+                let doc = parse(&std::fs::read_to_string(&from_spec)?);
+                let slug = slug.unwrap_or_else(|| spec_slug(&from_spec));
+                let outcome =
+                    core.create_mission_from_spec(&doc, &slug, &repo.to_string_lossy(), &base)?;
+                if !report(&outcome, "mission-from-spec") {
+                    return Ok(ExitCode::FAILURE);
+                }
+            }
         },
         Cmd::Plan { cmd } => match cmd {
             PlanCmd::Approve { mission_id } => {
@@ -179,9 +235,59 @@ fn run(cli: Cli) -> Result<ExitCode, Box<dyn std::error::Error>> {
                 }
             }
         }
-        Cmd::Demo => unreachable!("handled before store open"),
+        Cmd::Demo | Cmd::Spec { .. } => unreachable!("handled before store open"),
     }
     Ok(ExitCode::SUCCESS)
+}
+
+/// Store-free specification commands (files + the self-contained demo).
+fn run_spec(cmd: &SpecCmd) -> Result<ExitCode, Box<dyn std::error::Error>> {
+    match cmd {
+        SpecCmd::New {
+            slug,
+            template: t,
+            out,
+        } => {
+            let kind = TemplateKind::from_slug(t).unwrap_or(TemplateKind::Blank);
+            let md = render(&template(kind));
+            let path = out
+                .clone()
+                .unwrap_or_else(|| PathBuf::from(format!("{slug}.spec.md")));
+            std::fs::write(&path, &md)?;
+            println!("wrote specification scaffold to {}", path.display());
+            println!(
+                "(resolve the Open Questions, then: wepld spec validate {})",
+                path.display()
+            );
+        }
+        SpecCmd::Validate { file } => {
+            let doc = parse(&std::fs::read_to_string(file)?);
+            let r = validate(&doc);
+            if r.valid {
+                println!(
+                    "VALID — {} acceptance criterion/criteria",
+                    doc.acceptance_criteria.len()
+                );
+            } else {
+                println!("INVALID:");
+                for i in &r.issues {
+                    println!("  - [{}] {}", i.code, i.detail);
+                }
+                return Ok(ExitCode::FAILURE);
+            }
+        }
+        SpecCmd::Demo => spec_demo::run(locate_hermes())?,
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+/// Derive a slug from a spec file path (strip `.spec.md` / extension).
+fn spec_slug(path: &std::path::Path) -> String {
+    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("spec");
+    name.strip_suffix(".spec.md")
+        .or_else(|| name.strip_suffix(".md"))
+        .unwrap_or(name)
+        .to_owned()
 }
 
 /// Print a command outcome; return false if it was not accepted.

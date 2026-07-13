@@ -1202,6 +1202,7 @@ dependencies = [
  "wepld-contracts",
  "wepld-providers",
  "wepld-runtime",
+ "wepld-specification",
 ]
 
 [[package]]
@@ -1224,6 +1225,7 @@ dependencies = [
  "wepld-contracts",
  "wepld-providers",
  "wepld-runtime",
+ "wepld-specification",
  "wepld-wwp",
 ]
 
@@ -1266,6 +1268,7 @@ dependencies = [
  "wepld-contracts",
  "wepld-ledger",
  "wepld-providers",
+ "wepld-specification",
  "wepld-workspace",
  "wepld-wwp",
 ]

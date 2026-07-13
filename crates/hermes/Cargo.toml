@@ -19,5 +19,6 @@ serde_json.workspace = true
 wepld-runtime = { path = "../runtime" }
 wepld-providers = { path = "../providers" }
 wepld-artifacts = { path = "../artifacts" }
+wepld-specification = { path = "../specification" }
 tempfile = "3"
 rusqlite = { version = "0.40.1", features = ["bundled"] }
