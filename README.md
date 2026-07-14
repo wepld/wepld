@@ -12,8 +12,9 @@ The strategic promise is **“Different brains. Same engineering truth.”** Sup
 2. Read [31 — Governed Specification Workflow](docs/31_Governed_Specification_Workflow.md) for the authority hierarchy, native user workflow, domain contracts, Phase/Kanban model, and traceability.
 3. Read [32 — Hermes Engineering Intelligence Runtime](docs/32_Hermes_Engineering_Intelligence_Runtime.md) for the Brain Agent, skills, routing, context, LSP/RAG, hooks, loops, subagents, memory, review, and Effect Firewall.
 4. Read [33 — Model-Independent Outcome Convergence](docs/33_Model_Independent_Outcome_Convergence.md) and [34 — Harness Evaluation Protocol](docs/34_Harness_Evaluation_Protocol.md) for the invariant quality bar and evidence needed to support model/profile claims.
-5. Read [19 — Implementation Roadmap](docs/19_Implementation_Roadmap.md), [22 — Milestones](docs/22_Milestones.md), and the [Proposed ADR package](docs/adr/README.md) before considering delivery authorization.
-6. Treat [14 — Security](docs/14_Security_Architecture.md), [16 — Data](docs/16_Data_Model.md), [17 — Events](docs/17_Event_System.md), and [18 — APIs](docs/18_API_Architecture.md) as cross-cutting boundary contracts.
+5. Read [35 — Reference Systems and Competitive Architecture](docs/35_Reference_Systems_and_Competitive_Architecture.md) for the official-source study, exact source/license snapshots, adoption matrix, and controlled admission experiments behind reference-informed roadmap ideas.
+6. Read [19 — Implementation Roadmap](docs/19_Implementation_Roadmap.md), [22 — Milestones](docs/22_Milestones.md), and the [Proposed ADR package](docs/adr/README.md) before considering delivery authorization.
+7. Treat [14 — Security](docs/14_Security_Architecture.md), [16 — Data](docs/16_Data_Model.md), [17 — Events](docs/17_Event_System.md), and [18 — APIs](docs/18_API_Architecture.md) as cross-cutting boundary contracts.
 
 ## Scope and branch boundary
 

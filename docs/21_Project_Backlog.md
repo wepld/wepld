@@ -12,11 +12,12 @@ No Hermes Intelligence implementation may begin until the Proposed ADRs applicab
 
 | Epic | Outcome | Acceptance criteria | Dependencies |
 | --- | --- | --- | --- |
-| Architecture package review | one coherent governed-delivery architecture | documents 01–34 and diagrams use the same authority, artifact, lifecycle, and milestone vocabulary; open decisions have owners | this package |
+| Architecture package review | one coherent governed-delivery architecture | documents 01–35 and diagrams use the same authority, artifact, lifecycle, and milestone vocabulary; open decisions have owners | this package |
 | Proposed ADR disposition | implementation-authorizing decisions are explicit | Proposed ADR-0015 through ADR-0024 are reviewed; each is accepted, revised, rejected, or deferred before dependent work | architecture package |
 | Build Feature Baseline Gate | candidate prerequisite is independently accepted or rejected | PR #1 is reviewed at its final head; contract, security, recovery, documentation, and test evidence are reconciled; Draft status alone proves nothing | PR #1, independent review |
 | Contract-extension plan | additive and breaking changes are known before code | current candidate contracts are classified as retained, extended, superseded, or temporary V0 behavior; migration/coexistence rules are named | baseline disposition, ADR review |
 | Evaluation charter | Hermes improvements are falsifiable | fixed missions, repositories, policies, environments, budgets, variables, metrics, and evidence ownership are approved | [34_Harness_Evaluation_Protocol.md](34_Harness_Evaluation_Protocol.md) |
+| Reference evidence and provenance gate | no reference-system idea enters by imitation or unreviewed source reuse | official sources/revisions, matrix disposition, RS experiment, rollback, milestone and license/provenance state are complete; clean-room remains default | [35_Reference_Systems_and_Competitive_Architecture.md](35_Reference_Systems_and_Competitive_Architecture.md), RS-00 |
 
 ## H1 — Governed Specification Workflow
 
@@ -43,6 +44,8 @@ No Hermes Intelligence implementation may begin until the Proposed ADRs applicab
 | Agent Kernel | bounded operational state without competing governance truth | objective, phase/task, hypothesis, observations, retry state, confidence, and next proposal are attempt-scoped; Core remains authoritative | H2, ADR-0018 |
 | Skill Runtime and Router | executable procedures are versioned and measurable | manifest, applicability, context/tool needs, capabilities, procedure, verification, failures, output/evidence schema, compatibility, trust | task packets |
 | Typed Hook Bus | lifecycle extension points cannot become an escape path | observational, validating, blocking, and effect-producing hooks are distinguished; every blocking/effect hook is policy-mediated and recorded | effect firewall |
+| Internal lifecycle/control-event port | Hermes components interoperate without a public alternate control plane | versioned schemas preserve action/result correlation, ordering, idempotency, reconnect projection and backpressure; identity never implies capability | ADR-0018, RS-05/RS-20 internal subset |
+| Skill/hook package lifecycle | H3 resources activate atomically and remain revocable | Registry stages exact hashes; Core activates/revokes approved scope; malicious, partial, incompatible and permission-expanding packages never become active | ADR-0018, RS-00/RS-11/RS-19 skill/hook subset |
 
 ## H4 — Context, LSP, and Hybrid Retrieval
 
@@ -82,14 +85,15 @@ No Hermes Intelligence implementation may begin until the Proposed ADRs applicab
 | --- | --- | --- | --- |
 | Outcome Equivalence Contract | different implementations meet one engineering truth | functional behavior, public contracts, architecture, security, quality, regression, evidence, and unresolved-risk thresholds remain constant across models | H7, ADR-0023 |
 | Provider/profile certification | supported profiles prove bounded fitness | fixed harness measures convergence, safety, evidence truthfulness, cost, attempts, escalation, recovery, and honest non-convergence | ADR-0024 |
-| Ablation program | harness value is measured rather than assumed | controlled enable/disable experiments for LSP, RAG, memory, loops, subagents, and skill routing with constant mission/environment/budget | [34_Harness_Evaluation_Protocol.md](34_Harness_Evaluation_Protocol.md) |
+| Ablation program | harness value is measured rather than assumed | controlled enable/disable experiments for LSP, RAG, memory, loops, subagents, skill routing, and every positively dispositioned RS-00–RS-20 arm with constant mission/environment/budget | [34_Harness_Evaluation_Protocol.md](34_Harness_Evaluation_Protocol.md), [35_Reference_Systems_and_Competitive_Architecture.md](35_Reference_Systems_and_Competitive_Architecture.md) |
 
 ## H9 — Product Surfaces After Runtime Truth
 
 | Epic | Outcome | Acceptance criteria | Dependencies |
 | --- | --- | --- | --- |
 | Shared workflow API | CLI, Studio, MCP, and APIs call the same Core commands | no surface owns business state or bypasses approval/effect/evidence semantics | H1–H8 |
-| Operational review surfaces | users operate outcomes and decisions, not tool chatter | Mission Control, Spec Review, Plan Review, Kanban, Decisions, Risks, Evidence, Change Requests, Completion Review | stable read/write contracts |
+| Operational review surfaces | users operate outcomes and decisions, not tool chatter | Mission Control including the Execution Console view, Spec Review, Plan Review, Kanban, Decisions, Risks, Evidence, Change Requests, Completion Review | stable read/write contracts, RS-09/RS-17 |
+| Agent/editor interoperability | compatible clients can project and request work without becoming an authority boundary | ACP conformance, reconnect and confused-deputy fixtures pass; every effect remains Core-mediated; new Proposed ADR accepted | H8, RS-06/RS-20 |
 | Truthful degraded UX | stale, uncertain, denied, and incomplete states remain visible | no client-side workflow mutation; every authoritative badge resolves to Core state/evidence | surface conformance |
 
 ## Deferred until earned
@@ -113,4 +117,4 @@ These ADRs remain **Proposed** until separately accepted. Acceptance authorizes 
 - H7: [ADR-0020 — typed memory and Memory Judge](adr/ADR-0020-typed-memory-memory-judge.md)
 - H8: [ADR-0023 — model-independent outcome equivalence](adr/ADR-0023-model-independent-outcome-equivalence.md) and [ADR-0024 — harness evaluation and provider certification](adr/ADR-0024-harness-evaluation-provider-certification.md)
 
-See also: [19_Implementation_Roadmap.md](19_Implementation_Roadmap.md), [22_Milestones.md](22_Milestones.md), [26_Testing_Strategy.md](26_Testing_Strategy.md), [31_Governed_Specification_Workflow.md](31_Governed_Specification_Workflow.md), [32_Hermes_Engineering_Intelligence_Runtime.md](32_Hermes_Engineering_Intelligence_Runtime.md), [33_Model_Independent_Outcome_Convergence.md](33_Model_Independent_Outcome_Convergence.md), and [34_Harness_Evaluation_Protocol.md](34_Harness_Evaluation_Protocol.md).
+See also: [19_Implementation_Roadmap.md](19_Implementation_Roadmap.md), [22_Milestones.md](22_Milestones.md), [26_Testing_Strategy.md](26_Testing_Strategy.md), [31_Governed_Specification_Workflow.md](31_Governed_Specification_Workflow.md), [32_Hermes_Engineering_Intelligence_Runtime.md](32_Hermes_Engineering_Intelligence_Runtime.md), [33_Model_Independent_Outcome_Convergence.md](33_Model_Independent_Outcome_Convergence.md), [34_Harness_Evaluation_Protocol.md](34_Harness_Evaluation_Protocol.md), and [35_Reference_Systems_and_Competitive_Architecture.md](35_Reference_Systems_and_Competitive_Architecture.md).

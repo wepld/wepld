@@ -175,8 +175,26 @@ Acceptance is never a worker or model status. Core presents a validated Completi
 
 After closure, a Retrospective can emit Memory Candidates. The Memory Judge defined in [32_Hermes_Engineering_Intelligence_Runtime.md](32_Hermes_Engineering_Intelligence_Runtime.md) checks provenance, contradictions, freshness, scope, and authority before consolidation. Governance Memory remains authoritative and is never downgraded to optional advice.
 
+## Spec Kit-informed lifecycle, internalized as Core state
+
+GitHub Spec Kit's observed lifecycle is a useful process reference, not WePLD's authority or storage model. The exact clean-room mapping evaluated by RS-01/RS-02 is:
+
+| Reference lifecycle concept | WePLD durable meaning |
+| --- | --- |
+| Constitution | versioned governance Policy and project constraints |
+| Specify | `MissionCharter`, `EngineeringSpecification`, and `OutcomeContract` |
+| Clarify | `Assumption`, `DecisionRequest`, clarification response, and a new proposed artifact version |
+| Plan | proposed `DeliveryPlan` and tailored `PhasePlan`, validated and separately approved |
+| Checklist / tasks | `EvidenceRequirement`, verification bindings, and authorized `TaskPacket` graph |
+| Analyze | cross-artifact trace/contradiction validators that can hold or request change, never silently edit |
+| Implement | Core-admitted lease, typed actions through the Effect Firewall, artifacts, and evidence |
+| Converge | bounded remediation/change loop followed by `CompletionProposal` and authorized `CompletionDecision` |
+| Preset, bundle, prompt, Markdown | versioned import or review/export projection with provenance; never the authoritative record |
+
+No lifecycle stage advances because a prompt says it did. Each transition binds authenticated authority, expected prior version, validation, policy, and evidence. Workflow shell steps have no ambient execution path; they compile to typed effects or are rejected.
+
 ## Candidate baseline compatibility
 
 Draft PR #1 is a candidate prerequisite baseline only. Its staged plan/completion approvals, structured specification seed, ledger, CAS, WWP boundary, worktree isolation, proposal refs, validation, and evidence-derived lesson work are useful foundations. It does not yet supply this complete specification lifecycle, separate Outcome Contract, Phase/Kanban/change-control model, or generalized memory workflow. This planning package neither ratifies the PR's branch-local decisions nor authorizes its merge. See [19_Implementation_Roadmap.md](19_Implementation_Roadmap.md) and [30_ARCHITECTURE_SUMMARY.md](30_ARCHITECTURE_SUMMARY.md).
 
-See also: [32_Hermes_Engineering_Intelligence_Runtime.md](32_Hermes_Engineering_Intelligence_Runtime.md), [33_Model_Independent_Outcome_Convergence.md](33_Model_Independent_Outcome_Convergence.md), [34_Harness_Evaluation_Protocol.md](34_Harness_Evaluation_Protocol.md), [16_Data_Model.md](16_Data_Model.md), and [17_Event_System.md](17_Event_System.md).
+See also: [32_Hermes_Engineering_Intelligence_Runtime.md](32_Hermes_Engineering_Intelligence_Runtime.md), [33_Model_Independent_Outcome_Convergence.md](33_Model_Independent_Outcome_Convergence.md), [34_Harness_Evaluation_Protocol.md](34_Harness_Evaluation_Protocol.md), [35_Reference_Systems_and_Competitive_Architecture.md](35_Reference_Systems_and_Competitive_Architecture.md), [16_Data_Model.md](16_Data_Model.md), and [17_Event_System.md](17_Event_System.md).

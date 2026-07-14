@@ -94,6 +94,8 @@ Hard filters run first: policy, data classification, platform/sandbox posture, p
 
 The routing policy is versioned, explainable, replaceable, and recorded with the attempt. A model or skill cannot select itself by self-reported competence. Missing or inconclusive performance data produces a conservative candidate route or an explicit decision—not a fabricated score.
 
+H3 exposes only a versioned internal lifecycle/control-event port among the Agent Kernel, Skill Runtime, Hook Bus and their Core adapter. It carries exact correlation, idempotency, ordering, reconnect and backpressure semantics but no ambient authority. H3 package activation is likewise limited to skills and hooks: the Registry stages verified hashes and Core atomically activates or revokes approved scope. Public SDKs, ACP/MCP/editor adapters and other package types remain outside H3 and repeat their own protocol/package gates at their owning milestones.
+
 ## 4. Context Compiler
 
 The Context Compiler produces minimal, task-specific, reproducible context packs:
@@ -250,10 +252,24 @@ Hermes follows the common escalation ladder: improve context once under the same
 
 A model that cannot produce schema-valid, evidence-backed work under the fixed quality bar must stop honestly. The system records partial artifacts, uncertainty, budget consumed, attempted routes, and the minimum decision needed to continue.
 
+## Reference-informed runtime boundaries
+
+The comparative evidence in [35_Reference_Systems_and_Competitive_Architecture.md](35_Reference_Systems_and_Competitive_Architecture.md) sharpens, but does not replace, these components:
+
+| Reference input | Hermes/WePLD placement | Boundary retained |
+| --- | --- | --- |
+| Pi minimal core, skills, packages, dynamic context, session/compaction and RPC/events | Agent Kernel; Skill and Hook/Extension Runtime; Registry; Context Compiler; Hermes control/event ports | Core policy, capabilities, effects, evidence and governance remain mandatory and external to the kernel |
+| Spec Kit lifecycle, analysis and converge | Core Delivery Protocol, trace validators, Change/Completion Review | Markdown, prompts, bundles and shell steps are imports/projections, never authoritative execution state |
+| Zed/ACP LSP, worktrees, threads and review | H4 Structural Intelligence; H6 Core Delivery Control leases plus Tool & Workspace/Worker Host isolation/delegation; future H9 ACP/review projection | Zed is a surface candidate; ACP cannot mint authority or execute directly |
+| Warp orchestration and operations | bounded Hermes scheduling under Core admission; H9 Mission Control Execution Console | no second scheduler authority, terminal-first product or cloud-first control plane |
+| Claude Code, Codex, Cursor, OpenCode, Aider and OpenHands | controlled alternatives for context, tools/events, worktrees, recovery, subagents, codecs, telemetry and evaluation | each mechanism enters only through RS-00–RS-20 experiments, accepted ADRs and H1–H9 gates |
+
+Session trees/transcripts are operational projections; compaction summaries are disposable caches; LSP/index results are observations; worktrees are only filesystem isolation; checkpoints do not recover external effects; telemetry is not evidence; provider catalogs do not prove portability. Core rehydrates mandatory context and owns all recovery truth.
+
 ## Candidate V0 relationship
 
 Draft PR #1 provides useful candidate seams: a Core-owned ledger/CAS, provider-neutral gateway, WWP process boundary, `AttemptStart` envelope/skills/context/budget shape, staged plan/completion approvals, isolated worktrees, proposal refs, validation, and a narrow evidence-derived lesson loop. Its Hermes binary is a V0 single-phase worker with narrow packs, a reduced message set, empty skill routing, DEV-tier limitations, no LSP/RAG/hooks/subagent supervisor, and no generalized controlled-loop or independent review pipeline. Those are temporary candidate limitations, not proof of this target architecture.
 
 No Hermes Intelligence implementation begins until the applicable Proposed ADRs are accepted and the preceding milestone gate in [22_Milestones.md](22_Milestones.md) is closed.
 
-See also: [31_Governed_Specification_Workflow.md](31_Governed_Specification_Workflow.md), [33_Model_Independent_Outcome_Convergence.md](33_Model_Independent_Outcome_Convergence.md), [34_Harness_Evaluation_Protocol.md](34_Harness_Evaluation_Protocol.md), [05_Worker_Architecture.md](05_Worker_Architecture.md), [06_Brain_Architecture.md](06_Brain_Architecture.md), and [14_Security_Architecture.md](14_Security_Architecture.md).
+See also: [31_Governed_Specification_Workflow.md](31_Governed_Specification_Workflow.md), [33_Model_Independent_Outcome_Convergence.md](33_Model_Independent_Outcome_Convergence.md), [34_Harness_Evaluation_Protocol.md](34_Harness_Evaluation_Protocol.md), [35_Reference_Systems_and_Competitive_Architecture.md](35_Reference_Systems_and_Competitive_Architecture.md), [05_Worker_Architecture.md](05_Worker_Architecture.md), [06_Brain_Architecture.md](06_Brain_Architecture.md), and [14_Security_Architecture.md](14_Security_Architecture.md).

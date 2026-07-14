@@ -6,6 +6,8 @@ Technology choices must serve local-first operation, cross-platform support, sec
 
 Draft PR #1 is reference material only. Its Rust workspace, local provider adapter, and candidate contracts may inform evaluation, but the open Draft is unmerged and unratified and does not settle technology choices for H1–H9.
 
+The official-source comparison in [35_Reference_Systems_and_Competitive_Architecture.md](35_Reference_Systems_and_Competitive_Architecture.md) is the admission register for reference-derived technology ideas. Product popularity, a published benchmark, protocol compatibility, provider count, or an upstream open-source license is not an adoption decision. Each candidate needs its named RS experiment, security result, rollback path, accepted milestone gate, and component-level provenance review. Because this WePLD baseline has no repository-level license/notice policy, no upstream source reuse is currently approved; architecture work remains clean-room.
+
 ## Recommended starting stack
 
 | Concern | Options considered | Recommendation | Rationale / decision boundary |
@@ -65,10 +67,11 @@ Tree-sitter and semantic vectors solve different retrieval problems. Structural 
 8. Compare lexical-only, lexical+LSP, structural, semantic, and authority-ranked hybrid retrieval; publish inclusion/omission provenance and token-cost results.
 9. Validate Context Compiler determinism, trust/classification filtering, stale-index disclosure, and pack reconstruction under fixed budgets.
 10. Run controlled harness ablations for LSP, RAG, memory, loops, subagents, and skill routing before treating any component as required.
+11. Execute the applicable RS-00–RS-20 reference-system experiments rather than adopting a product capability by analogy; preserve source revisions, negative results, security fault injections, license/provenance decisions, and disable criteria.
 
 ## Explicit non-decisions
 
 No decision is made yet on a specific hosted provider, vector-index library, tree-sitter grammar set, graph database, container engine, cloud vendor, distributed queue, or enterprise identity provider. Universal language/model support is explicitly not a first-increment goal. These choices must be driven by accepted H-gate evidence and documented in ADRs rather than assumed from popularity.
 
-See also: [03_System_Architecture.md](03_System_Architecture.md), [14_Security_Architecture.md](14_Security_Architecture.md), [19_Implementation_Roadmap.md](19_Implementation_Roadmap.md), [27_Performance_Goals.md](27_Performance_Goals.md), [32_Hermes_Engineering_Intelligence_Runtime.md](32_Hermes_Engineering_Intelligence_Runtime.md), and [34_Harness_Evaluation_Protocol.md](34_Harness_Evaluation_Protocol.md).
+See also: [03_System_Architecture.md](03_System_Architecture.md), [14_Security_Architecture.md](14_Security_Architecture.md), [19_Implementation_Roadmap.md](19_Implementation_Roadmap.md), [27_Performance_Goals.md](27_Performance_Goals.md), [32_Hermes_Engineering_Intelligence_Runtime.md](32_Hermes_Engineering_Intelligence_Runtime.md), [34_Harness_Evaluation_Protocol.md](34_Harness_Evaluation_Protocol.md), and [35_Reference_Systems_and_Competitive_Architecture.md](35_Reference_Systems_and_Competitive_Architecture.md).
 

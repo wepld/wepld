@@ -178,6 +178,14 @@ Production mission telemetry may inform drift detection only with consent, class
 
 Evaluation repositories and services contain no production credentials or users. Destructive, exfiltration, deployment, push/merge, and database scenarios use isolated fakes/canaries with strict kill controls. The Effect Firewall remains active in every arm. Any unexpected external effect aborts the run set, preserves evidence, rotates affected credentials if any, and initiates incident review before evaluation resumes.
 
+## Reference-system experiment admission
+
+[35_Reference_Systems_and_Competitive_Architecture.md](35_Reference_Systems_and_Competitive_Architecture.md) defines RS-00–RS-20 for every proposed reference-derived idea. Each run inherits this protocol and additionally pins the official source/document evidence, observed commit/tag, signed/versioned repository `ReferenceIdeaDecision`, candidate disposition, target component, milestone, and license/provenance status. This pre-implementation architecture record is not a new Core product domain. A product's published benchmark is evidence about its own reported methodology; it is never substituted for the corresponding WePLD controlled run.
+
+Every positive reference candidate has a control and independently measurable treatment arm. Shared experiments may test several systems' expression of one principle, but the result must identify which mechanism/arm earned the benefit. Required adversarial cases include malicious extensions, compaction loss of mandatory authority, ACP confused-deputy requests, cross-worktree writes, stale LSP/index results, duplicate effects after crashes, telemetry/Core disagreement, provider semantic drift, prompt/Markdown attempts to mutate approved state, and unlicensed or mixed-license provenance.
+
+Passing RS evidence makes a principle eligible for architecture disposition only. It does not accept an ADR, authorize source reuse, close a milestone, or create an implementation Task Packet. Failure removes, narrows, defers, or rejects the idea under its recorded disable rule. RS-11 mandatory governance controls are never removed from an ordinary comparison arm.
+
 ## Milestone evidence
 
 H8 does not exit on a single benchmark score. Required evidence includes:
@@ -196,4 +204,4 @@ Threshold values are governance policy and must be approved before the run; they
 
 Draft PR #1's fixture adapter, golden traces, adversarial tests, and reported 143-test result are useful candidate harness primitives. They are not a controlled H8 evaluation: the PR exercises a narrow Build Feature path, does not hold a cross-model treatment matrix, and has not measured outcome equivalence or the requested ablations. Its validation claims remain reference evidence until independently reviewed; this plan neither ratifies them nor authorizes the PR's merge.
 
-See also: [31_Governed_Specification_Workflow.md](31_Governed_Specification_Workflow.md), [32_Hermes_Engineering_Intelligence_Runtime.md](32_Hermes_Engineering_Intelligence_Runtime.md), [33_Model_Independent_Outcome_Convergence.md](33_Model_Independent_Outcome_Convergence.md), [22_Milestones.md](22_Milestones.md), and [26_Testing_Strategy.md](26_Testing_Strategy.md).
+See also: [31_Governed_Specification_Workflow.md](31_Governed_Specification_Workflow.md), [32_Hermes_Engineering_Intelligence_Runtime.md](32_Hermes_Engineering_Intelligence_Runtime.md), [33_Model_Independent_Outcome_Convergence.md](33_Model_Independent_Outcome_Convergence.md), [35_Reference_Systems_and_Competitive_Architecture.md](35_Reference_Systems_and_Competitive_Architecture.md), [22_Milestones.md](22_Milestones.md), and [26_Testing_Strategy.md](26_Testing_Strategy.md).

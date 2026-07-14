@@ -65,7 +65,7 @@ The detailed milestone cards, entry/exit scenarios, required ADRs, and next-gate
 
 **Purpose:** establish Hermes as a governed engineering runtime rather than a thin model or worker wrapper.
 
-**Proof:** signed versioned skills execute typed procedures; routing uses declared context/tools/capabilities/budget/evidence; typed hooks are bounded and cannot bypass policy; all proposed effects re-enter Core’s Effect Firewall.
+**Proof:** signed versioned skills execute typed procedures; routing uses declared context/tools/capabilities/budget/evidence; typed hooks are bounded and cannot bypass policy; the versioned internal Hermes lifecycle/control-event port preserves correlation, reconnect and backpressure semantics; skill/hook packages stage separately from Core-owned atomic activation/revocation; all proposed effects re-enter Core’s Effect Firewall. Public/external protocols and other package types remain at their owning milestones.
 
 **Dependencies:** H2; accepted [ADR-0018](adr/ADR-0018-hermes-skill-runtime-hook-bus.md).
 
@@ -119,6 +119,25 @@ Controlled harness and component-ablation runs hold mission, commit, specificati
 
 **Dependencies:** H1–H8 gates closed and the applicable architecture/security decisions accepted. UI breadth, a full graphical IDE, general consumer chat, an open marketplace, and cloud-first control plane remain non-goals.
 
+## Reference-informed experiment overlay
+
+[35_Reference_Systems_and_Competitive_Architecture.md](35_Reference_Systems_and_Competitive_Architecture.md) records the official-source observations, exact matrix dispositions and controlled experiments behind every reference-informed candidate. These are roadmap admission tests, not product commitments. A candidate enters implementation scope only after its named experiment meets preregistered benefit and safety thresholds, architecture/product/security reviewers accept the exact scope, the applicable Proposed ADR is accepted, and the milestone entry gate is authorized.
+
+| Gate | Reference experiments that may supply required evidence |
+| --- | --- |
+| Baseline | RS-00 provenance/license intake; RS-11 mandatory policy and containment suite |
+| H1 | RS-01 typed Delivery Protocol and Markdown-authority negative cases |
+| H2 | RS-01 plan/task compilation; RS-02 cross-artifact analysis/converge; RS-15 planner/builder separation; RS-20 Delivery Protocol/workflow-import corpus |
+| H3 | RS-03 minimal Agent/Skill/Extension kernel; internal Hermes lifecycle/control-event subset of RS-05/RS-20; RS-11 mediation; skill/hook package subset of RS-19 |
+| H4 | RS-04 context/compaction; RS-07 lexical, structural, semantic and LSP retrieval; applicable RS-20 adapter tests; RS-19 for packaged LSP/retrieval types |
+| H5 | RS-02 bounded converge; RS-04 session recovery; RS-12 crash/effect reconciliation; RS-15 bounded verification |
+| H6 | RS-08 Core Delivery Control leases plus Tool & Workspace/Worker Host isolation; RS-10 bounded scheduler/budgets; RS-13 subagent topology/review independence; RS-20 workflow fan-out/resume; RS-19 for packaged worker/subagent types if introduced |
+| H7 | RS-18 memory admission, contradiction, expiry and deletion; RS-19 for packaged memory adapters if introduced |
+| H8 | RS-14 provider/profile portability; RS-16 evaluation triangulation; RS-19 for provider/profile packages; rerun every adopted component ablation and security regression |
+| H9 | RS-06 ACP adapter under a new Proposed ADR; RS-09 Mission Control Execution Console; RS-17 editor/multibuffer review UX; RS-20 external adapter corpora; RS-19 for protocol/UI packages |
+
+Passing a spike does not authorize implementation, and failing one removes, narrows, defers or rejects the idea. Core Delivery Control continues to own admission, WIP and scheduler ports; Hermes only schedules eligible work. The Execution Console is a Mission Control view. ACP and other protocols remain mediated adapters. Remote/cloud handoff stays outside H1–H9.
+
 ## Cross-cutting rules
 
 - Every increment includes threat-model, failure/recovery, evaluation, migration/rollback, observability, documentation, and evidence work; these are not final hardening.
@@ -131,4 +150,4 @@ Controlled harness and component-ablation runs hold mission, commit, specificati
 
 The early program needs an accountable product/governance owner, Core/runtime engineer, Hermes/intelligence engineer, security engineer, quality/evaluation engineer, and UX researcher/designer, with language/tooling specialists as needed. Architecture, security, evaluation, and acceptance authorities must be named separately from the Brain Agent, Hermes, and builders.
 
-See [31_Governed_Specification_Workflow.md](31_Governed_Specification_Workflow.md), [32_Hermes_Engineering_Intelligence_Runtime.md](32_Hermes_Engineering_Intelligence_Runtime.md), [20_Risk_Assessment.md](20_Risk_Assessment.md), [21_Project_Backlog.md](21_Project_Backlog.md), [23_Technology_Evaluation.md](23_Technology_Evaluation.md), and [26_Testing_Strategy.md](26_Testing_Strategy.md).
+See [31_Governed_Specification_Workflow.md](31_Governed_Specification_Workflow.md), [32_Hermes_Engineering_Intelligence_Runtime.md](32_Hermes_Engineering_Intelligence_Runtime.md), [35_Reference_Systems_and_Competitive_Architecture.md](35_Reference_Systems_and_Competitive_Architecture.md), [20_Risk_Assessment.md](20_Risk_Assessment.md), [21_Project_Backlog.md](21_Project_Backlog.md), [23_Technology_Evaluation.md](23_Technology_Evaluation.md), and [26_Testing_Strategy.md](26_Testing_Strategy.md).

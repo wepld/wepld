@@ -35,7 +35,7 @@ Draft PR #1 is reference material and a candidate prerequisite only. It is open,
 | **Failure scenarios** | Invalid spec/plan/id/path/ref is rejected without partial state; worker/provider/gate/acceptance interruption becomes failed or uncertain honestly; proposal-ref conflict is not overwritten. |
 | **Security scenarios** | DEV runs disclose ambient host authority; unauthorized repositories are refused; traversal/symlink/ref/URL attacks fail closed; no credential leakage. |
 | **Measurable exit evidence** | Review findings dispositioned; candidate head pinned; relevant tests independently reproduced or gaps recorded; documentation matches implemented V0; one explicit baseline decision. |
-| **Dependencies** | Draft PR #1, docs 01–34, risk register, test evidence. |
+| **Dependencies** | Draft PR #1, docs 01–35, risk register, test evidence. |
 | **Next authorization** | Only an accepted baseline decision plus accepted ADR-0015 and an explicit H1 authorization may start H1 implementation. |
 
 ## H1 — Governed Specification Workflow
@@ -76,16 +76,16 @@ Draft PR #1 is reference material and a candidate prerequisite only. It is open,
 
 | Field | Gate contract |
 | --- | --- |
-| **Purpose** | Make Hermes a governed engineering runtime with executable, versioned procedures and typed lifecycle extension points. |
+| **Purpose** | Make Hermes a governed engineering runtime with executable, versioned procedures, typed internal lifecycle/control events, and a governed skill/hook package boundary. |
 | **Entry gate** | H2 closed; ADR-0018 accepted. |
-| **Scope** | Attempt-scoped Agent Kernel; skill manifest/runtime/router; initial bounded skill families; typed Hook Bus; evidence contracts; compatibility/trust metadata; policy-mediated effect proposals. |
-| **Non-goals** | No marketplace, arbitrary executable plugins, free-form hook scripts, universal skill catalog, or durable state authority inside Hermes. |
-| **Deliverables** | Skill schema and fixture harness; routing record; hook taxonomy and ordering; failure/output/evidence schemas; compatibility tests; initial repository exploration/architecture/build/test/security/documentation skills. |
+| **Scope** | Attempt-scoped Agent Kernel; skill manifest/runtime/router; initial bounded skill families; typed Hook Bus; internal Hermes lifecycle/control-event port; evidence contracts; compatibility/trust metadata; policy-mediated effect proposals; staged, exact-hash, atomic activation and revocation for skill and hook packages only. |
+| **Non-goals** | No public SDK or external agent/client protocol, ACP/MCP/editor adapter, marketplace, arbitrary executable plugins, free-form hook scripts, universal skill catalog, non-skill/hook package activation, or durable state authority inside Hermes. |
+| **Deliverables** | Skill schema and fixture harness; routing record; hook taxonomy and ordering; failure/output/evidence schemas; versioned internal control/event schemas with correlation, reconnect and backpressure fixtures; skill/hook package staging, activation, rollback and revocation fixtures; compatibility tests; initial repository exploration/architecture/build/test/security/documentation skills. |
 | **Required ADRs** | [ADR-0018 — Hermes Skill Runtime and Hook Bus](adr/ADR-0018-hermes-skill-runtime-hook-bus.md). |
-| **Acceptance scenarios** | A task packet deterministically resolves an eligible skill/profile/tool set; procedure executes within granted bounds; verification and evidence are recorded; observational hooks cannot affect outcome. |
-| **Failure scenarios** | Missing/incompatible/revoked skill, malformed output, hook timeout, failed validation, or absent evidence stops or escalates according to contract. |
-| **Security scenarios** | Hooks cannot grant capabilities, alter higher-authority artifacts, access undeclared data, or produce unrecorded effects; effect-producing hooks traverse the same firewall. |
-| **Measurable exit evidence** | Skill and hook conformance suites pass; identical inputs yield the same resolution record; adversarial bypass attempts produce zero unauthorized effect. |
+| **Acceptance scenarios** | A task packet deterministically resolves an eligible exact-hash skill/profile/tool set; the internal port preserves action/result correlation across reconnect; procedure executes within granted bounds; verification and evidence are recorded; observational hooks cannot affect outcome; approved skill/hook activation and revocation are atomic. |
+| **Failure scenarios** | Missing/incompatible/revoked skill, partial package activation, malformed/duplicate/out-of-order event, reconnect mismatch, hook timeout, failed validation, or absent evidence stops or escalates according to contract. |
+| **Security scenarios** | Hooks and internal clients cannot grant capabilities, alter higher-authority artifacts, activate packages, access undeclared data, forge results, or produce unrecorded effects; effect-producing hooks traverse the same firewall. |
+| **Measurable exit evidence** | Skill/hook/package and internal-port conformance suites pass; identical inputs yield the same resolution record; reconnect reproduces the same projection hash; malicious package and adversarial bypass attempts produce zero activation or unauthorized effect. |
 | **Dependencies** | H2 task/phase contracts; WWP and effect boundary; [32_Hermes_Engineering_Intelligence_Runtime.md](32_Hermes_Engineering_Intelligence_Runtime.md). |
 | **Next authorization** | H4 requires accepted H3 evidence and explicit authorization to add context intelligence adapters. |
 
@@ -191,8 +191,16 @@ Draft PR #1 is reference material and a candidate prerequisite only. It is open,
 | **Dependencies** | Stable H1–H8 contracts and trustworthy projections. |
 | **Next authorization** | Architecture/product/security review decides whether to enter release preparation; ecosystem, remote, marketplace, and deployment automation remain separately gated. |
 
+## Reference-system evidence gate
+
+The [reference study and experiment register](35_Reference_Systems_and_Competitive_Architecture.md) is binding planning input for every idea attributed to Pi, Zed/ACP, Warp, GitHub Spec Kit, Claude Code, Codex, Cursor, OpenCode, Aider, or OpenHands. Before product Core records exist, each candidate uses a signed, versioned repository architecture-review record called `ReferenceIdeaDecision`; this is planning evidence, not product authority. Each applicable exit packet identifies that record, source revision, RS experiment treatment/result, limitations, security outcome, disable path and license/provenance disposition.
+
+The milestone mapping is Baseline RS-00/RS-11; H1 RS-01; H2 RS-01/RS-02/RS-15 plus the RS-20 Delivery Protocol/workflow-import corpus; H3 RS-03, the internal-port subset of RS-05/RS-20, RS-11, and the skill/hook-package subset of RS-19; H4 RS-04/RS-07/RS-20 plus type-specific RS-19; H5 RS-02/RS-04/RS-12/RS-15; H6 RS-08/RS-10/RS-13 plus RS-20 workflow fan-out/resume and type-specific RS-19 where applicable; H7 RS-18 plus type-specific RS-19 where applicable; H8 RS-14/RS-16, provider-package RS-19 and rerun of all adopted ablations; and H9 RS-06/RS-09/RS-17, external-adapter RS-20 and protocol/UI-package RS-19. Every package type repeats RS-19 at its owning milestone.
+
+A spike may run before its target milestone to resolve architecture uncertainty. It does not satisfy the milestone by itself, accept an ADR, authorize implementation, or weaken the gate. Matrix `Adopt`/`Adapt` entries are candidate target dispositions only; without a passing preregistered experiment and ratifying review, their admission state remains `Candidate` and they are excluded from implementation Task Packets.
+
 ## Gate governance
 
 Every exit review includes product, Core, quality, and security authority. A visual demo, model narrative, passing happy path, or Draft PR status is insufficient. Evidence must include normal, denied, degraded, recovery, and adversarial behavior. Material scope or authority changes require a revised gate contract and a new Proposed ADR where applicable.
 
-See also: [19_Implementation_Roadmap.md](19_Implementation_Roadmap.md), [20_Risk_Assessment.md](20_Risk_Assessment.md), [21_Project_Backlog.md](21_Project_Backlog.md), [26_Testing_Strategy.md](26_Testing_Strategy.md), and [28_Release_Strategy.md](28_Release_Strategy.md).
+See also: [19_Implementation_Roadmap.md](19_Implementation_Roadmap.md), [20_Risk_Assessment.md](20_Risk_Assessment.md), [21_Project_Backlog.md](21_Project_Backlog.md), [26_Testing_Strategy.md](26_Testing_Strategy.md), [28_Release_Strategy.md](28_Release_Strategy.md), and [35_Reference_Systems_and_Competitive_Architecture.md](35_Reference_Systems_and_Competitive_Architecture.md).

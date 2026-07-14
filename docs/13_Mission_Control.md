@@ -15,6 +15,7 @@ Core is the sole authority for durable policy, approvals, capabilities, budgets,
 | Phase graph | objective, entry/exit conditions, dependencies, WIP, budget, gate | only approved Phase Plans may become active |
 | Kanban | task state, Task Packet version, dependencies, lease, blocked reason | movement occurs only after a Core-recorded transition |
 | Worker board | Hermes session, builders/subagents, role, task, heartbeat, resources | “running” requires an active lease and recent heartbeat |
+| Execution Console | correlated plan/task/worker/tool status, terminal/process excerpts, budgets, retries, traces, effect/evidence links | operational events and telemetry are views; Core ledger/evidence remains truth |
 | Quality and evidence | requirements, bundles, checks, review, tests, security/accessibility/benchmark gates | status is per binding and gate, never one unverifiable score |
 | Resource and cost | CPU, memory, disk, provider/model usage, spend vs budget | measured, estimated, reserved, and unavailable values remain distinct |
 | Decisions | Decision Requests, authority, options, deadline, blocked dependents | a decision is valid only when Core records an authorized response |
@@ -72,5 +73,6 @@ It cannot directly terminate a worker process, rewrite an approved artifact, for
 - Resource and cost data differentiates measurement, estimate, reservation, and unavailable state.
 - Losing the Studio does not stop Core or transfer authority to Hermes; reconnecting cannot lose or invent authoritative state.
 - The same state and commands are observable through the CLI, Studio, MCP adapter, and API subject to authorization.
+- Execution Console plan/task/tool/trace rows resolve to Core correlation and artifact/evidence identities; a missing, sampled, stale, or contradictory telemetry signal is labeled and cannot override the ledger.
 
-See [31_Governed_Specification_Workflow.md](31_Governed_Specification_Workflow.md), [32_Hermes_Engineering_Intelligence_Runtime.md](32_Hermes_Engineering_Intelligence_Runtime.md), [33_Model_Independent_Outcome_Convergence.md](33_Model_Independent_Outcome_Convergence.md), [03_System_Architecture.md](03_System_Architecture.md), [07_Messenger_Agent.md](07_Messenger_Agent.md), [10_Loop_Engineering.md](10_Loop_Engineering.md), and [27_Performance_Goals.md](27_Performance_Goals.md).
+See [31_Governed_Specification_Workflow.md](31_Governed_Specification_Workflow.md), [32_Hermes_Engineering_Intelligence_Runtime.md](32_Hermes_Engineering_Intelligence_Runtime.md), [33_Model_Independent_Outcome_Convergence.md](33_Model_Independent_Outcome_Convergence.md), [35_Reference_Systems_and_Competitive_Architecture.md](35_Reference_Systems_and_Competitive_Architecture.md), [03_System_Architecture.md](03_System_Architecture.md), [07_Messenger_Agent.md](07_Messenger_Agent.md), [10_Loop_Engineering.md](10_Loop_Engineering.md), and [27_Performance_Goals.md](27_Performance_Goals.md).

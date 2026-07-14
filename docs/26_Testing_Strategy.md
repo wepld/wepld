@@ -128,6 +128,8 @@ Measure outcome-equivalence rate, gate pass, regression, unsafe effects, evidenc
 
 Ablation results must include negative or null findings and small-sample uncertainty. Benchmark pass rate alone cannot certify a profile or component. See [33_Model_Independent_Outcome_Convergence.md](33_Model_Independent_Outcome_Convergence.md) and [34_Harness_Evaluation_Protocol.md](34_Harness_Evaluation_Protocol.md).
 
+Reference-derived candidates use RS-00–RS-20 in [35_Reference_Systems_and_Competitive_Architecture.md](35_Reference_Systems_and_Competitive_Architecture.md). The suite must cover malicious extensions, Markdown authority attempts, compaction constraint loss, stale structural/index results, ACP confused-deputy requests, cross-worktree writes, crash/duplicate effects, telemetry/Core disagreement, provider semantic drift, memory poisoning, and source/license provenance. Passing a protocol or vendor benchmark never replaces these outcome, safety, recovery, and evidence tests.
+
 ## Critical end-to-end scenarios
 
 1. User intent is clarified, approved as immutable specification, planned, approved, executed phase by phase, evidenced, reviewed, and explicitly accepted/returned/deferred/cancelled.
@@ -145,4 +147,4 @@ Each result identifies command/toolchain, environment, inputs and versions, poli
 
 Before implementation of any H milestone, its test plan names invariant, owner, normal/denied/degraded/recovery/adversarial behavior, evidence artifact, performance/security/accessibility implications, and release gate. If behavior cannot be tested, narrow the contract or record an explicit risk decision.
 
-See also: [14_Security_Architecture.md](14_Security_Architecture.md), [20_Risk_Assessment.md](20_Risk_Assessment.md), [22_Milestones.md](22_Milestones.md), [25_Development_Guidelines.md](25_Development_Guidelines.md), and [32_Hermes_Engineering_Intelligence_Runtime.md](32_Hermes_Engineering_Intelligence_Runtime.md).
+See also: [14_Security_Architecture.md](14_Security_Architecture.md), [20_Risk_Assessment.md](20_Risk_Assessment.md), [22_Milestones.md](22_Milestones.md), [25_Development_Guidelines.md](25_Development_Guidelines.md), [32_Hermes_Engineering_Intelligence_Runtime.md](32_Hermes_Engineering_Intelligence_Runtime.md), and [35_Reference_Systems_and_Competitive_Architecture.md](35_Reference_Systems_and_Competitive_Architecture.md).

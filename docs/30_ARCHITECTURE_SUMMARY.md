@@ -190,6 +190,9 @@ Documents 01–20 retain product, system, component, security, data/event/API, r
 - [32 — Hermes Engineering Intelligence Runtime](32_Hermes_Engineering_Intelligence_Runtime.md)
 - [33 — Model-Independent Outcome Convergence](33_Model_Independent_Outcome_Convergence.md)
 - [34 — Harness Evaluation Protocol](34_Harness_Evaluation_Protocol.md)
+- [35 — Reference Systems and Competitive Architecture](35_Reference_Systems_and_Competitive_Architecture.md)
+
+Document 35 supplies the evidence boundary for reference-informed decisions: Spec Kit informs the typed Delivery Protocol; Pi informs composable Hermes primitives; Zed/ACP informs future editor interoperability; Warp informs bounded execution operations; Claude Code, Codex, Cursor, OpenCode, Aider and OpenHands supply additional controlled treatments. None becomes a foundation or roadmap item by analogy. RS-00–RS-20, Core authority, license/provenance review and the H1–H9 gates decide admission.
 
 ## Architecture-gate conclusion
 

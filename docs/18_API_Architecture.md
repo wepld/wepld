@@ -29,6 +29,7 @@ Every executable request resolves the version chain:
 | Tool/effect port | mediated tool/provider boundaries | validate capability, execute exact intent, probe postcondition, report result/evidence to Core |
 | Registry port | package hosts/admin surfaces | discover, stage, evaluate, request activation, health, quarantine, revoke |
 | Integration/MCP port | channels, service adapters, MCP servers | normalize untrusted inbound intent; mediated outbound delivery and credential use |
+| Agent/client adapter port | ACP or other editor/terminal agent clients | negotiated projections and typed requests mapped to Core commands/events; no direct effect or authority |
 
 ## Transport and schema decision
 
@@ -92,4 +93,6 @@ External channels and tools communicate through adapters, not internet-exposed C
 
 Outbound calls use a transactional delivery queue, idempotency/deduplication, classification/redaction, retries, and receipts. No callback is trusted to assert execution success without a probe/evidence contract. MCP resources and tool calls pass through the same authorization and Effect Firewall; MCP is a surface/adapter, not an alternate control plane.
 
-See [31_Governed_Specification_Workflow.md](31_Governed_Specification_Workflow.md), [32_Hermes_Engineering_Intelligence_Runtime.md](32_Hermes_Engineering_Intelligence_Runtime.md), [34_Harness_Evaluation_Protocol.md](34_Harness_Evaluation_Protocol.md), [05_Worker_Architecture.md](05_Worker_Architecture.md), [06_Brain_Architecture.md](06_Brain_Architecture.md), [14_Security_Architecture.md](14_Security_Architecture.md), [15_Plugin_System.md](15_Plugin_System.md), [16_Data_Model.md](16_Data_Model.md), and [17_Event_System.md](17_Event_System.md). Proposed ADRs 0015–0024 define these authority and interface decisions and remain non-authorizing while Proposed.
+ACP and comparable editor/terminal-agent protocols follow the same rule. Session IDs and plans are projections; capability negotiation describes a client envelope but cannot mint a Core capability. Filesystem, terminal, MCP and other tool requests are denied unless losslessly mapped to an authorized Core action. Transport, identity or data-flow adoption requires a new Proposed ADR under H9.
+
+See [31_Governed_Specification_Workflow.md](31_Governed_Specification_Workflow.md), [32_Hermes_Engineering_Intelligence_Runtime.md](32_Hermes_Engineering_Intelligence_Runtime.md), [34_Harness_Evaluation_Protocol.md](34_Harness_Evaluation_Protocol.md), [35_Reference_Systems_and_Competitive_Architecture.md](35_Reference_Systems_and_Competitive_Architecture.md), [05_Worker_Architecture.md](05_Worker_Architecture.md), [06_Brain_Architecture.md](06_Brain_Architecture.md), [14_Security_Architecture.md](14_Security_Architecture.md), [15_Plugin_System.md](15_Plugin_System.md), [16_Data_Model.md](16_Data_Model.md), and [17_Event_System.md](17_Event_System.md). Proposed ADRs 0015–0024 define these authority and interface decisions and remain non-authorizing while Proposed.

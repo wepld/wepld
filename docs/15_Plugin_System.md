@@ -18,13 +18,18 @@ Core records package policy, approval, activation scope, capability issuance, re
 | Toolchain | compiler, test, formatter, scanner, migration tool | Tool Executor | arbitrary process and supply chain |
 | Integration | external service or messaging channel | Integration Gateway | external data, identity, replay |
 | MCP server | typed tools/resources/context | mediated MCP adapter | tool/data access, prompt injection |
+| Agent/client protocol adapter | ACP, JSONL/OpenAPI or editor/terminal-agent interoperability | Core command/query/event adapter | confused deputy, semantic loss, direct filesystem/terminal authority |
 | UI extension/theme | presentation, panels, commands | Studio extension host | UI confusion, data exposure, false authority |
 
 ## Universal package descriptor
 
 Every package declares identity, publisher, semantic version, integrity hash, signature/provenance, compatibility range, dependency graph, requested capabilities, supported platforms, data handling and destinations, license, configuration schema, migration/rollback instructions, health checks, evaluation evidence, release channel, and revocation information. Type-specific metadata augments rather than replaces this descriptor.
 
+An agent/client protocol adapter is a projection and request translator, never an agent trust boundary. ACP sessions/plans/permissions, MCP declarations, JSONL events and imported workflow files map to exact Core identities and validated commands; unsupported or authority-losing mappings fail closed. The adapter cannot mint capabilities, invoke raw client filesystem/terminal access by default, write authoritative state, or convert transport success into effect/evidence success. ACP remains an H9 experiment under a new Proposed ADR after Core contracts stabilize.
+
 Exact package set, configuration fingerprint, model/profile identity, skill version, hook set, toolchain, and adapter versions are recorded for every relevant task attempt and evaluation. Display names are never identity.
+
+Upstream availability is not installability. Until WePLD has an approved repository licensing/contribution policy and an exact component-level provenance review, reference-system implementations remain clean-room and no source/template/fixture reuse is authorized. RS-00, RS-03, RS-05, RS-06, RS-11, RS-19 and RS-20 in [35_Reference_Systems_and_Competitive_Architecture.md](35_Reference_Systems_and_Competitive_Architecture.md) are the admission experiments for the relevant runtime and protocol ideas.
 
 ## Hermes skill contract
 
