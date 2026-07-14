@@ -43,7 +43,7 @@ pub fn run(worker_cmd: Vec<String>) -> Result<(), Box<dyn Error>> {
     core.set_worker_cmd(worker_cmd);
     // The scratch repo is this demo's fixtures root (DEV-tier: fixture repos
     // only). No OS containment exists — disclosed up front.
-    core.set_fixtures_root(&scratch);
+    core.set_fixtures_root(&scratch)?;
 
     println!("── WePLD demo ──  (Operating System for Autonomous Engineering)");
     println!("scratch: {}", scratch.display());

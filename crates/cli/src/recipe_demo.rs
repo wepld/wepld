@@ -58,7 +58,7 @@ pub fn run(worker_cmd: Vec<String>) -> Result<(), Box<dyn Error>> {
 
     let mut core = Core::open(&store)?;
     core.set_worker_cmd(worker_cmd);
-    core.set_fixtures_root(&scratch);
+    core.set_fixtures_root(&scratch)?;
 
     println!("── WePLD · Engineering Recipe: Build Feature ──\n");
     println!("  You:    \"{REQUEST}\"");
@@ -106,6 +106,12 @@ pub fn run(worker_cmd: Vec<String>) -> Result<(), Box<dyn Error>> {
         RecipeOutcome::Completed(bf) => {
             println!("  ③ completion accepted");
             print_report(&bf, REQUEST);
+        }
+        // Durable decision preserved, acceptance not final — recovery needed;
+        // no merge occurred. This is distinct from a rejection.
+        RecipeOutcome::Deferred { state, reason, .. } => {
+            println!("  ③ acceptance NOT final ({state}) — {reason}");
+            println!("     The decision is recorded; retry to recover. No merge occurred.");
         }
         RecipeOutcome::Rejected(reason) => println!("  Could not complete: {reason}"),
         _ => {}

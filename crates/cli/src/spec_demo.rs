@@ -72,7 +72,7 @@ pub fn run(worker_cmd: Vec<String>) -> Result<(), Box<dyn Error>> {
 
     let mut core = Core::open(&store)?;
     core.set_worker_cmd(worker_cmd);
-    core.set_fixtures_root(&scratch);
+    core.set_fixtures_root(&scratch)?;
 
     println!("── pipeline ──");
     step(
@@ -109,10 +109,12 @@ pub fn run(worker_cmd: Vec<String>) -> Result<(), Box<dyn Error>> {
         },
         report.total
     );
-    let merged = std::fs::read_to_string(repo.join("src/main.rs"))?;
+    // V0 acceptance never mutates the primary worktree — the change lands on a
+    // proposal ref for an external protected merge.
+    let primary = std::fs::read_to_string(repo.join("src/main.rs"))?;
     println!(
-        "primary repo now has --version: {}",
-        merged.contains("--version")
+        "primary worktree untouched (no --version in the working tree): {}",
+        !primary.contains("--version")
     );
     println!(
         "\nSpecification → Mission → Runtime → Hermes → Evidence → Ledger — one vertical slice."

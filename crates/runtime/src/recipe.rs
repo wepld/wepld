@@ -165,6 +165,15 @@ pub enum RecipeOutcome {
     /// The feature reached a terminal reported state (accepted, or executed but
     /// not accepted).
     Completed(Box<BuildFeatureReport>),
+    /// The explicit decision is **durable** but acceptance is **not final**:
+    /// recovery or conflict resolution is required (a proposal-ref conflict or an
+    /// interrupted acceptance). This is NOT a rejection — no merge occurred, the
+    /// mission is preserved, and a retry can still reach `Completed`.
+    Deferred {
+        mission_id: String,
+        state: String,
+        reason: String,
+    },
     Rejected(String),
 }
 
@@ -262,10 +271,18 @@ impl Core {
                     }
                 }
                 CommandOutcome::Rejected { reason } => return Ok(RecipeOutcome::Rejected(reason)),
+                // Preserve the recoverable, non-final semantics — never flatten
+                // a durable Deferred into a Rejected (Blocker 3).
                 CommandOutcome::Deferred { reason } => {
-                    return Ok(RecipeOutcome::Rejected(format!(
-                        "acceptance not final: {reason}"
-                    )))
+                    let state = self
+                        .mission_row(mission_id)?
+                        .map(|(_, s)| s)
+                        .unwrap_or_default();
+                    return Ok(RecipeOutcome::Deferred {
+                        mission_id: mission_id.to_owned(),
+                        state,
+                        reason,
+                    });
                 }
                 other => return Ok(RecipeOutcome::Rejected(format!("{other:?}"))),
             }
