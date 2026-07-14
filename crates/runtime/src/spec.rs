@@ -33,6 +33,13 @@ impl Core {
                 ),
             });
         }
+        // DEV preflight before any durable spec/mission record exists. Spec-derived
+        // missions are Manual under DEV; an unauthorized repo is refused up front.
+        if let Err(reason) =
+            self.dev_tier_gate(repo, wepld_contracts::mission::AutonomyMode::Manual)
+        {
+            return Ok(CommandOutcome::Rejected { reason });
+        }
         let spec_id = format!("spec_{slug}");
         let version = 1u32;
 

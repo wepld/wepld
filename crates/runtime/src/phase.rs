@@ -19,6 +19,9 @@ pub struct PhaseSpec {
     pub task_id: String,
     pub attempt_id: String,
     pub phase: String,
+    /// The repository this phase operates on — authorized at the worker-spawn
+    /// boundary (Blocker 5 defense in depth) before any worker starts.
+    pub repo: String,
     /// Worker program + args (the Runtime decides which WWP runtime runs).
     pub worker_cmd: Vec<String>,
     /// Context pack v0 (brief + task); captured to the CAS and referenced by
@@ -62,6 +65,18 @@ impl Core {
     /// Run one phase end-to-end: capture pack, spawn worker, mediate brain
     /// requests, record every ending honestly, return outcome + summary.
     pub fn run_phase(&mut self, spec: &PhaseSpec) -> Result<PhaseRun, RuntimeError> {
+        // Defense in depth (Blocker 5): the worker-spawn boundary itself
+        // authorizes the repository under the DEV tier. A denied repository
+        // spawns NO worker and records NO attempt — we return before any effect.
+        if let Err(reason) =
+            self.dev_tier_gate(&spec.repo, wepld_contracts::mission::AutonomyMode::Manual)
+        {
+            return Ok(PhaseRun {
+                outcome: PhaseOutcome::Failed,
+                summary: serde_json::json!({ "denied": reason }),
+            });
+        }
+
         // Capture the context pack: store once, reference by hash forever.
         let pack_bytes = serde_json::to_vec(&spec.pack)?;
         let stored = self.cas().put(&pack_bytes)?;

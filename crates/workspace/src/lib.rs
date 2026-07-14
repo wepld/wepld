@@ -171,15 +171,24 @@ impl Workspace {
         Ok(())
     }
 
-    /// Create or update a mission's **proposal ref**
-    /// `refs/heads/wepld/mission-<id>` at `commit`, without checking it out or
-    /// touching the base branch, `HEAD`, the index, or the primary worktree.
-    /// Idempotent (updating to the same commit is a no-op). This is the V0
-    /// acceptance effect: a reviewable proposal a human merges later through an
-    /// external protected workflow — never an in-repo merge.
-    pub fn propose_ref(&self, mission_id: &str, commit: &str) -> Result<SnapRef, WorkspaceError> {
+    /// Atomically create/advance a mission's **proposal ref**
+    /// `refs/heads/wepld/mission-<id>` to `commit` using Git's compare-and-swap
+    /// form `update-ref <ref> <new> <expected-old>`. `expected_old` = `None`
+    /// requires the ref to **not exist** (zero old value); `Some(sha)` requires
+    /// it to currently equal `sha`. A mismatch fails loudly — the ref is **never**
+    /// force-replaced. No checkout, no merge; the base branch, `HEAD`, index, and
+    /// primary worktree are untouched. This is the V0 acceptance effect: a
+    /// reviewable proposal a human merges later through an external workflow.
+    pub fn propose_ref(
+        &self,
+        mission_id: &str,
+        commit: &str,
+        expected_old: Option<&str>,
+    ) -> Result<SnapRef, WorkspaceError> {
+        const ZERO: &str = "0000000000000000000000000000000000000000";
         let name = format!("refs/heads/wepld/mission-{mission_id}");
-        self.git(&["update-ref", &name, commit])?;
+        let old = expected_old.unwrap_or(ZERO);
+        self.git(&["update-ref", &name, commit, old])?;
         Ok(SnapRef {
             name,
             commit: commit.to_owned(),
@@ -224,12 +233,11 @@ impl Workspace {
         } else {
             self.repo.join(common_raw)
         };
-        // Canonicalize + lowercase so relative/absolute and case-variant paths
-        // to the same repository resolve to one identity (Windows-friendly).
-        let common_dir = std::fs::canonicalize(&common_path)
-            .unwrap_or(common_path)
-            .to_string_lossy()
-            .to_lowercase();
+        // Canonicalize with platform-correct case handling: Windows filesystems
+        // are case-insensitive (normalize case); Unix/macOS are case-sensitive
+        // (preserve case) so two repos differing only by case stay distinct.
+        let canon = std::fs::canonicalize(&common_path).unwrap_or(common_path);
+        let common_dir = normalize_case(&canon.to_string_lossy());
         let root_commit = self
             .git(&["rev-list", "--max-parents=0", "HEAD"])
             .unwrap_or_default()
@@ -265,6 +273,19 @@ impl Workspace {
 
     fn git(&self, args: &[&str]) -> Result<String, WorkspaceError> {
         git_in(&self.repo, args, &[])
+    }
+}
+
+/// Platform-correct path-case normalization for project identity: lowercase on
+/// case-insensitive Windows, preserve on case-sensitive Unix/macOS.
+fn normalize_case(s: &str) -> String {
+    #[cfg(windows)]
+    {
+        s.to_lowercase()
+    }
+    #[cfg(not(windows))]
+    {
+        s.to_owned()
     }
 }
 

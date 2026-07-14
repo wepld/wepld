@@ -41,6 +41,10 @@ impl Core {
         let Some(brief) = self.store_brief(mission_id)? else {
             return Ok(rejected("mission brief missing".to_owned()));
         };
+        // DEV preflight: no planner worker spawns for an unauthorized repository.
+        if let Err(reason) = self.dev_preflight(mission_id) {
+            return Ok(rejected(reason));
+        }
 
         let attempt_id = format!("att_{mission_id}_plan");
         let pack = planner_pack(&brief);
@@ -49,6 +53,10 @@ impl Core {
             task_id: format!("{mission_id}_planning"),
             attempt_id: attempt_id.clone(),
             phase: "plan".to_owned(),
+            repo: brief["scope"]["repo"]
+                .as_str()
+                .unwrap_or_default()
+                .to_owned(),
             worker_cmd: self.worker_cmd(),
             pack,
             brain_profile: "fixture-default".to_owned(),
@@ -241,6 +249,7 @@ impl Core {
                 task_id: task.task_id.clone(),
                 attempt_id: attempt_id.clone(),
                 phase: "build".to_owned(),
+                repo: brief.scope.repo.clone(),
                 worker_cmd: self.worker_cmd(),
                 pack: builder_pack(&brief_json, &task_spec),
                 brain_profile: "fixture-default".to_owned(),
@@ -467,15 +476,26 @@ impl Core {
                     fault,
                 )
             }
-            // Recovery: the decision is already durable; re-attempt the reversible
-            // effect and complete idempotently.
-            "acceptance_pending" | "acceptance_uncertain" => self.finalize_acceptance(
-                mission_id,
-                approver,
-                &snapshot_commit,
-                &proposal_ref,
-                fault,
-            ),
+            // Recovery: the decision is already durable. Reuse the ORIGINAL
+            // recorded approver — a retry caller must not rewrite who approved.
+            "acceptance_pending" | "acceptance_uncertain" => {
+                match self.recorded_decision_approver(mission_id)? {
+                    Some(original) if original == approver => self.finalize_acceptance(
+                        mission_id,
+                        &original,
+                        &snapshot_commit,
+                        &proposal_ref,
+                        fault,
+                    ),
+                    Some(original) => Ok(rejected(format!(
+                        "acceptance retry approver {approver:?} does not match the recorded \
+                         approver {original:?}; refusing to rewrite the decision"
+                    ))),
+                    None => Ok(rejected(
+                        "no recorded completion decision to recover".to_owned(),
+                    )),
+                }
+            }
             other => Ok(rejected(format!(
                 "mission is {other}, expected completion_proposed before acceptance"
             ))),
@@ -500,9 +520,25 @@ impl Core {
         let base_before = self.base_branch_commit(&brief)?;
         let ws = Workspace::open(std::path::Path::new(&brief.scope.repo))?;
 
-        // 3. Reversible, idempotent effect: create/update the proposal ref. This
-        //    never checks out, merges, or mutates the base branch or worktree.
-        ws.propose_ref(mission_id, snapshot_commit)?;
+        // 3. Conflict-safe effect: compare-and-swap the proposal ref. Never
+        //    force-overwrite a ref already pointing elsewhere (Blocker 3).
+        let refname = format!("wepld/mission-{mission_id}");
+        match ws.branch_commit(&refname)? {
+            // Already at the intended snapshot — idempotent recovery no-op.
+            Some(c) if c == snapshot_commit => {}
+            // A conflicting ref: record uncertain, do not overwrite, defer.
+            Some(other) => {
+                return self.record_acceptance_conflict(mission_id, snapshot_commit, &other)
+            }
+            // Absent: create atomically (expected-old = zero). A lost race is a
+            // conflict, not a silent overwrite.
+            None => {
+                if ws.propose_ref(mission_id, snapshot_commit, None).is_err() {
+                    let now = ws.branch_commit(&refname)?.unwrap_or_default();
+                    return self.record_acceptance_conflict(mission_id, snapshot_commit, &now);
+                }
+            }
+        }
         if fault == AcceptFault::BeforeFinalRecord {
             // Simulated crash after the effect, before the final record.
             return Ok(CommandOutcome::Deferred {
@@ -511,7 +547,7 @@ impl Core {
         }
 
         // 4. Probe the actual git state rather than trusting the effect call.
-        let observed = ws.branch_commit(&format!("wepld/mission-{mission_id}"))?;
+        let observed = ws.branch_commit(&refname)?;
         let base_after = self.base_branch_commit(&brief)?;
         if base_after != base_before {
             // A base-branch change would be a governance violation; refuse to
@@ -595,6 +631,55 @@ impl Core {
             Ok(())
         })?;
         Ok(accepted(detail))
+    }
+
+    /// A proposal ref already points somewhere unexpected — refuse to overwrite,
+    /// record an explicit conflict/uncertain state, and defer (no MissionAccepted).
+    fn record_acceptance_conflict(
+        &mut self,
+        mission_id: &str,
+        expected: &str,
+        observed: &str,
+    ) -> Result<CommandOutcome, RuntimeError> {
+        let mid = mission_id.to_owned();
+        let exp = expected.to_owned();
+        let obs = observed.to_owned();
+        self.store_mut().transact(|tx| {
+            tx.set_mission_state(&mid, "acceptance_uncertain")?;
+            tx.append(&NewEntry {
+                entry_type: EventType::AttemptUncertain,
+                schema_version: 1,
+                aggregate_type: AggregateType::Mission,
+                aggregate_id: mid.clone(),
+                actor_type: ActorType::Core,
+                actor_id: "core".to_owned(),
+                correlation_id: mid,
+                causation_ref: None,
+                payload: serde_json::json!({
+                    "reason": "proposal ref conflict; refusing to overwrite",
+                    "expected": exp, "observed": obs,
+                }),
+            })?;
+            Ok(())
+        })?;
+        Ok(CommandOutcome::Deferred {
+            reason: "acceptance uncertain: proposal ref conflict (not overwritten)".to_owned(),
+        })
+    }
+
+    /// The approver recorded in the mission's `DecisionResolved` fact — the
+    /// original human decision. Recovery reuses this; a retry caller may not
+    /// replace it.
+    fn recorded_decision_approver(&self, mission_id: &str) -> Result<Option<String>, RuntimeError> {
+        Ok(self
+            .timeline(mission_id)?
+            .into_iter()
+            .rev()
+            .find(|e| {
+                e.entry_type == EventType::DecisionResolved
+                    && e.payload_json["decision"] == "approve_completion"
+            })
+            .and_then(|e| e.payload_json["approved_by"].as_str().map(str::to_owned)))
     }
 
     /// Return a proposed completion instead of accepting it (an explicit human

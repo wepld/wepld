@@ -71,6 +71,8 @@ pub enum RuntimeError {
     Io(#[from] std::io::Error),
     #[error("unauthenticated principal: {0:?} (a governance decision must name an authenticated principal)")]
     Unauthenticated(String),
+    #[error("path cannot be canonicalized (does it exist?): {0:?}")]
+    UnresolvablePath(String),
 }
 
 /// Whether `actor` is an authenticated principal that may make a governance
@@ -80,12 +82,21 @@ pub(crate) fn is_authenticated_principal(actor: &str) -> bool {
     actor == LOCAL_PRINCIPAL
 }
 
-/// Canonicalize a path and lowercase it for stable, case-insensitive scope
-/// comparisons. Returns `None` if the path does not resolve.
-fn canonical_lower(path: &Path) -> Option<PathBuf> {
-    std::fs::canonicalize(path)
-        .ok()
-        .map(|p| PathBuf::from(p.to_string_lossy().to_lowercase()))
+/// Canonicalize a path for stable scope comparison and project identity, with
+/// **platform-correct** case handling: Windows filesystems are case-insensitive
+/// so case is normalized; Unix/macOS paths are case-sensitive so case is
+/// **preserved** (never lossily lowercased — two repos differing only by case
+/// must stay distinct). Returns `None` if the path cannot be canonicalized.
+pub(crate) fn canonical_scope_path(path: &Path) -> Option<PathBuf> {
+    let canon = std::fs::canonicalize(path).ok()?;
+    #[cfg(windows)]
+    {
+        Some(PathBuf::from(canon.to_string_lossy().to_lowercase()))
+    }
+    #[cfg(not(windows))]
+    {
+        Some(canon)
+    }
 }
 
 pub struct Core {
@@ -171,7 +182,7 @@ impl Core {
     /// Set the canonical fixtures root. Under DEV, missions must operate on a
     /// repository within this root unless an explicit override is granted.
     pub fn set_fixtures_root(&mut self, path: &Path) {
-        self.dev.fixtures_root = canonical_lower(path);
+        self.dev.fixtures_root = canonical_scope_path(path);
     }
 
     /// Grant an explicit, actor-attributed override permitting one uncontained
@@ -182,8 +193,10 @@ impl Core {
         if !is_authenticated_principal(actor) {
             return Err(RuntimeError::Unauthenticated(actor.to_owned()));
         }
-        let canon =
-            canonical_lower(Path::new(repo)).unwrap_or_else(|| PathBuf::from(repo.to_lowercase()));
+        // No lowercase fallback: an override for a path that cannot be resolved
+        // is refused outright (never silently trusts an unresolved string).
+        let canon = canonical_scope_path(Path::new(repo))
+            .ok_or_else(|| RuntimeError::UnresolvablePath(repo.to_owned()))?;
         let repo_disp = canon.to_string_lossy().into_owned();
         self.dev.allow_uncontained = Some((canon, actor.to_owned()));
         let tier = serde_json::to_value(SandboxTier::Dev)?;
@@ -238,8 +251,14 @@ impl Core {
                 "DEV tier permits Manual mode only; Bounded-Auto is refused. {DEV_TIER_WARNING}"
             ));
         }
-        let canon =
-            canonical_lower(Path::new(repo)).unwrap_or_else(|| PathBuf::from(repo.to_lowercase()));
+        // A repository that cannot be canonicalized cannot be authorized — no
+        // unresolved-string fallback.
+        let Some(canon) = canonical_scope_path(Path::new(repo)) else {
+            return Err(format!(
+                "DEV tier: repository {repo:?} cannot be canonicalized (does it exist?). \
+                 {DEV_TIER_WARNING}"
+            ));
+        };
         if let Some(root) = &self.dev.fixtures_root {
             if canon.starts_with(root) {
                 return Ok(());
@@ -256,6 +275,32 @@ impl Core {
              {DEV_TIER_WARNING}",
             canon.display()
         ))
+    }
+
+    /// Centralized DEV preflight (Blocker 5): authorize a mission's repository +
+    /// autonomy mode before any worker may spawn. Used before mission creation,
+    /// planning, running, and — for defense in depth — at the worker-spawn
+    /// boundary itself. Returns the rejection reason if denied.
+    pub(crate) fn dev_preflight(&self, mission_id: &str) -> Result<(), String> {
+        let brief = self
+            .store
+            .mission_brief(mission_id)
+            .ok()
+            .flatten()
+            .ok_or_else(|| format!("no brief for mission {mission_id}"))?;
+        let repo = brief["scope"]["repo"].as_str().unwrap_or("");
+        let mode = serde_json::from_value::<AutonomyMode>(brief["autonomy_mode"].clone())
+            .unwrap_or(AutonomyMode::Manual);
+        self.dev_tier_gate(repo, mode)
+    }
+
+    /// DEV preflight for an incoming brief that is not yet durable (mission
+    /// creation), so an unauthorized repository is refused before any record.
+    pub(crate) fn dev_preflight_brief(&self, brief: &serde_json::Value) -> Result<(), String> {
+        let repo = brief["scope"]["repo"].as_str().unwrap_or("");
+        let mode = serde_json::from_value::<AutonomyMode>(brief["autonomy_mode"].clone())
+            .unwrap_or(AutonomyMode::Manual);
+        self.dev_tier_gate(repo, mode)
     }
 
     /// The command pipeline (v2-02 §2): idempotency, validation, transition —
@@ -278,7 +323,14 @@ impl Core {
         }
         // 3–4. Validate + apply per command type.
         match cmd.command_type.as_str() {
-            "create_mission" => commands::create_mission(&mut self.store, cmd),
+            "create_mission" => {
+                // DEV preflight before any durable mission exists: an arbitrary
+                // (non-fixture, non-overridden) repository is refused up front.
+                if let Err(reason) = self.dev_preflight_brief(&cmd.payload) {
+                    return Ok(CommandOutcome::Rejected { reason });
+                }
+                commands::create_mission(&mut self.store, cmd)
+            }
             other => Ok(CommandOutcome::Rejected {
                 reason: format!("unknown command type: {other}"),
             }),
