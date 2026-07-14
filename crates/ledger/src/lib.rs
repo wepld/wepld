@@ -12,6 +12,6 @@ mod store;
 pub use error::LedgerError;
 pub use fold::{fold_mission, FoldedMission};
 pub use store::{
-    payload_hash, AppendedRef, BrainInvocationRow, ChainReport, LedgerStore, NewEntry, TaskRow, Tx,
-    GENESIS_HASH,
+    payload_hash, AppendedRef, BrainInvocationRow, ChainReport, LedgerStore, LessonRow, NewEntry,
+    TaskRow, Tx, GENESIS_HASH,
 };

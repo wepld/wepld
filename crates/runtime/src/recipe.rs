@@ -16,10 +16,22 @@ use wepld_contracts::specification::SpecificationDocument;
 use wepld_contracts::vocabulary::EventType;
 use wepld_ledger::NewEntry;
 
+/// The feature outcome plus what it did to the Engineering Memory.
+pub struct BuildFeatureReport {
+    pub report: EngineeringReport,
+    /// Lessons this mission recorded (0 or 1).
+    pub lessons_learned: usize,
+    /// Prior lessons that informed the reasoning (memory closing the loop).
+    pub prior_lessons_applied: usize,
+    /// Total lessons the repo now holds.
+    pub total_memory: usize,
+}
+
 /// The result a user sees from running a recipe.
 pub enum RecipeOutcome {
-    /// The feature was implemented; here is the evidence-derived report.
-    Completed(Box<EngineeringReport>),
+    /// The feature was implemented; here is the evidence-derived report + the
+    /// change to Engineering Memory.
+    Completed(Box<BuildFeatureReport>),
     /// Reasoning could not resolve everything — Hermes asks the user (only
     /// when reasoning and evidence are insufficient).
     NeedsClarification {
@@ -40,8 +52,12 @@ impl Core {
         repo: &str,
         base: &str,
     ) -> Result<RecipeOutcome, RuntimeError> {
-        // 1. Hermes reasons a specification from the request.
-        let Some(doc) = self.reason_spec_from_request(request, slug)? else {
+        // Engineering Memory that will inform reasoning (closes the loop:
+        // lessons from prior missions on this repo are applied now).
+        let prior_lessons_applied = self.lessons_for_repo(repo)?.len();
+
+        // 1. Hermes reasons a specification from the request, with memory.
+        let Some(doc) = self.reason_spec_from_request(request, slug, repo)? else {
             return Ok(RecipeOutcome::Rejected(
                 "Hermes could not produce a specification for this request \
                  (no reasoning provider available)."
@@ -78,27 +94,46 @@ impl Core {
             .mission_row(&mission_id)?
             .map(|(_, s)| s)
             .unwrap_or_default();
+        let mut lessons_learned = 0;
         if state == "completion_proposed" {
             self.accept_mission(&mission_id, true)?;
+            // 5. Leave Hermes and the Engineering Memory better: record a
+            // lesson from this mission's own evidence.
+            if self.record_engineering_experience(&mission_id)?.is_some() {
+                lessons_learned = 1;
+            }
         }
 
-        // 5. The evidence-derived engineering report.
-        Ok(RecipeOutcome::Completed(Box::new(
-            self.engineering_report(&mission_id)?,
-        )))
+        // 6. The evidence-derived report + the memory change.
+        let report = self.engineering_report(&mission_id)?;
+        let total_memory = self.lessons_for_repo(repo)?.len();
+        Ok(RecipeOutcome::Completed(Box::new(BuildFeatureReport {
+            report,
+            lessons_learned,
+            prior_lessons_applied,
+            total_memory,
+        })))
     }
 
     /// Reason a specification document from a natural-language request through
-    /// the gateway. Records the reasoning as a `BrainInvoked` fact under the
-    /// spec's correlation. Returns `None` if reasoning was unavailable/invalid.
+    /// the gateway, informed by the repo's Engineering Memory. Records the
+    /// reasoning as a `BrainInvoked` fact under the spec's correlation. Returns
+    /// `None` if reasoning was unavailable/invalid.
     fn reason_spec_from_request(
         &mut self,
         request: &str,
         slug: &str,
+        repo: &str,
     ) -> Result<Option<SpecificationDocument>, RuntimeError> {
         let spec_id = format!("spec_{slug}");
+        let memory: Vec<serde_json::Value> = self
+            .lessons_for_repo(repo)?
+            .iter()
+            .map(|l| serde_json::json!({ "title": l.title, "body": l.body }))
+            .collect();
         let pack = serde_json::json!({
-            "schema_version": 1, "intent": "specify", "request": request
+            "schema_version": 1, "intent": "specify", "request": request,
+            "engineering_memory": memory
         });
         let pack_ref = self.cas().put(&serde_json::to_vec(&pack)?)?;
         let invocation_id = format!("brn_{spec_id}_specify");

@@ -77,7 +77,16 @@ impl Workspace {
     /// Snapshot the worktree state to `refs/wepld/<attempt>/<label>` using a
     /// temporary index — the worktree's own index and HEAD are untouched.
     pub fn snapshot(&self, wt: &Worktree, label: &str) -> Result<SnapRef, WorkspaceError> {
-        let tmp_index = wt.path.join(format!(".wepld-index-{label}"));
+        // A unique temp index outside the worktree — never pollutes the
+        // worktree and never collides with a stale lock across missions.
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let tmp_index =
+            std::env::temp_dir().join(format!("wepld-index-{}-{label}-{nanos}", wt.attempt_id));
+        let _ = std::fs::remove_file(&tmp_index);
+        let _ = std::fs::remove_file(format!("{}.lock", tmp_index.display()));
         let index_env = tmp_index.to_str().expect("utf8 path").to_owned();
 
         let run = |args: &[&str]| -> Result<String, WorkspaceError> {

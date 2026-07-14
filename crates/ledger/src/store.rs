@@ -113,6 +113,20 @@ CREATE TABLE IF NOT EXISTS work_queue (
   not_before   TEXT,
   attempts     INTEGER NOT NULL DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS lessons (
+  lesson_id  TEXT PRIMARY KEY,
+  repo       TEXT NOT NULL,
+  mission_id TEXT NOT NULL,
+  spec_id    TEXT,
+  title      TEXT NOT NULL,
+  body       TEXT NOT NULL,
+  gates_json TEXT NOT NULL,
+  files_json TEXT NOT NULL,
+  confidence REAL NOT NULL,
+  status     TEXT NOT NULL DEFAULT 'candidate',
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS lessons_repo ON lessons (repo, created_at);
 ";
 
 pub struct LedgerStore {
@@ -156,6 +170,24 @@ pub struct BrainInvocationRow {
     pub tokens_out: u64,
     pub cost_usd: f64,
     pub latency_ms: u64,
+}
+
+/// A recorded engineering lesson — durable, evidence-based memory that makes
+/// Hermes better over time. Scoped to a repo so future work retrieves it.
+#[derive(Debug, Clone)]
+pub struct LessonRow {
+    pub lesson_id: String,
+    pub repo: String,
+    pub mission_id: String,
+    pub spec_id: Option<String>,
+    pub title: String,
+    pub body: String,
+    /// Reusable verification recipes learned: (gate, command).
+    pub gates_json: String,
+    pub files_json: String,
+    pub confidence: f64,
+    pub status: String,
+    pub created_at: String,
 }
 
 /// A task row (Orchestration-owned unit of work).
@@ -387,6 +419,36 @@ impl LedgerStore {
         }
     }
 
+    /// All lessons recorded for a repository, newest last — Engineering Memory
+    /// retrieval for future missions.
+    pub fn lessons_for_repo(&self, repo: &str) -> Result<Vec<LessonRow>, LedgerError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT lesson_id, repo, mission_id, spec_id, title, body, gates_json, files_json,
+                    confidence, status, created_at
+             FROM lessons WHERE repo = ?1 ORDER BY created_at, lesson_id",
+        )?;
+        let rows = stmt.query_map([repo], |r| {
+            Ok(LessonRow {
+                lesson_id: r.get(0)?,
+                repo: r.get(1)?,
+                mission_id: r.get(2)?,
+                spec_id: r.get(3)?,
+                title: r.get(4)?,
+                body: r.get(5)?,
+                gates_json: r.get(6)?,
+                files_json: r.get(7)?,
+                confidence: r.get(8)?,
+                status: r.get(9)?,
+                created_at: r.get(10)?,
+            })
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
     pub fn tasks_for_mission(&self, mission_id: &str) -> Result<Vec<TaskRow>, LedgerError> {
         let mut stmt = self.conn.prepare(
             "SELECT task_id, mission_id, spec_json, state, sequence_no
@@ -574,6 +636,29 @@ impl Tx<'_> {
         self.inner.execute(
             "UPDATE tasks SET state = ?2 WHERE task_id = ?1",
             params![task_id, state],
+        )?;
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn insert_lesson(&mut self, row: &LessonRow) -> Result<(), LedgerError> {
+        self.inner.execute(
+            "INSERT INTO lessons (lesson_id, repo, mission_id, spec_id, title, body,
+                    gates_json, files_json, confidence, status, created_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
+            params![
+                row.lesson_id,
+                row.repo,
+                row.mission_id,
+                row.spec_id,
+                row.title,
+                row.body,
+                row.gates_json,
+                row.files_json,
+                row.confidence,
+                row.status,
+                row.created_at,
+            ],
         )?;
         Ok(())
     }

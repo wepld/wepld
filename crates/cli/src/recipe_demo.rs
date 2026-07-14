@@ -7,7 +7,7 @@
 use std::error::Error;
 use std::path::Path;
 use std::process::Command;
-use wepld_runtime::{builder_pack, Core, EngineeringReport, RecipeOutcome};
+use wepld_runtime::{builder_pack, BuildFeatureReport, Core, RecipeOutcome};
 use wepld_specification::{convert, ConvertInput, SpecAcceptanceCriterion, SpecificationDocument};
 
 const REQUEST: &str = "Add a --version flag to notes-cli";
@@ -64,7 +64,7 @@ pub fn run(worker_cmd: Vec<String>) -> Result<(), Box<dyn Error>> {
     println!("  Hermes is engineering this feature…\n");
 
     match core.run_build_feature(REQUEST, SLUG, &repo_str, "main")? {
-        RecipeOutcome::Completed(report) => print_report(&report, REQUEST),
+        RecipeOutcome::Completed(bf) => print_report(&bf, REQUEST),
         RecipeOutcome::NeedsClarification { questions, .. } => {
             println!("  Hermes needs clarification:");
             for q in questions {
@@ -82,7 +82,8 @@ pub fn run(worker_cmd: Vec<String>) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn print_report(r: &EngineeringReport, feature: &str) {
+fn print_report(bf: &BuildFeatureReport, feature: &str) {
+    let r = &bf.report;
     let ck = |b: bool| if b { "✓" } else { "✗" };
     println!("  ┌─ Mission Complete ───────────────────────────");
     println!("  │ Feature        {feature}");
@@ -132,15 +133,21 @@ fn print_report(r: &EngineeringReport, feature: &str) {
         "  │ Confidence     {:.0}% (evidence-derived)",
         r.confidence * 100.0
     );
+    println!(
+        "  │ Eng. Memory    ✓ {} learned · {} applied · {} total",
+        bf.lessons_learned, bf.prior_lessons_applied, bf.total_memory
+    );
     println!("  └──────────────────────────────────────────────");
+    println!("\n  The codebase, Hermes, and the Engineering Memory are all better than before.");
 }
 
 fn record_cassettes(store: &Path, repo: &str) -> Result<(), Box<dyn Error>> {
     let doc = reasoned_spec();
 
-    // specify: request → specification document.
+    // specify: request → specification document (empty memory on first run).
     let specify_pack = serde_json::json!({
-        "schema_version": 1, "intent": "specify", "request": REQUEST
+        "schema_version": 1, "intent": "specify", "request": REQUEST,
+        "engineering_memory": []
     });
     let specify_key = wepld_providers::cassette_key(
         "specify",
