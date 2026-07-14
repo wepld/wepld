@@ -29,7 +29,16 @@ impl Core {
         mission_id: &str,
     ) -> Result<Option<RecordedLesson>, RuntimeError> {
         let report = self.engineering_report(mission_id)?;
+        // Only accepted missions leave a lesson. Failed, cancelled, rejected,
+        // or gate-failing missions produce no Active memory.
         if report.state != "accepted" {
+            return Ok(None);
+        }
+        // Idempotent: a replayed or retried acceptance must not duplicate a
+        // lesson row, CAS body, `InsightRecorded` event, or memory counter.
+        // The id is derived from the mission, so re-running is a safe no-op.
+        let lesson_id = format!("lesson_{mission_id}");
+        if self.store.lesson(&lesson_id)?.is_some() {
             return Ok(None);
         }
         let brief = match self.store.mission_brief(mission_id)? {
@@ -60,6 +69,14 @@ impl Core {
             None => vec![],
         };
 
+        // Conservative extraction: durable memory requires durable, reusable
+        // evidence. With neither a passed verification gate nor a changed file,
+        // there is nothing worth remembering — a valid "No durable lesson
+        // extracted" outcome, not a filler lesson to satisfy a metric.
+        if !has_reusable_evidence(gates_learned.len(), files_touched.len()) {
+            return Ok(None);
+        }
+
         let gate_names: Vec<&str> = gates_learned.iter().map(|(g, _)| g.as_str()).collect();
         let body = format!(
             "Feature \"{}\" was implemented and verified in this project. \
@@ -77,8 +94,7 @@ impl Core {
             },
             report.confidence * 100.0
         );
-        let lesson_id = format!("lesson_{mission_id}");
-        let row = LessonRow {
+        let mut row = LessonRow {
             lesson_id: lesson_id.clone(),
             repo,
             mission_id: mission_id.to_owned(),
@@ -90,20 +106,26 @@ impl Core {
             confidence: report.confidence,
             status: "candidate".to_owned(),
             created_at: now_millis(),
+            created_seq: 0,
         };
+        let lesson_title = row.title.clone();
 
+        // The body is content-addressed, so writing it before the transaction
+        // is safe: an identical body dedups, and an orphaned body (if the
+        // transaction never commits) is harmless and never referenced. No
+        // lesson becomes visible without its committed row *and* ledger fact.
         let body_ref = self.cas().put(body.as_bytes())?;
         let mid = mission_id.to_owned();
-        let lid = lesson_id.clone();
-        let title = row.title.clone();
         let payload = serde_json::json!({
-            "lesson_id": lid, "title": title, "confidence": report.confidence,
+            "lesson_id": lesson_id, "title": row.title, "confidence": report.confidence,
             "gates_learned": gates_learned, "files_touched": files_touched,
             "body_ref": body_ref.hash, "status": "candidate"
         });
+        // One transaction: append the `InsightRecorded` fact, then persist the
+        // row stamped with that fact's ledger sequence (provenance). Either both
+        // commit or neither does — a partial failure rolls back atomically.
         self.store_mut().transact(|tx| {
-            tx.insert_lesson(&row)?;
-            tx.append(&NewEntry {
+            let appended = tx.append(&NewEntry {
                 entry_type: EventType::InsightRecorded,
                 schema_version: 1,
                 aggregate_type: AggregateType::Mission,
@@ -114,12 +136,14 @@ impl Core {
                 causation_ref: None,
                 payload,
             })?;
+            row.created_seq = appended.seq;
+            tx.insert_lesson(&row)?;
             Ok(())
         })?;
 
         Ok(Some(RecordedLesson {
             lesson_id,
-            title: row.title,
+            title: lesson_title,
             gates_learned: gates_learned.len(),
             files_touched: files_touched.len(),
         }))
@@ -129,6 +153,13 @@ impl Core {
     pub fn lessons_for_repo(&self, repo: &str) -> Result<Vec<LessonRow>, RuntimeError> {
         Ok(self.store.lessons_for_repo(repo)?)
     }
+}
+
+/// Whether an accepted mission carries durable, reusable engineering evidence
+/// worth remembering: at least one passed verification gate or one changed
+/// file. The guard that keeps memory conservative (no filler lessons).
+fn has_reusable_evidence(gates: usize, files: usize) -> bool {
+    gates > 0 || files > 0
 }
 
 /// Extract the changed file paths from a unified git diff (the `+++ b/…` lines).
@@ -157,11 +188,21 @@ fn now_millis() -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_changed_files;
+    use super::{has_reusable_evidence, parse_changed_files};
 
     #[test]
     fn parses_changed_files_from_a_diff() {
         let diff = b"diff --git a/src/main.rs b/src/main.rs\n--- a/src/main.rs\n+++ b/src/main.rs\n@@ -1 +1 @@\n+x\n";
         assert_eq!(parse_changed_files(diff), vec!["src/main.rs".to_owned()]);
+    }
+
+    #[test]
+    fn conservative_extraction_needs_a_gate_or_a_file() {
+        // No gate and no file → nothing reusable → no lesson recorded.
+        assert!(!has_reusable_evidence(0, 0));
+        // Either a passed gate or a changed file is enough to be worth keeping.
+        assert!(has_reusable_evidence(1, 0));
+        assert!(has_reusable_evidence(0, 1));
+        assert!(has_reusable_evidence(2, 3));
     }
 }

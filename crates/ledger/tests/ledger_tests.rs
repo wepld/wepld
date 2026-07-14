@@ -3,7 +3,7 @@
 
 use wepld_contracts::ledger::{ActorType, AggregateType};
 use wepld_contracts::vocabulary::EventType;
-use wepld_ledger::{fold_mission, LedgerError, LedgerStore, NewEntry};
+use wepld_ledger::{fold_mission, LedgerError, LedgerStore, LessonRow, NewEntry};
 
 fn open_store() -> (tempfile::TempDir, LedgerStore) {
     let dir = tempfile::tempdir().unwrap();
@@ -182,6 +182,126 @@ fn failed_transaction_rolls_back_atomically() {
         "draft",
         "state mutation rolled back"
     );
+    assert!(store.verify_chain().unwrap().is_valid());
+}
+
+fn lesson_row(id: &str, repo: &str) -> LessonRow {
+    LessonRow {
+        lesson_id: id.to_owned(),
+        repo: repo.to_owned(),
+        mission_id: "mis_1".to_owned(),
+        spec_id: Some("spec_1".to_owned()),
+        title: "t".to_owned(),
+        body: "b".to_owned(),
+        gates_json: "[]".to_owned(),
+        files_json: "[]".to_owned(),
+        confidence: 1.0,
+        status: "candidate".to_owned(),
+        created_at: "00000000000000000001".to_owned(),
+        created_seq: 0,
+    }
+}
+
+/// Record a lesson the way the runtime does: append the `InsightRecorded` fact,
+/// stamp the row with that fact's ledger sequence, insert — one transaction.
+fn record_lesson(store: &mut LedgerStore, id: &str, repo: &str) {
+    let mut row = lesson_row(id, repo);
+    store
+        .transact(|tx| {
+            let appended = tx.append(&entry(
+                "mis_1",
+                EventType::InsightRecorded,
+                serde_json::json!({ "lesson_id": id }),
+            ))?;
+            row.created_seq = appended.seq;
+            tx.insert_lesson(&row)?;
+            Ok(())
+        })
+        .unwrap();
+}
+
+#[test]
+fn lessons_persist_across_store_reopen_and_are_repo_scoped() {
+    let dir = tempfile::tempdir().unwrap();
+    {
+        let mut store = LedgerStore::open(dir.path()).unwrap();
+        record_lesson(&mut store, "lesson_mis_1", "repoA");
+    } // store dropped — the database handle is closed.
+
+    // A brand-new handle on the same directory still sees the lesson: durable
+    // across process restarts, with provenance intact and scoped to its repo.
+    let store = LedgerStore::open(dir.path()).unwrap();
+    let a = store.lessons_for_repo("repoA").unwrap();
+    assert_eq!(a.len(), 1);
+    assert_eq!(a[0].lesson_id, "lesson_mis_1");
+    assert!(
+        a[0].created_seq > 0,
+        "creation ledger seq persisted (provenance)"
+    );
+    assert!(store.lesson("lesson_mis_1").unwrap().is_some());
+    assert!(
+        store.lessons_for_repo("repoB").unwrap().is_empty(),
+        "a lesson never leaks to another repository"
+    );
+}
+
+#[test]
+fn lesson_and_event_roll_back_together_on_failure() {
+    let (_dir, mut store) = open_store();
+    let before = store.last_seq().unwrap();
+    let mut row = lesson_row("lesson_x", "repoA");
+
+    // A record that fails after appending and inserting must persist neither.
+    let res: Result<(), LedgerError> = store.transact(|tx| {
+        let appended = tx.append(&entry(
+            "mis_1",
+            EventType::InsightRecorded,
+            serde_json::json!({}),
+        ))?;
+        row.created_seq = appended.seq;
+        tx.insert_lesson(&row)?;
+        Err(LedgerError::IdGeneration)
+    });
+    assert!(res.is_err());
+    assert_eq!(
+        store.last_seq().unwrap(),
+        before,
+        "InsightRecorded rolled back"
+    );
+    assert!(
+        store.lesson("lesson_x").unwrap().is_none(),
+        "lesson row rolled back"
+    );
+    assert!(store.verify_chain().unwrap().is_valid());
+}
+
+#[test]
+fn duplicate_lesson_id_leaves_no_orphan_event() {
+    let (_dir, mut store) = open_store();
+    record_lesson(&mut store, "lesson_dup", "repoA");
+    let after_first = store.last_seq().unwrap();
+
+    // Re-recording the same (derived) lesson id: the primary key rejects the
+    // row and the event appended in the same transaction rolls back with it —
+    // no duplicate lesson, no orphaned InsightRecorded.
+    let mut row = lesson_row("lesson_dup", "repoA");
+    let res: Result<(), LedgerError> = store.transact(|tx| {
+        let appended = tx.append(&entry(
+            "mis_1",
+            EventType::InsightRecorded,
+            serde_json::json!({}),
+        ))?;
+        row.created_seq = appended.seq;
+        tx.insert_lesson(&row)?;
+        Ok(())
+    });
+    assert!(res.is_err(), "duplicate lesson id must be rejected");
+    assert_eq!(
+        store.last_seq().unwrap(),
+        after_first,
+        "no orphan InsightRecorded"
+    );
+    assert_eq!(store.lessons_for_repo("repoA").unwrap().len(), 1);
     assert!(store.verify_chain().unwrap().is_valid());
 }
 

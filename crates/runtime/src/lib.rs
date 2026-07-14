@@ -19,7 +19,7 @@ pub use commands::command_id_for;
 pub use memory::RecordedLesson;
 pub use orchestration::{builder_pack, planner_pack};
 pub use phase::{PhaseOutcome, PhaseRun, PhaseSpec};
-pub use recipe::{BuildFeatureReport, RecipeOutcome};
+pub use recipe::{specify_memory_entries, BuildFeatureReport, RecipeOutcome};
 pub use report::EngineeringReport;
 
 use std::path::Path;

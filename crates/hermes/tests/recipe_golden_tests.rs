@@ -43,18 +43,23 @@ fn fixture_repo(root: &Path) -> std::path::PathBuf {
 }
 
 fn reasoned_spec() -> SpecificationDocument {
+    spec_for("Add a --version flag to notes-cli", "VERSION")
+}
+
+/// A minimal spec whose single gate greps for `token` in `src/main.rs`.
+fn spec_for(overview: &str, token: &str) -> SpecificationDocument {
     let mut d = SpecificationDocument {
-        overview: "Add a --version flag to notes-cli".to_owned(),
-        functional_requirements: vec!["Print the version on --version".to_owned()],
+        overview: overview.to_owned(),
+        functional_requirements: vec![format!("Ensure {token} is present")],
         acceptance_criteria: vec![SpecAcceptanceCriterion {
             id: "AC1".to_owned(),
-            text: "VERSION present".to_owned(),
+            text: format!("{token} present"),
             verify: "gate:build".to_owned(),
         }],
         ..Default::default()
     };
     d.verification
-        .insert("build".to_owned(), "grep -q VERSION src/main.rs".to_owned());
+        .insert("build".to_owned(), format!("grep -q {token} src/main.rs"));
     d
 }
 
@@ -103,6 +108,66 @@ fn write_cassettes(store: &Path, repo: &str) {
         &cassette,
         &build_key,
         &serde_json::json!({ "edits": [ { "path": "src/main.rs", "content": EDITED_MAIN } ] }),
+        "fixture-model",
+    )
+    .unwrap();
+}
+
+/// Write specify+build cassettes for one feature run, parameterized so tests
+/// can drive missions that fail a gate or belong to a second repository.
+fn write_feature_cassettes(
+    store: &Path,
+    request: &str,
+    slug: &str,
+    repo: &str,
+    doc: &SpecificationDocument,
+    prior_memory: &[serde_json::Value],
+    edited_main: &str,
+) {
+    let cassette = store.join("cassettes/r.jsonl");
+    let specify_pack = serde_json::json!({
+        "schema_version": 1, "intent": "specify", "request": request,
+        "engineering_memory": prior_memory,
+    });
+    let specify_key = wepld_providers::cassette_key(
+        "specify",
+        &wepld_artifacts::hash_hex(&serde_json::to_vec(&specify_pack).unwrap()),
+        "specification.v1",
+        "fixture-model",
+    );
+    wepld_providers::write_cassette_entry(
+        &cassette,
+        &specify_key,
+        &serde_json::to_value(doc).unwrap(),
+        "fixture-model",
+    )
+    .unwrap();
+
+    let conv = convert(ConvertInput {
+        doc,
+        spec_id: &format!("spec_{slug}"),
+        version: 1,
+        document_hash: "x",
+        slug,
+        repo,
+        base_branch: "main",
+        paths: vec!["src/**".to_owned()],
+    })
+    .unwrap();
+    let pack = builder_pack(
+        &serde_json::to_value(&conv.brief).unwrap(),
+        &serde_json::to_value(&conv.plan.tasks[0]).unwrap(),
+    );
+    let build_key = wepld_providers::cassette_key(
+        "build",
+        &wepld_artifacts::hash_hex(&serde_json::to_vec(&pack).unwrap()),
+        "builder_step.v1",
+        "fixture-model",
+    );
+    wepld_providers::write_cassette_entry(
+        &cassette,
+        &build_key,
+        &serde_json::json!({ "edits": [ { "path": "src/main.rs", "content": edited_main } ] }),
         "fixture-model",
     )
     .unwrap();
@@ -160,6 +225,30 @@ fn build_feature_recipe_matches_golden_and_reports_full_confidence() {
         lessons[0].body.contains("build"),
         "lesson cites the verifying gate"
     );
+    // Provenance: the lesson points back to the ledger fact that created it.
+    assert!(
+        lessons[0].created_seq > 0,
+        "lesson carries its creation seq"
+    );
+    assert_eq!(lessons[0].mission_id, report.mission_id);
+
+    // Idempotent acceptance: re-recording the same mission's experience records
+    // nothing new — no second lesson, no duplicate InsightRecorded event.
+    let again = core
+        .record_engineering_experience(&report.mission_id)
+        .unwrap();
+    assert!(
+        again.is_none(),
+        "a replayed acceptance yields no new lesson"
+    );
+    assert_eq!(core.lessons_for_repo(&repo_str).unwrap().len(), 1);
+    let insights = core
+        .all_entries()
+        .unwrap()
+        .iter()
+        .filter(|e| e.entry_type.code() == "InsightRecorded")
+        .count();
+    assert_eq!(insights, 1, "no duplicate InsightRecorded on replay");
 
     // Golden trace.
     let actual: Vec<String> = core
@@ -255,10 +344,9 @@ fn a_second_feature_applies_the_first_lesson() {
     doc2.verification
         .insert("build".to_owned(), "grep -q HELP src/main.rs".to_owned());
 
-    let memory: Vec<serde_json::Value> = lessons
-        .iter()
-        .map(|l| serde_json::json!({ "title": l.title, "body": l.body }))
-        .collect();
+    // Build the pack exactly as production does — through the same bounded,
+    // provenance-labelling selection function — so the cassette key matches.
+    let memory = wepld_runtime::specify_memory_entries(&lessons);
     let specify_pack2 = serde_json::json!({
         "schema_version": 1, "intent": "specify", "request": request2, "engineering_memory": memory
     });
@@ -313,6 +401,12 @@ fn a_second_feature_applies_the_first_lesson() {
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
 
+    // Restart durability: a brand-new process loads feature 1's lesson from the
+    // persistent store — proof beyond a single continuously-alive process.
+    let reloaded = core.lessons_for_repo(&repo_str).unwrap();
+    assert_eq!(reloaded.len(), 1, "the lesson survived a full store reopen");
+    assert_eq!(reloaded[0].lesson_id, "lesson_mis_version-flag_v1");
+
     let two = core
         .run_build_feature(request2, slug2, &repo_str, "main")
         .unwrap();
@@ -330,4 +424,116 @@ fn a_second_feature_applies_the_first_lesson() {
             std::mem::discriminant(&other)
         ),
     }
+}
+
+/// A mission that fails its gate is never accepted and leaves no Active lesson:
+/// memory records verified success, not attempts.
+#[test]
+fn a_non_accepted_mission_records_no_lesson() {
+    let workdir = tempfile::tempdir().unwrap();
+    let store = tempfile::tempdir().unwrap();
+    let repo = fixture_repo(workdir.path());
+    let repo_str = repo.to_string_lossy().into_owned();
+
+    // The spec requires VERSION; the build writes a file WITHOUT it, so the gate
+    // fails, completion is never proposed, and the mission is never accepted.
+    write_feature_cassettes(
+        store.path(),
+        REQUEST,
+        "noversion",
+        &repo_str,
+        &reasoned_spec(),
+        &[],
+        "fn main() { println!(\"no version here\"); }\n",
+    );
+
+    let mut core = Core::open(store.path()).unwrap();
+    core.set_worker_cmd(vec![hermes_bin()]);
+    let outcome = core
+        .run_build_feature(REQUEST, "noversion", &repo_str, "main")
+        .unwrap();
+
+    if let RecipeOutcome::Completed(bf) = &outcome {
+        assert_ne!(bf.report.state, "accepted", "gate failed → not accepted");
+        assert_eq!(bf.lessons_learned, 0);
+        assert_eq!(bf.total_memory, 0);
+    }
+    assert!(
+        core.lessons_for_repo(&repo_str).unwrap().is_empty(),
+        "no lesson from an unaccepted mission"
+    );
+    // A direct extraction attempt also refuses a non-accepted mission.
+    assert!(core
+        .record_engineering_experience("mis_noversion_v1")
+        .unwrap()
+        .is_none());
+}
+
+/// A lesson learned in one repository is never supplied to another: Engineering
+/// Memory is scoped to its project, and cross-repo counters never mislead.
+#[test]
+fn lessons_do_not_leak_across_repositories() {
+    let work_a = tempfile::tempdir().unwrap();
+    let work_b = tempfile::tempdir().unwrap();
+    let store = tempfile::tempdir().unwrap();
+    let repo_a = fixture_repo(work_a.path());
+    let repo_b = fixture_repo(work_b.path());
+    let a = repo_a.to_string_lossy().into_owned();
+    let b = repo_b.to_string_lossy().into_owned();
+
+    // Both features' cassettes are written before open (the adapter loads once).
+    // Each is a first run on its own repo, so each carries empty prior memory.
+    write_feature_cassettes(
+        store.path(),
+        REQUEST,
+        "version-flag",
+        &a,
+        &reasoned_spec(),
+        &[],
+        EDITED_MAIN,
+    );
+    let doc_b = spec_for("Add a --quiet flag to notes-cli", "QUIET");
+    write_feature_cassettes(
+        store.path(),
+        "Add a --quiet flag to notes-cli",
+        "quiet-flag",
+        &b,
+        &doc_b,
+        &[],
+        "fn main() { const QUIET: &str = \"q\"; let _ = QUIET; }\n",
+    );
+
+    let mut core = Core::open(store.path()).unwrap();
+    core.set_worker_cmd(vec![hermes_bin()]);
+
+    // Feature on repo A records a lesson scoped to A.
+    let ra = core
+        .run_build_feature(REQUEST, "version-flag", &a, "main")
+        .unwrap();
+    assert!(matches!(ra, RecipeOutcome::Completed(_)));
+    assert_eq!(core.lessons_for_repo(&a).unwrap().len(), 1);
+    assert!(
+        core.lessons_for_repo(&b).unwrap().is_empty(),
+        "A's lesson must not appear under B"
+    );
+    assert!(wepld_runtime::specify_memory_entries(&core.lessons_for_repo(&b).unwrap()).is_empty());
+
+    // Feature on repo B sees no memory from A. (If A's lesson had leaked into
+    // B's pack, the cassette key would differ and this run would fail outright.)
+    match core
+        .run_build_feature("Add a --quiet flag to notes-cli", "quiet-flag", &b, "main")
+        .unwrap()
+    {
+        RecipeOutcome::Completed(bf) => {
+            assert_eq!(bf.prior_lessons_applied, 0, "no cross-repo memory applied");
+            assert_eq!(bf.lessons_learned, 1);
+            assert_eq!(bf.total_memory, 1, "B's memory counts only B's own lessons");
+        }
+        other => panic!(
+            "expected completion, got {:?}",
+            std::mem::discriminant(&other)
+        ),
+    }
+    assert_eq!(core.lessons_for_repo(&a).unwrap().len(), 1, "A unchanged");
+    assert_eq!(core.lessons_for_repo(&b).unwrap().len(), 1);
 }

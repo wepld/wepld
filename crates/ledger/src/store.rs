@@ -114,17 +114,18 @@ CREATE TABLE IF NOT EXISTS work_queue (
   attempts     INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS lessons (
-  lesson_id  TEXT PRIMARY KEY,
-  repo       TEXT NOT NULL,
-  mission_id TEXT NOT NULL,
-  spec_id    TEXT,
-  title      TEXT NOT NULL,
-  body       TEXT NOT NULL,
-  gates_json TEXT NOT NULL,
-  files_json TEXT NOT NULL,
-  confidence REAL NOT NULL,
-  status     TEXT NOT NULL DEFAULT 'candidate',
-  created_at TEXT NOT NULL
+  lesson_id   TEXT PRIMARY KEY,
+  repo        TEXT NOT NULL,
+  mission_id  TEXT NOT NULL,
+  spec_id     TEXT,
+  title       TEXT NOT NULL,
+  body        TEXT NOT NULL,
+  gates_json  TEXT NOT NULL,
+  files_json  TEXT NOT NULL,
+  confidence  REAL NOT NULL,
+  status      TEXT NOT NULL DEFAULT 'candidate',
+  created_at  TEXT NOT NULL,
+  created_seq INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS lessons_repo ON lessons (repo, created_at);
 ";
@@ -188,6 +189,10 @@ pub struct LessonRow {
     pub confidence: f64,
     pub status: String,
     pub created_at: String,
+    /// Ledger sequence of the `InsightRecorded` fact that created this lesson —
+    /// provenance back to the immutable audit history. Assigned inside the same
+    /// transaction that inserts the row (0 only for pre-migration rows).
+    pub created_seq: i64,
 }
 
 /// A task row (Orchestration-owned unit of work).
@@ -231,6 +236,7 @@ impl LedgerStore {
         // instantly (the single-writer design means this is transient).
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
         conn.execute_batch(SCHEMA)?;
+        migrate(&conn)?;
         Ok(Self {
             conn,
             idgen: ulid::Generator::new(),
@@ -420,33 +426,35 @@ impl LedgerStore {
     }
 
     /// All lessons recorded for a repository, newest last — Engineering Memory
-    /// retrieval for future missions.
+    /// retrieval for future missions. Scoped by exact repository identity: a
+    /// lesson never leaks to another repo.
     pub fn lessons_for_repo(&self, repo: &str) -> Result<Vec<LessonRow>, LedgerError> {
         let mut stmt = self.conn.prepare(
             "SELECT lesson_id, repo, mission_id, spec_id, title, body, gates_json, files_json,
-                    confidence, status, created_at
+                    confidence, status, created_at, created_seq
              FROM lessons WHERE repo = ?1 ORDER BY created_at, lesson_id",
         )?;
-        let rows = stmt.query_map([repo], |r| {
-            Ok(LessonRow {
-                lesson_id: r.get(0)?,
-                repo: r.get(1)?,
-                mission_id: r.get(2)?,
-                spec_id: r.get(3)?,
-                title: r.get(4)?,
-                body: r.get(5)?,
-                gates_json: r.get(6)?,
-                files_json: r.get(7)?,
-                confidence: r.get(8)?,
-                status: r.get(9)?,
-                created_at: r.get(10)?,
-            })
-        })?;
+        let rows = stmt.query_map([repo], row_to_lesson)?;
         let mut out = Vec::new();
         for row in rows {
             out.push(row?);
         }
         Ok(out)
+    }
+
+    /// A single lesson by its (derived) id — the idempotency probe: a lesson
+    /// already present must not be recorded a second time.
+    pub fn lesson(&self, lesson_id: &str) -> Result<Option<LessonRow>, LedgerError> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT lesson_id, repo, mission_id, spec_id, title, body, gates_json, files_json,
+                        confidence, status, created_at, created_seq
+                 FROM lessons WHERE lesson_id = ?1",
+                [lesson_id],
+                row_to_lesson,
+            )
+            .optional()?)
     }
 
     pub fn tasks_for_mission(&self, mission_id: &str) -> Result<Vec<TaskRow>, LedgerError> {
@@ -640,12 +648,11 @@ impl Tx<'_> {
         Ok(())
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn insert_lesson(&mut self, row: &LessonRow) -> Result<(), LedgerError> {
         self.inner.execute(
             "INSERT INTO lessons (lesson_id, repo, mission_id, spec_id, title, body,
-                    gates_json, files_json, confidence, status, created_at)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
+                    gates_json, files_json, confidence, status, created_at, created_seq)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)",
             params![
                 row.lesson_id,
                 row.repo,
@@ -658,6 +665,7 @@ impl Tx<'_> {
                 row.confidence,
                 row.status,
                 row.created_at,
+                row.created_seq,
             ],
         )?;
         Ok(())
@@ -736,6 +744,49 @@ impl Tx<'_> {
         )?;
         Ok(())
     }
+}
+
+/// Map a `lessons` row (12 columns, in schema order) to a [`LessonRow`].
+fn row_to_lesson(r: &rusqlite::Row) -> rusqlite::Result<LessonRow> {
+    Ok(LessonRow {
+        lesson_id: r.get(0)?,
+        repo: r.get(1)?,
+        mission_id: r.get(2)?,
+        spec_id: r.get(3)?,
+        title: r.get(4)?,
+        body: r.get(5)?,
+        gates_json: r.get(6)?,
+        files_json: r.get(7)?,
+        confidence: r.get(8)?,
+        status: r.get(9)?,
+        created_at: r.get(10)?,
+        created_seq: r.get(11)?,
+    })
+}
+
+/// Additive, idempotent migrations for stores created by an earlier build.
+/// `CREATE TABLE IF NOT EXISTS` never adds columns to an existing table, so a
+/// `lessons` table from before provenance was tracked needs `created_seq` added.
+fn migrate(conn: &Connection) -> Result<(), LedgerError> {
+    if !column_exists(conn, "lessons", "created_seq")? {
+        conn.execute(
+            "ALTER TABLE lessons ADD COLUMN created_seq INTEGER NOT NULL DEFAULT 0",
+            [],
+        )?;
+    }
+    Ok(())
+}
+
+fn column_exists(conn: &Connection, table: &str, column: &str) -> Result<bool, LedgerError> {
+    let mut stmt = conn.prepare(&format!("PRAGMA table_info({table})"))?;
+    let mut rows = stmt.query([])?;
+    while let Some(r) = rows.next()? {
+        let name: String = r.get(1)?;
+        if name == column {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 /// Hash payload text for command idempotency comparisons.

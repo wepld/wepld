@@ -134,3 +134,59 @@ fn open_refuses_non_repos() {
     let dir = tempfile::tempdir().unwrap();
     assert!(Workspace::open(dir.path()).is_err());
 }
+
+/// Regression for the stale-lock collision: repeated snapshots of the same
+/// worktree with the *same* label must each succeed (the temp index is unique
+/// per call, so no `index.lock: File exists`) and leave no temp dir behind.
+#[test]
+fn repeated_same_label_snapshots_do_not_collide_or_leak() {
+    let (dir, repo) = fixture_repo();
+    let ws = Workspace::open(&repo).unwrap();
+    let wt = ws
+        .create_worktree("main", "att_lock", &dir.path().join("wt"))
+        .unwrap();
+
+    for i in 0..3 {
+        std::fs::write(wt.path.join("x.txt"), format!("v{i}")).unwrap();
+        ws.snapshot(&wt, "build-end")
+            .unwrap_or_else(|e| panic!("snapshot {i} must not collide: {e}"));
+    }
+    assert!(ws.primary_is_clean().unwrap());
+
+    // Every temp index directory was removed on drop — nothing leaks.
+    let prefix = format!("wepld-index-{}-", wt.attempt_id);
+    let leftovers = std::fs::read_dir(std::env::temp_dir())
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_name().to_string_lossy().starts_with(&prefix))
+        .count();
+    assert_eq!(leftovers, 0, "snapshot temp index dirs must be cleaned up");
+}
+
+/// Two worktrees snapshotting concurrently must not share an index path or
+/// corrupt each other — each holds its own uniquely created temp directory.
+#[test]
+fn concurrent_snapshots_on_separate_worktrees_are_isolated() {
+    let (dir, repo) = fixture_repo();
+    let ws = Workspace::open(&repo).unwrap();
+    let wt_a = ws
+        .create_worktree("main", "att_a", &dir.path().join("wt_a"))
+        .unwrap();
+    let wt_b = ws
+        .create_worktree("main", "att_b", &dir.path().join("wt_b"))
+        .unwrap();
+    std::fs::write(wt_a.path.join("a.txt"), "from a").unwrap();
+    std::fs::write(wt_b.path.join("b.txt"), "from b").unwrap();
+
+    let (sa, sb) = std::thread::scope(|s| {
+        let ha = s.spawn(|| ws.snapshot(&wt_a, "s").unwrap());
+        let hb = s.spawn(|| ws.snapshot(&wt_b, "s").unwrap());
+        (ha.join().unwrap(), hb.join().unwrap())
+    });
+
+    // Distinct refs, distinct commits, each carrying only its own file.
+    assert_ne!(sa.commit, sb.commit);
+    assert!(ws.diff("main", &sa.commit).unwrap().contains("a.txt"));
+    assert!(ws.diff("main", &sb.commit).unwrap().contains("b.txt"));
+    assert!(ws.primary_is_clean().unwrap());
+}

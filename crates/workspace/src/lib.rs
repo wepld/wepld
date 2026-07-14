@@ -76,17 +76,19 @@ impl Workspace {
 
     /// Snapshot the worktree state to `refs/wepld/<attempt>/<label>` using a
     /// temporary index — the worktree's own index and HEAD are untouched.
+    ///
+    /// The index lives inside a freshly created, uniquely named temporary
+    /// **directory** (via `tempfile`), never a hand-built predictable path:
+    /// creation is race-safe (`mkdir`-with-`O_EXCL` semantics, no following of a
+    /// pre-existing symlink), permissions are restrictive where the OS supports
+    /// it, and the directory — index and any `.lock` within it — is removed when
+    /// `tmp` drops, on both the success path and every `?` error path. Two
+    /// snapshots therefore never share an index path or collide on a stale lock.
     pub fn snapshot(&self, wt: &Worktree, label: &str) -> Result<SnapRef, WorkspaceError> {
-        // A unique temp index outside the worktree — never pollutes the
-        // worktree and never collides with a stale lock across missions.
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let tmp_index =
-            std::env::temp_dir().join(format!("wepld-index-{}-{label}-{nanos}", wt.attempt_id));
-        let _ = std::fs::remove_file(&tmp_index);
-        let _ = std::fs::remove_file(format!("{}.lock", tmp_index.display()));
+        let tmp = tempfile::Builder::new()
+            .prefix(&format!("wepld-index-{}-", wt.attempt_id))
+            .tempdir()?;
+        let tmp_index = tmp.path().join("index");
         let index_env = tmp_index.to_str().expect("utf8 path").to_owned();
 
         let run = |args: &[&str]| -> Result<String, WorkspaceError> {
@@ -115,7 +117,7 @@ impl Workspace {
         let commit = commit.trim().to_owned();
         let name = format!("refs/wepld/{}/{}", wt.attempt_id, label);
         git_in(&wt.path, &["update-ref", &name, &commit], &[])?;
-        let _ = std::fs::remove_file(&tmp_index);
+        // `tmp` drops here (or on any early `?` above), removing the index.
         Ok(SnapRef { name, commit })
     }
 
