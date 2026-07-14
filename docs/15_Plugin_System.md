@@ -1,52 +1,90 @@
-# 15 — Plugin System
+# 15 — Plugin, Skill, and Extension System
 
-## Goal
+## Goal and authority boundary
 
-Everything that extends WePLD—extensions, skills, brains, workers, themes, MCP servers, integrations, and toolchains—uses a common package lifecycle without becoming a path around security, policy, or observability. “Installable” also means inspectable, permissioned, versioned, removable, and revocable.
+Everything that extends WePLD—brain and builder adapters, worker hosts, Hermes skills, hook handlers, LSP/retrieval adapters, UI extensions, MCP servers, integrations, and toolchains—uses an inspectable, permissioned, versioned, removable, and revocable package lifecycle. Extension is never a path around Core authority, the Effect Firewall, evidence, or observability.
+
+Core records package policy, approval, activation scope, capability issuance, revocation, budget, and any workflow transition. The Registry verifies and stages packages; Hermes may route an already approved skill or adapter; a package cannot activate itself, broaden its permissions, approve its output, or write durable governance state.
 
 ## Extension types
 
-| Type | Adds | Runs / connects through | Default risk |
+| Type | Adds | Runtime boundary | Principal risk |
 | --- | --- | --- | --- |
-| Brain adapter | reasoning provider translation | Brain Gateway port | data egress / credentials |
-| Worker adapter | execution runtime compatibility | Worker Registry / Worker Host | code execution |
-| Skill | reusable method and validation assets | Skill resolver | instruction / tool capability |
-| Toolchain | compilers, test tools, formatters | Tool Executor | arbitrary process / supply chain |
-| Integration | external service or messaging channel | Integration Gateway | external data / identity |
-| MCP server | structured tool/context provider | mediated MCP adapter | tool and data access |
-| UI extension / theme | presentation, panels, commands | Studio extension host | UI confusion / data exposure |
+| Brain/builder adapter | provider-neutral reasoning or bounded builder execution | Brain Gateway / approved builder host | data egress, credentials, model drift |
+| Worker adapter | executor protocol compatibility | Worker Registry / Worker Host | code execution, outcome spoofing |
+| Hermes skill | executable engineering procedure and evidence contract | Skill Runtime | instruction/tool escalation, invalid method |
+| Hook handler | typed lifecycle observation/validation/blocking behavior | Hook Bus host | reentrancy, hidden effect, deadlock |
+| LSP/retrieval adapter | symbols, diagnostics, code/context retrieval | intelligence broker | poisoned, omitted, or cross-scope context |
+| Toolchain | compiler, test, formatter, scanner, migration tool | Tool Executor | arbitrary process and supply chain |
+| Integration | external service or messaging channel | Integration Gateway | external data, identity, replay |
+| MCP server | typed tools/resources/context | mediated MCP adapter | tool/data access, prompt injection |
+| UI extension/theme | presentation, panels, commands | Studio extension host | UI confusion, data exposure, false authority |
 
 ## Universal package descriptor
 
-All packages declare identity, publisher, semantic version, integrity hash, signature/provenance, compatibility range, dependency graph, requested capabilities, supported platforms, data handling, license, configuration schema, migration/rollback instructions, health checks, evaluation evidence, release channel, and revocation endpoint. Type-specific metadata augments but does not replace this descriptor.
+Every package declares identity, publisher, semantic version, integrity hash, signature/provenance, compatibility range, dependency graph, requested capabilities, supported platforms, data handling and destinations, license, configuration schema, migration/rollback instructions, health checks, evaluation evidence, release channel, and revocation information. Type-specific metadata augments rather than replaces this descriptor.
 
-## Installation lifecycle
+Exact package set, configuration fingerprint, model/profile identity, skill version, hook set, toolchain, and adapter versions are recorded for every relevant task attempt and evaluation. Display names are never identity.
 
-1. Discover a package through a local/approved registry.
-2. Resolve version and dependency graph without mutating the active environment.
-3. Verify signature, hash, publisher policy, license, advisory status, and compatibility.
-4. Present requested capabilities and data destinations for approval where required.
-5. Install into an isolated versioned store; run declared health/evaluation checks.
-6. Atomically activate for selected project/organization scopes and record an event.
-7. Monitor health and advisories; support disable, rollback, deprecate, and revoke.
+## Hermes skill contract
 
-Removal is a dependency-aware transaction. It blocks new use first, drains or cancels affected leases safely, retains historical manifest/hash evidence, then removes executable or sensitive content according to retention policy.
+A skill is an executable, testable procedure—not only prompt text. Its signed manifest declares:
 
-## Runtime isolation
+- identity, version, applicability rules, compatibility, and trust tier;
+- context requirements and accepted trust/classification;
+- required tools, allowed capabilities, writable and forbidden scopes;
+- deterministic procedure stages and bounded model-dependent steps;
+- verification procedure, failure modes, retry and escalation conditions;
+- typed input/output schemas and evidence contract;
+- budget class, telemetry, privacy, and retention behavior;
+- evaluation fixtures and measured compatibility with supported profiles.
 
-Extensions do not share unrestricted process memory or database access with the Core. UI extensions receive a narrow view model and command API; worker/toolchain plugins execute in isolated hosts; integrations and MCP servers are proxied through policy enforcement; brain adapters access provider credentials only through the Brain Gateway. Capability tokens are scoped by project, task, action, resource, and expiry.
+Initial families cover repository exploration, architecture analysis, Rust, TypeScript and Python engineering, debugging, test planning/generation, security review, dependency analysis, API/schema design, database migration, performance, documentation, Git forensics, and recovery investigation.
 
-## Versioning and compatibility
+The Skill Router selects a skill, brain/builder profile, subagent role, tools, context, budget, and verification level from the approved Task Packet, policy, capabilities, environment, and measured evidence. Its decision and alternatives are recorded. Routing is replaceable by policy and cannot weaken the Task Packet or higher contract.
 
-The public plugin API is versioned independently of internal modules. Compatibility is checked at install and task-resolution time. A package update cannot silently change approved capability scope; expanded permissions require a new policy decision. Major contract changes use parallel adapter versions and migration windows. Reproducibility requires recording the exact package set, configuration fingerprint, and toolchain identity for every task attempt.
+## Installation and activation lifecycle
+
+1. Discover through a local or organization-approved registry.
+2. Resolve versions and dependencies without mutating the active environment.
+3. Verify identity, signature, hash, publisher policy, license, advisory status, data handling, and compatibility.
+4. Evaluate declared fixtures, schemas, failure paths, evidence production, and capability behavior in isolation.
+5. Present exact permissions, external destinations, hook class, budget impact, and trust evidence for approval where required.
+6. Install into an isolated versioned store; do not activate on install.
+7. Core atomically activates an approved version for named organization/project/mission scopes and records the event.
+8. Monitor health, profile drift, vulnerabilities, and evidence quality; support disable, rollback, deprecate, quarantine, and revoke.
+
+Removal is dependency-aware. Core blocks new resolution, drains or cancels affected leases safely, preserves historical manifest/hash/evaluation evidence, and removes executable or sensitive content according to retention policy. An active mission whose reproducibility depends on a revoked package becomes blocked or requires an authorized replacement plan.
+
+## Runtime isolation and capabilities
+
+Extensions do not share unrestricted process memory, Core database access, secrets, or the user’s filesystem. UI extensions receive a narrow view/command API; worker, skill, hook, LSP/retrieval, and toolchain packages execute in appropriate isolated hosts; integrations and MCP servers are proxied through policy enforcement; brain adapters obtain provider credentials only through the Brain Gateway.
+
+Core-issued capabilities bind project, phase, task, subject, action, resource, classification, conditions, budget, and expiry. A capability for reading context does not imply a write; a hook invocation does not inherit the triggering effect; a plugin cannot exchange its token for a broader lease.
+
+## Hook Bus policy
+
+Hook types and payload schemas are versioned. A handler declares whether it is:
+
+- **observational:** records or exports an allowed observation;
+- **validating:** returns a typed validation result;
+- **blocking:** can request denial/hold under an approved rule but cannot advance state;
+- **effect-producing:** may only propose a new effect, which re-enters the complete Effect Firewall.
+
+Ordering, timeout, recursion, idempotency, data access, failure behavior, and conflict resolution are explicit. Unknown or failed blocking hooks fail safely according to policy. Hooks cannot edit approved artifacts, mint capabilities, suppress mandatory evidence, or communicate externally by implication.
+
+## Versioning, compatibility, and evaluation
+
+Public extension APIs are versioned independently of internal modules. Compatibility is checked at installation and task resolution. An update cannot silently change requested capabilities, output/evidence schemas, retrieval trust, or model data handling; expansion requires a new policy decision. Major versions coexist during a bounded migration window.
+
+Package evaluation is evidence, not a permanent guarantee. Provider drift, changed dependencies, new advisories, repeated schema failures, unsafe effects, or degraded outcome-equivalence rates can trigger recertification, quarantine, fallback, or revocation. Controlled harness and ablation runs use exact package fingerprints.
 
 ## Marketplace stance
 
-The marketplace is a distribution and trust problem, not merely a catalog UI. V1 ships a local and organization-approved registry. Community publication comes later with publisher verification, automated inspection, signed releases, permission transparency, evaluations, vulnerability disclosure, ratings that cannot override policy, and rapid revocation. An enterprise can mirror/allowlist packages without relying on public infrastructure.
+V1 uses a local and organization-approved registry. An open marketplace is outside the governed-delivery increments. Community distribution, if later authorized, requires publisher verification, signed releases, permission transparency, automated inspection, evaluation evidence, vulnerability disclosure, and rapid revocation. Ratings never override policy or evidence.
 
 ## MCP policy
 
-MCP servers are treated as third-party integrations with typed tools/resources, not automatically trusted local helpers. Each server is versioned, evaluated, permissioned, sandboxed where possible, and mediated so its calls and returned content are logged and subject to prompt-injection/data-classification defenses.
+MCP servers are third-party integrations with typed tools/resources, not trusted local helpers. Each is versioned, evaluated, permissioned, mediated, and sandboxed where possible. Returned content carries source/trust/classification and passes context-injection defenses. MCP-facing user operations call the same Core command/query workflow as CLI, Studio, and other APIs; MCP never becomes an alternate authority path.
 
-See also: [06_Brain_Architecture.md](06_Brain_Architecture.md), [09_Skills_System.md](09_Skills_System.md), [14_Security_Architecture.md](14_Security_Architecture.md), [18_API_Architecture.md](18_API_Architecture.md), and [28_Release_Strategy.md](28_Release_Strategy.md).
-
+See [32_Hermes_Engineering_Intelligence_Runtime.md](32_Hermes_Engineering_Intelligence_Runtime.md), [34_Harness_Evaluation_Protocol.md](34_Harness_Evaluation_Protocol.md), [06_Brain_Architecture.md](06_Brain_Architecture.md), [09_Skills_System.md](09_Skills_System.md), [14_Security_Architecture.md](14_Security_Architecture.md), [18_API_Architecture.md](18_API_Architecture.md), and [28_Release_Strategy.md](28_Release_Strategy.md). Proposed ADRs 0018–0020 define the skill/hook, context/retrieval, and typed-memory boundaries; Proposed ADR 0024 governs evaluation and profile certification.

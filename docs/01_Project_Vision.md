@@ -2,62 +2,91 @@
 
 ## Purpose
 
-WePLD is an **Autonomous Software Engineering Operating System**: a professional engineering studio in which a human executive gives outcomes while a governed engineering organization plans, builds, reviews, tests, documents, and improves software. It is not an AI-enhanced text editor and it is not a collection of chat windows.
+WePLD is an **Autonomous Software Engineering Operating System** and a native engineering-delivery method. The user supplies the desired outcome; WePLD supplies governed specification, planning, phased delivery, flow control, verification, change management, and completion semantics. The user should not need to bring an external project-management or specification methodology or coordinate every specialist, tool, or model.
 
-The enduring product promise is: **turn a well-scoped mission into evidence-backed engineering progress without requiring the human to coordinate every specialist, tool, or model.** The human remains accountable for strategy, priorities, budgets, and irreversible choices; the organization owns execution within declared policy.
+The product thesis is:
+
+> WePLD provides the engineering method. The user provides the desired outcome. The Brain Agent creates the governed delivery proposal. Hermes operates the engineering organization. Builder models execute bounded task packets. WePLD Core governs every transition and effect. Evidence determines whether the outcome is acceptable.
+
+The human remains accountable for intent, priorities, budgets, approvals, and irreversible choices. Core alone owns durable truth, policy, approvals, capability issuance, budget truth, transitions, completion, and recovery. Neither a model nor an agent may silently acquire that authority.
+
+## Strategic promise
+
+**Different brains. Same engineering truth.** Supported brain and builder profiles may choose different implementation paths, consume different budgets, need different context, or escalate at different rates. They work against the same approved specification, outcome contract, architecture and policy constraints, quality gates, and evidence requirements. Accepted results must be contract-equivalent; they need not be byte-identical. A profile that cannot converge must stop safely and report the uncertainty honestly. Model choice never lowers the final acceptance bar.
 
 ## Users and jobs
 
 | User | Primary job | WePLD outcome |
 | --- | --- | --- |
-| Founder / product executive | Turn strategy into reliable product delivery | Understand progress, risk, cost, and decisions without managing a swarm |
-| Engineering leader | Run several initiatives with consistent standards | See portfolio health, quality evidence, staffing, and dependencies |
-| Individual engineer | Delegate bounded engineering work safely | Receive reviewable artifacts, not opaque edits |
-| Security / compliance leader | Govern automated change | Enforce policy and retain evidence from intent through release |
-| Platform administrator | Provide approved models, tools, and integrations | Control capabilities without changing mission logic |
+| Founder / product executive | Turn strategy into reliable product delivery | Approve outcomes and plans; understand progress, risk, cost, and decisions without managing a swarm |
+| Engineering leader | Run initiatives with consistent standards | See phase flow, dependencies, quality evidence, and delivery health |
+| Individual engineer | Delegate bounded engineering work safely | Receive traceable specifications, reviewable artifacts, and reproducible evidence |
+| Security / compliance leader | Govern automated change | Enforce policy and retain evidence from intent through completion |
+| Platform administrator | Provide approved models, tools, skills, and integrations | Control capabilities without changing mission semantics |
 
 ## What makes the category distinct
 
-An IDE optimizes a developer’s interaction with code. WePLD optimizes the operation of an engineering organization. The IDE is one optional workspace; Mission Control, the decision queue, the knowledge graph, policy enforcement, and durable engineering loops are equally primary.
+An IDE optimizes a developer's interaction with code. WePLD governs an engineering organization. Studio and Mission Control are product surfaces over the same Core workflow; they are not alternate sources of truth.
 
-WePLD differentiates by making five separations explicit:
+WePLD makes these separations explicit:
 
-1. **Brains reason; workers execute.** A model provider cannot silently obtain filesystem or shell access.
-2. **The control plane coordinates.** Workers exchange typed work through the Orchestration Engine rather than informal direct chat.
-3. **Evidence governs quality.** A worker’s claim of completion is not a release signal; tests, reviews, scans, and artifacts are.
-4. **Messenger alone talks to people.** The organization remains active while the user considers a decision.
-5. **Knowledge is a cited organizational asset.** It is not merely a prompt transcript or vector search index.
+1. **Core governs.** Structured durable records, policy decisions, approvals, budgets, effects, transitions, and recovery belong to Core.
+2. **The Brain Agent proposes.** It acts as planner, architect, risk analyst, and replanner, but cannot approve its own work or perform effects.
+3. **Hermes supervises delivery.** Hermes is the Engineering Intelligence Runtime, not a brain provider and not governance truth.
+4. **Builders and subagents execute bounded work.** They receive TaskPackets, scoped context, skills, tools, capabilities, budgets, and evidence obligations; they return typed artifacts, findings, and proposed actions.
+5. **Tool boundaries perform effects.** A model-produced action is only a proposal until Core authorizes it and a mediated tool probes and records the actual result.
+6. **Evidence governs acceptance.** A completion claim is not a completion decision.
+7. **Messenger is the human-facing agent.** Direct CLI, Studio, MCP, and API commands still enter the same Core workflow.
+8. **Knowledge is cited and typed.** Verified lessons may inform later work, while governance records remain authoritative.
+
+## Native user workflow
+
+The product-level workflow is:
+
+1. Describe the desired outcome.
+2. Clarify ambiguity, constraints, exclusions, assumptions, risks, and verification needs.
+3. Review and approve the versioned EngineeringSpecification and OutcomeContract.
+4. Review and approve the traceable DeliveryPlan and initial PhasePlans.
+5. Execute phase by phase through Hermes under Core-issued TaskPackets.
+6. Observe Kanban flow, WIP, budget, risks, and evidence.
+7. Resolve genuine DecisionRequests and controlled specification or plan ChangeRequests.
+8. Review a verified CompletionProposal.
+9. Accept, return, defer, or cancel through an authorized CompletionDecision.
+10. Consolidate only approved, evidence-derived MemoryCandidates.
+
+The structured workflow is defined in [31_Governed_Specification_Workflow.md](31_Governed_Specification_Workflow.md). Markdown is a useful review and export projection, not the sole operational source of truth.
 
 ## Product boundaries for the first product
 
-The first usable release serves one person operating one local Git project on one desktop. It orchestrates a planner, a builder, a reviewer, and QA around a small, bounded mission. It captures a durable timeline, produces evidence, protects the primary worktree, and routes genuinely strategic decisions to the Messenger.
+The first usable release serves one person operating one local Git project on one desktop. It proves governed specification, planning, one phase at a time, bounded Kanban flow, a planner, a builder, an independent reviewer, QA, durable evidence, isolated worktrees, and safe escalation.
 
-The following are intentionally deferred: a full replacement IDE, multi-user real-time collaboration, an open marketplace, unrestricted third-party plugins, autonomous production deployment, all communication channels, and universal model support. A category-defining product needs a reliable control plane before it needs breadth.
+Deferred scope includes a full replacement IDE, multi-user real-time collaboration, an open marketplace, unrestricted third-party plugins, autonomous production deployment, a cloud-first control plane, uncontrolled agent swarms, universal language/model support, and byte-identical output across models. Product-surface breadth follows stable runtime contracts.
+
+Draft PR #1 is an unmerged candidate prerequisite for the Build Feature baseline. This architecture package neither ratifies nor authorizes its merge. Hermes Intelligence implementation begins only after the applicable Proposed ADRs are accepted and the preceding milestone gate is explicitly closed.
 
 ## North-star outcomes
 
 | Outcome | Initial measure | Direction |
 | --- | --- | --- |
-| Mission usefulness | Percentage of completed missions accepted with only review-level human changes | Up |
-| Trustworthiness | Material actions with a linked policy decision and evidence trail | 100% |
-| Quality | Missions passing required validation gates on first final review | Up |
-| Executive attention | Routine execution interruptions per completed mission | Down |
-| Local autonomy | Supported core flow available with no cloud control-plane dependency | 100% |
-| Portability | Provider/worker replacement without mission-domain changes | 100% of supported adapters |
-
-## Product narrative
-
-An executive creates a mission with scope, success criteria, budget, and autonomy mode. The Orchestration Engine assesses policy, asks a planning worker to turn it into a task graph, and assigns workers with least-privilege capability sets. Workers deliver artifacts, not direct messages. The quality and security functions attach evidence. The Messenger summarizes progress continuously and asks only for a decision packet when a real strategic threshold is crossed. Once the acceptance criteria and gates are satisfied, the organization proposes completion with a replayable explanation of what changed, why, and how it was verified.
+| Outcome usefulness | Verified missions accepted with only review-level human changes | Up |
+| Contract equivalence | Supported profiles satisfying the same OutcomeContract and gates | Up |
+| Trustworthiness | Material actions with linked policy decision, durable intent, and evidence | 100% |
+| Evidence completeness | Required evidence bindings satisfied at completion review | 100% |
+| Non-convergence honesty | Failed convergence attempts stopped and escalated without false completion | 100% |
+| Executive attention | Routine execution interruptions per accepted mission | Down |
+| Local autonomy | Supported core flow available without a hosted WePLD control plane | 100% |
+| Portability | Provider, builder, and worker replacement without mission-domain changes | 100% of supported adapters |
 
 ## Architectural decisions
 
-- **Desktop-first, local-first:** the first control plane is a long-lived local daemon, not a web app dependent on a hosted service.
-- **Modular monolith first:** bounded contexts are separate modules and ports now; independently deployed services are a later scaling decision.
-- **Human executive, not human tool operator:** default interaction is goals, decisions, and reports rather than every command approval.
+- **Desktop-first, local-first:** the initial control plane is a long-lived local daemon.
+- **Modular monolith first:** bounded contexts use explicit ports and events before any service split.
+- **Phase as the primary delivery unit:** the Brain Agent may tailor the phase graph inside policy; Core enforces entry, exit, WIP, budget, and evidence gates.
+- **Human executive, not human tool operator:** normal interaction concerns outcomes, approvals, decisions, risks, change requests, and reports.
+- **Structured contracts before surfaces:** runtime truth precedes broad UI, channel, or integration expansion.
 
 ## Success criteria for this planning baseline
 
-This vision is adequately represented only when the architecture supplies a single source of truth for missions, policy, evidence, workers, brains, knowledge, and user communication; preserves local operation; and makes all autonomous effects observable and governable.
+The architecture is adequate only when it supplies a single Core-governed source of operational truth; preserves the authority hierarchy; supports a native specification-to-completion workflow; makes autonomous effects observable and governable; and can demonstrate model-independent acceptance through reproducible evaluation.
 
-See also: [02_Product_Principles.md](02_Product_Principles.md), [03_System_Architecture.md](03_System_Architecture.md), [19_Implementation_Roadmap.md](19_Implementation_Roadmap.md), and [30_ARCHITECTURE_SUMMARY.md](30_ARCHITECTURE_SUMMARY.md).
-
+See also: [02_Product_Principles.md](02_Product_Principles.md), [03_System_Architecture.md](03_System_Architecture.md), [19_Implementation_Roadmap.md](19_Implementation_Roadmap.md), [30_ARCHITECTURE_SUMMARY.md](30_ARCHITECTURE_SUMMARY.md), [33_Model_Independent_Outcome_Convergence.md](33_Model_Independent_Outcome_Convergence.md), and [34_Harness_Evaluation_Protocol.md](34_Harness_Evaluation_Protocol.md).

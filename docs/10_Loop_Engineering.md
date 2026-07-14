@@ -1,71 +1,152 @@
 # 10 — Loop Engineering
 
-## Principle
+## Two governed loop levels
 
-WePLD does not perform one-pass AI coding. Engineering is a durable, iterative loop with evidence-producing stages and controlled retries. A loop progresses only when it gains measurable evidence or reduces a declared uncertainty; it never repeats merely because a model requests another attempt.
+WePLD does not perform one-pass AI coding. It separates two complementary loops:
 
-## Standard loop
+1. **Outer delivery flow:** Core-governed phases and Kanban move an approved outcome from discovery/specification through implementation, verification, delivery, and completion decision.
+2. **Inner Hermes engineering loop:** for one bounded TaskPacket, Hermes observes evidence, diagnoses, forms a hypothesis, selects the minimal permitted action, obtains Core authorization for any effect, verifies the actual result, updates belief, and decides whether to continue, replan, escalate, or stop.
+
+The outer loop owns durable delivery state in Core. The inner loop holds bounded operational state in Hermes and emits durable iteration/evidence records. Neither Hermes nor a model may close a task, phase, or mission.
+
+## Outer phase model
+
+Phase is the primary delivery unit. A common graph is Discovery → Specification → Architecture and Contract Design → Implementation → Verification → Delivery, but the Brain Agent may propose a smaller, larger, parallel, or returned graph when policy and dependencies permit. It cannot approve the graph.
+
+Every approved `PhasePlan` declares:
+
+- objective, governing artifact versions, dependencies, and entry/exit conditions;
+- allowed skills, profiles, tools, capabilities, and writable/forbidden scope;
+- task set, WIP limits, budget, deadline, risk controls, and escalation conditions;
+- required evidence, phase gate, rollback/recovery obligations, and decisions requiring authority.
+
+Phase states are `Pending`, `Ready`, `Active`, `Blocked`, `Review`, `Verification`, `Closed`, `Returned`, `Deferred`, `Uncertain`, and `Cancelled`. Only Core validates transitions. Evidence can cause a return or ChangeRequest; it cannot silently rewrite an approved plan.
+
+## Task Kanban and WIP
+
+Normal task flow is:
+
+`Backlog → Ready → InProgress → Review → Verification → Done`.
+
+Exception states are `Blocked`, `NeedsClarification`, `NeedsApproval`, `Returned`, `Deferred`, `Uncertain`, and `Cancelled`. Kanban state is not worker-attempt state, and `Done` does not itself close a phase or mission.
+
+Initial Core-enforced WIP principles are:
+
+- one writable implementation task per isolated worktree;
+- bounded parallel read-only research with explicit objectives;
+- bounded unresolved decisions and clarification requests;
+- bounded pending protected effects and unresolved uncertainty;
+- no new writable work when phase budget, risk, or recovery policy requires a stop.
+
+## Inner Hermes loop
 
 ~~~mermaid
 flowchart LR
-  U[Understand] --> P[Plan]
-  P --> B[Build]
-  B --> C[Compile / Static checks]
-  C --> T[Test]
-  T --> R[Review]
-  R --> BM[Benchmark]
-  BM --> S[Security scan]
-  S --> RF[Refactor]
-  RF --> D[Document]
-  D --> E[Evaluate]
-  E -->|gaps remain| U
-  E -->|criteria satisfied| Done[Completion proposal]
+  O["Observe"] --> D["Diagnose"]
+  D --> H["Hypothesize"]
+  H --> S["Select minimal action"]
+  S --> A["Core authorize if effectful"]
+  A --> X["Tool boundary execute"]
+  X --> V["Verify actual result"]
+  V --> C["Compare expected vs observed"]
+  C --> U["Update belief and confidence"]
+  U --> N{"Next decision"}
+  N -->|continue| O
+  N -->|plan invalid| R["Request controlled replan"]
+  N -->|authority / uncertainty| E["Escalate"]
+  N -->|criteria met or cannot progress| Stop["Stop honestly"]
 ~~~
 
-Stages may be skipped only when a task’s declared change type makes them inapplicable and the policy records why. For example, a documentation-only task may not require a benchmark, but it still requires review and validation appropriate to its risk.
+Read-only reasoning may omit effect authorization and execution but still records observation and validation. An effectful iteration cannot skip Core authorization or actual-result probing.
 
-## Stage contracts
+## Iteration record
 
-| Stage | Required output | Gate owner |
+Every inner-loop iteration records:
+
+| Field | Requirement |
+| --- | --- |
+| Governing context | policy, specification, contract, plan, phase, TaskPacket, skill, profile, and context-pack versions |
+| Hypothesis | falsifiable explanation of the current gap and confidence before action |
+| Evidence before | diagnostics, artifacts, tests, findings, and unresolved uncertainty |
+| Proposed action | minimal typed action, expected result, capability/effect class, cost, and rollback |
+| Authorization | Core policy/capability/budget/approval decision and durable intent identity |
+| Actual result | tool-boundary observation, exit/result data, changed artifacts, and evidence after |
+| Comparison | expected versus observed result and confidence delta |
+| Next decision | continue, retry with changed hypothesis, split, replan, escalate, or stop |
+
+A retry without a changed, evidence-supported hypothesis is not progress.
+
+## Loop guards
+
+Core/Hermes stop or escalate an inner loop when it detects:
+
+- repeated equivalent actions or identical failures;
+- no observable state change despite claimed progress;
+- oscillation between states or strategies;
+- increasing diagnostics, regressions, or unresolved risk;
+- exhausted time, token, cost, tool-call, or retry budget;
+- repeated schema, citation, context, or verification failure;
+- invalid/stale governing artifact or broken traceability;
+- unresolved uncertainty about a non-idempotent effect;
+- required human authority, new scope, dependency, secret, external transfer, or protected effect;
+- environment, sandbox, repository, or evidence-integrity failure.
+
+Loop guards are policy-configurable and evaluated from durable observations, not prompt instructions or a model's self-assessment.
+
+## Delivery quality stages and self-review
+
+Within appropriate phases, task/phase plans select applicable quality stages such as Understand, Plan, Build, Compile/Static Analysis, Test, Review, Benchmark, Security, Refactor, Document, and Evaluate. These stages are evidence obligations, not a rigid universal phase graph.
+
+Independent review proceeds as applicable:
+
+`builder → deterministic validation → reviewer subagent → test/quality subagent → security/performance review → CompletionProposal`.
+
+The same model and context that produced an implementation must not be the only basis for review. Reviewers and QA return findings or gate evaluations; they do not approve plans, effects, exceptions, or mission completion.
+
+| Quality activity | Required output | Evidence producer |
 | --- | --- | --- |
-| Understand | bounded problem statement, affected artifacts, ambiguity list | Planner / Architecture |
-| Plan | task DAG, acceptance criteria, risks, capabilities, rollback approach | Orchestration / Policy |
-| Build | isolated change artifact and implementation log | Builder |
-| Compile / static | reproducible command results, lint/type/build evidence | QA / specialist |
-| Test | test matrix and result artifacts | QA / Testing |
-| Review | independent findings and disposition | Reviewer |
-| Benchmark | baseline, method, result, regression threshold | Performance / Benchmark |
-| Security scan | dependency, secret, code/supply-chain findings | Security |
-| Refactor | constrained cleanup with tests retained | Builder / Reviewer |
-| Document | changelog, design impact, runbook/knowledge updates | Documentation |
-| Evaluate | acceptance-criteria traceability and quality summary | Orchestration |
+| Understand / impact | bounded problem, affected symbols/files/tests, ambiguity | Brain Agent / Explorer / Architecture Analyst |
+| Build | isolated change artifact, action/effect trace, implementation uncertainty | Builder |
+| Compile / static / LSP | reproducible command and diagnostic delta | Tool boundary + QA/specialist |
+| Test | requirement-bound test matrix and result artifacts | Test Engineer / QA |
+| Review | independent findings and dispositions | Reviewer |
+| Benchmark | baseline, method, result, regression threshold | Performance Reviewer |
+| Security | dependency, secret, code, supply-chain, and policy findings | Security Reviewer |
+| Documentation | user/design/runbook/memory-candidate impact | Documentation Agent |
+| Evaluate | OutcomeContract trace, evidence completeness, unresolved risk | Core gate evaluator from supplied evidence |
 
-## Quality thresholds
+## Effect firewall
 
-Thresholds are project policy, not universal constants. The initial policy template requires: build/static checks pass; targeted tests pass; all required reviewers approve or findings are dispositioned; no unresolved critical/high security finding; coverage does not regress below the project baseline without approved exception; performance stays within an approved regression budget; documentation and migration impact are addressed; and the change remains within mission scope and budget.
+Every material effect follows one path:
 
-For safety-critical, financial, regulated, or release tasks, policy can add independent-review, reproducibility, accessibility, compliance, or human acceptance gates. A model assertion, screenshot, or “looks good” statement is never gate evidence by itself.
+`agent/model proposes → Core classifies → policy decision → capability check → approval where required → durable intent → tool boundary executes → probe actual result → record evidence`.
 
-## Stop conditions
+The firewall covers files, processes, shell, Git, network, secrets, dependencies, databases, pushes, pull requests, merges, deployments, budgets, and model calls. Skills and hooks use the same path. Guardrails are enforced at Core and tool boundaries, never by prompt wording alone.
 
-A task or mission stops successfully only when all required acceptance criteria and gates have linked evidence, no blocking finding remains, the approved scope is satisfied, required artifacts are preserved, and budget/time/retry limits are respected. It stops unsuccessfully or escalates when any of these occur:
+## Quality and outcome thresholds
 
-- a strategic decision, new permission, external transfer, dependency, or scope expansion is needed;
-- retries exceed a configured cap or repeated attempts show no measurable progress;
-- evidence conflicts materially;
-- a critical security/compliance issue is detected;
-- cost, time, or resource budget is exhausted;
-- environment/sandbox integrity cannot be established.
+Thresholds come from policy and the approved OutcomeContract, not from model capability. Initial templates require applicable build/static checks and targeted tests to pass; findings to be dispositioned; no unresolved blocking security issue; regression, coverage, and performance within approved bounds; documentation/migration impact addressed; evidence complete; and work inside scope, budget, and architecture constraints.
 
-The system records the reason, partial output, and recommended recovery path. It does not hide a failed loop behind an optimistic summary.
+Different supported profiles may use different strategies, tools, context, retries, time, and cost. Acceptance is permitted only when functional behavior, public contracts, architecture, security, quality, regressions, evidence completeness, and unresolved risk are contract-equivalent. Formatting beyond repository rules and non-contractual internal style need not match.
 
-## Retry and improvement policy
+## Escalation and stop semantics
 
-Retries must have a named hypothesis: changed context, alternate implementation strategy, additional test fixture, human decision, or different compatible brain/worker profile. Every retry consumes a budget and emits a comparison to the prior attempt. A quality regression triggers rollback/review, not iterative rationalization.
+The escalation ladder is:
+
+1. retry with improved evidence/context and a new hypothesis;
+2. select a more specialized approved skill;
+3. split the TaskPacket without changing its requirement envelope;
+4. invoke an independent reviewer/advisor subagent;
+5. request a controlled plan change or replan;
+6. switch to another supported profile within policy/budget;
+7. request clarification;
+8. request a human decision or protected-effect approval;
+9. stop safely with uncertainty and partial evidence preserved.
+
+Success requires every applicable acceptance criterion and evidence binding, no blocking finding, approved scope satisfied, artifacts preserved, and budget/transition rules met. Failure, cancellation, or uncertainty records the reason, partial output, observed effect state, and recovery recommendation. Optimistic summaries cannot conceal non-convergence.
 
 ## Autonomy mode interaction
 
-Manual mode gates material stages before execution. Limited Approval permits low-risk planning and verification but gates declared effects. Full Autonomous performs the loop inside its envelope while hard safety gates remain. Enterprise Policy Mode injects organization-specific controls and retention requirements. The same stage model applies to all modes; only policy and approval routing differ.
+Manual mode gates configured material effects. Limited Approval permits low-risk work inside declared capabilities and gates strategic changes. Full Autonomous runs inner loops inside an approved envelope while preserving hard effect, specification, plan, authority, change, and completion gates. Enterprise Policy adds organization controls and retention. No mode lets Brain Agent, Hermes, a builder, reviewer, skill, or hook approve itself.
 
-See also: [05_Worker_Architecture.md](05_Worker_Architecture.md), [13_Mission_Control.md](13_Mission_Control.md), [14_Security_Architecture.md](14_Security_Architecture.md), and [26_Testing_Strategy.md](26_Testing_Strategy.md).
-
+See also: [05_Worker_Architecture.md](05_Worker_Architecture.md), [13_Mission_Control.md](13_Mission_Control.md), [14_Security_Architecture.md](14_Security_Architecture.md), [26_Testing_Strategy.md](26_Testing_Strategy.md), [32_Hermes_Engineering_Intelligence_Runtime.md](32_Hermes_Engineering_Intelligence_Runtime.md), and [33_Model_Independent_Outcome_Convergence.md](33_Model_Independent_Outcome_Convergence.md).
