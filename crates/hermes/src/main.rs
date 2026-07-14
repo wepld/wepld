@@ -15,6 +15,7 @@
 use std::path::Path;
 use std::time::Duration;
 use wepld_contracts::brain::{BrainResult, BrainStatus};
+use wepld_contracts::validation::WorkspaceRelativePath;
 use wepld_contracts::wwp::{
     AttemptStart, BrainRequest, Heartbeat, PhaseResult, PhaseStatus, WwpMessage,
 };
@@ -245,7 +246,10 @@ fn brain_phase(
 }
 
 /// Apply `{ edits: [ { path, content } ] }` under the single writable path the
-/// envelope granted. Paths are confined to that root — no escape.
+/// envelope granted. Every edit path is a validated [`WorkspaceRelativePath`]
+/// (no absolute, drive, or `..` component — model output is untrusted) and the
+/// write is symlink-safe (Blocker 1): no existing component may be a symlink,
+/// so a pre-existing link in the worktree cannot redirect a write outside it.
 fn apply_worktree_edits(start: &AttemptStart, output: &serde_json::Value) -> Result<usize, String> {
     let root = start
         .envelope
@@ -260,7 +264,7 @@ fn apply_worktree_edits(start: &AttemptStart, output: &serde_json::Value) -> Res
         .ok_or("builder output has no edits array")?;
     let mut count = 0;
     for edit in edits {
-        let rel = edit
+        let rel_raw = edit
             .get("path")
             .and_then(|p| p.as_str())
             .ok_or("edit missing path")?;
@@ -268,18 +272,59 @@ fn apply_worktree_edits(start: &AttemptStart, output: &serde_json::Value) -> Res
             .get("content")
             .and_then(|c| c.as_str())
             .ok_or("edit missing content")?;
-        let target = root.join(rel);
-        // Confinement: the resolved parent must stay under root.
-        if rel.contains("..") {
-            return Err(format!("edit path escapes worktree: {rel}"));
-        }
-        if let Some(parent) = target.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-        }
-        std::fs::write(&target, content).map_err(|e| e.to_string())?;
+        let rel = WorkspaceRelativePath::parse(rel_raw).map_err(|e| e.to_string())?;
+        write_confined(root, &rel, content)?;
         count += 1;
     }
     Ok(count)
+}
+
+/// Write `content` at `rel` under `root` without ever following a symlink out
+/// of the worktree. Walks the validated relative path component by component:
+/// any *existing* component that is a symlink is refused (parent or final
+/// target), missing directories are created one level at a time (so a created
+/// dir is never a symlink), and the final regular file is written in place.
+/// The path is lexically confined to `root` by [`WorkspaceRelativePath`]; the
+/// only residual gap is a concurrent filesystem swap, which the model — which
+/// supplies path strings, not concurrent I/O — cannot perform.
+fn write_confined(root: &Path, rel: &WorkspaceRelativePath, content: &str) -> Result<(), String> {
+    let comps: Vec<_> = rel.as_path().components().collect();
+    let mut cur = root.to_path_buf();
+    for (i, comp) in comps.iter().enumerate() {
+        let std::path::Component::Normal(name) = comp else {
+            return Err("validated path yielded a non-normal component".to_owned());
+        };
+        cur.push(name);
+        let is_last = i + 1 == comps.len();
+        match std::fs::symlink_metadata(&cur) {
+            Ok(md) => {
+                if md.file_type().is_symlink() {
+                    return Err(format!(
+                        "edit path component is a symlink: {}",
+                        cur.display()
+                    ));
+                }
+                if is_last {
+                    if md.is_dir() {
+                        return Err(format!("edit target is a directory: {}", cur.display()));
+                    }
+                } else if !md.is_dir() {
+                    return Err(format!(
+                        "edit path parent is not a directory: {}",
+                        cur.display()
+                    ));
+                }
+            }
+            Err(_) => {
+                // Does not exist yet: create only intermediate directories.
+                if !is_last {
+                    std::fs::create_dir(&cur)
+                        .map_err(|e| format!("create dir {}: {e}", cur.display()))?;
+                }
+            }
+        }
+    }
+    std::fs::write(&cur, content).map_err(|e| format!("write {}: {e}", cur.display()))
 }
 
 fn finish(attempt_id: String, status: PhaseStatus, summary: serde_json::Value) {
@@ -291,4 +336,52 @@ fn finish(attempt_id: String, status: PhaseStatus, summary: serde_json::Value) {
         summary,
         next_hint: None,
     }));
+}
+
+#[cfg(test)]
+mod edit_tests {
+    use super::{write_confined, WorkspaceRelativePath};
+
+    fn wrp(s: &str) -> WorkspaceRelativePath {
+        WorkspaceRelativePath::parse(s).unwrap()
+    }
+
+    #[test]
+    fn writes_a_nested_file_under_root() {
+        let root = tempfile::tempdir().unwrap();
+        write_confined(root.path(), &wrp("src/generated/file.rs"), "X").unwrap();
+        assert_eq!(
+            std::fs::read_to_string(root.path().join("src/generated/file.rs")).unwrap(),
+            "X"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn refuses_a_parent_symlink_and_creates_no_external_file() {
+        let outside = tempfile::tempdir().unwrap();
+        let root = tempfile::tempdir().unwrap();
+        std::os::unix::fs::symlink(outside.path(), root.path().join("link")).unwrap();
+        let err = write_confined(root.path(), &wrp("link/evil.txt"), "X").unwrap_err();
+        assert!(err.contains("symlink"), "{err}");
+        assert!(
+            !outside.path().join("evil.txt").exists(),
+            "no file may be created outside the worktree"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn refuses_a_final_symlink_and_does_not_write_through_it() {
+        let outside = tempfile::tempdir().unwrap();
+        let target = outside.path().join("secret.txt");
+        let root = tempfile::tempdir().unwrap();
+        std::os::unix::fs::symlink(&target, root.path().join("main.rs")).unwrap();
+        let err = write_confined(root.path(), &wrp("main.rs"), "X").unwrap_err();
+        assert!(err.contains("symlink"), "{err}");
+        assert!(
+            !target.exists(),
+            "must not write through a symlink to outside"
+        );
+    }
 }
