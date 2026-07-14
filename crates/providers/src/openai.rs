@@ -28,9 +28,13 @@ pub enum AdapterConfigError {
     )]
     HttpsUnsupported(String),
     #[error(
-        "plaintext HTTP is only permitted to loopback hosts (127.0.0.1, localhost, ::1); refusing {0}"
+        "plaintext HTTP is only permitted to loopback hosts (127.0.0.1, ::1, or a loopback-resolving localhost); refusing {0}"
     )]
     NonLoopbackHttp(String),
+    #[error("provider URL must not contain a username or password: {0}")]
+    UrlContainsCredentials(String),
+    #[error("provider base URL must not contain a query or fragment: {0}")]
+    UrlHasQueryOrFragment(String),
     #[error(
         "an API key must never be sent over plaintext HTTP; use a keyless loopback endpoint \
          (a verified-TLS build is required for hosted/keyed providers)"
@@ -69,60 +73,89 @@ impl OpenAiCompatAdapter {
         api_key: Option<String>,
         timeout: Duration,
     ) -> Result<Self, AdapterConfigError> {
-        validate_endpoint(base_url, api_key.is_some())?;
+        // Validate and normalize: store the parsed authority, never the original
+        // ambiguous string, so `invoke` cannot be tricked by userinfo/host tricks.
+        let normalized = validate_endpoint(base_url, api_key.is_some())?;
         Ok(Self {
             name: name.to_owned(),
-            base_url: base_url.trim_end_matches('/').to_owned(),
+            base_url: normalized,
             timeout,
         })
     }
 }
 
-/// The one place transport policy is decided. Local-loopback-only: parse the
-/// scheme and host, then apply the rules. Never inspects or echoes the key.
-fn validate_endpoint(base_url: &str, has_key: bool) -> Result<(), AdapterConfigError> {
-    let (scheme, rest) = base_url
-        .split_once("://")
+/// The one place transport policy is decided, using a standards-compliant URL
+/// parser (`url::Url`) so userinfo cannot masquerade as a loopback host
+/// (`http://127.0.0.1:80@evil.example`). Returns the normalized `scheme://host[:port]`
+/// base (no path/query/fragment). Never inspects or echoes the API key.
+fn validate_endpoint(base_url: &str, has_key: bool) -> Result<String, AdapterConfigError> {
+    use url::{Host, Url};
+
+    let url =
+        Url::parse(base_url).map_err(|_| AdapterConfigError::MalformedUrl(base_url.to_owned()))?;
+
+    match url.scheme() {
+        "http" => {}
+        "https" => return Err(AdapterConfigError::HttpsUnsupported(base_url.to_owned())),
+        other => return Err(AdapterConfigError::UnsupportedScheme(other.to_owned())),
+    }
+    // A credential never rides plaintext HTTP.
+    if has_key {
+        return Err(AdapterConfigError::KeyOverHttp);
+    }
+    // Reject embedded userinfo — the classic loopback-spoofing vector.
+    if !url.username().is_empty() || url.password().is_some() {
+        return Err(AdapterConfigError::UrlContainsCredentials(
+            base_url.to_owned(),
+        ));
+    }
+    // The base endpoint carries no query or fragment.
+    if url.query().is_some() || url.fragment().is_some() {
+        return Err(AdapterConfigError::UrlHasQueryOrFragment(
+            base_url.to_owned(),
+        ));
+    }
+
+    // The host must be a real loopback address (numeric IPs preferred), or a
+    // `localhost` that resolves to loopback only.
+    let host = url
+        .host()
         .ok_or_else(|| AdapterConfigError::MalformedUrl(base_url.to_owned()))?;
-    let scheme = scheme.to_ascii_lowercase();
-
-    // Authority is everything before the first '/', '?', or '#'.
-    let authority = rest.split(['/', '?', '#']).next().unwrap_or("").to_string();
-    if authority.is_empty() {
-        return Err(AdapterConfigError::MalformedUrl(base_url.to_owned()));
+    let host_ok = match &host {
+        Host::Ipv4(ip) => ip.is_loopback(),
+        Host::Ipv6(ip) => ip.is_loopback(),
+        Host::Domain(d) => d.eq_ignore_ascii_case("localhost") && localhost_is_loopback_only(),
+    };
+    if !host_ok {
+        return Err(AdapterConfigError::NonLoopbackHttp(base_url.to_owned()));
     }
 
-    match scheme.as_str() {
-        "https" => Err(AdapterConfigError::HttpsUnsupported(base_url.to_owned())),
-        "http" => {
-            if has_key {
-                // Refuse before we ever consider the host — a key never rides HTTP.
-                return Err(AdapterConfigError::KeyOverHttp);
-            }
-            if is_loopback_authority(&authority) {
-                Ok(())
-            } else {
-                Err(AdapterConfigError::NonLoopbackHttp(base_url.to_owned()))
-            }
-        }
-        other => Err(AdapterConfigError::UnsupportedScheme(other.to_owned())),
-    }
+    // Normalized base from the parsed components — not the original string.
+    let host_str = url
+        .host_str()
+        .ok_or_else(|| AdapterConfigError::MalformedUrl(base_url.to_owned()))?;
+    let port = url.port().map(|p| format!(":{p}")).unwrap_or_default();
+    Ok(format!("http://{host_str}{port}"))
 }
 
-/// True only for verified loopback authorities: `127.0.0.1`, `localhost`, `::1`
-/// (bracketed or not), with an optional `:port`. Any other host is remote.
-fn is_loopback_authority(authority: &str) -> bool {
-    // Strip an IPv6 bracket form first: [::1]:8080 → ::1
-    if let Some(after) = authority.strip_prefix('[') {
-        let host = after.split(']').next().unwrap_or("");
-        return host == "::1";
+/// Documented `localhost` policy: it is accepted only if every address it
+/// resolves to is a loopback address (no split-horizon surprise). If resolution
+/// fails or yields any non-loopback address, `localhost` is refused.
+fn localhost_is_loopback_only() -> bool {
+    use std::net::ToSocketAddrs;
+    match ("localhost", 0u16).to_socket_addrs() {
+        Ok(addrs) => {
+            let mut any = false;
+            for a in addrs {
+                any = true;
+                if !a.ip().is_loopback() {
+                    return false;
+                }
+            }
+            any
+        }
+        Err(_) => false,
     }
-    // host[:port] — take the host (IPv4/hostname have a single colon at most).
-    let host = authority
-        .rsplit_once(':')
-        .map(|(h, _)| h)
-        .unwrap_or(authority);
-    matches!(host, "127.0.0.1" | "localhost" | "::1")
 }
 
 impl Adapter for OpenAiCompatAdapter {

@@ -1254,6 +1254,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "ureq",
+ "url",
  "wepld-contracts",
 ]
 

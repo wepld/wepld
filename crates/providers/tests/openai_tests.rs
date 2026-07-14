@@ -232,6 +232,61 @@ fn malformed_and_unsupported_urls_are_rejected() {
 }
 
 #[test]
+fn adversarial_urls_are_rejected() {
+    // userinfo/host confusion, credentials, malformed ports/hosts, remote IPs,
+    // unsupported schemes, and query/fragment on the base endpoint.
+    let cases = [
+        "http://127.0.0.1:80@evil.example",
+        "http://localhost@evil.example",
+        "http://[::1]@evil.example",
+        "http://[::1]evil.example",
+        "http://user:pass@127.0.0.1",
+        "http://127.0.0.1:notaport",
+        "http://198.51.100.7:11434",
+        "http://8.8.8.8",
+        "ftp://127.0.0.1",
+        "gopher://localhost",
+        "http://127.0.0.1:11434/v1?x=1",
+        "http://127.0.0.1:11434/#frag",
+    ];
+    for c in cases {
+        assert!(
+            OpenAiCompatAdapter::new("x", c, None, Duration::from_secs(1)).is_err(),
+            "must reject adversarial url: {c}"
+        );
+    }
+}
+
+#[test]
+fn userinfo_spoof_is_a_credentials_error_not_treated_as_loopback() {
+    let err = OpenAiCompatAdapter::new(
+        "x",
+        "http://127.0.0.1:80@evil.example",
+        None,
+        Duration::from_secs(1),
+    )
+    .unwrap_err();
+    assert!(
+        matches!(err, AdapterConfigError::UrlContainsCredentials(_)),
+        "got {err:?}"
+    );
+}
+
+#[test]
+fn query_or_fragment_on_the_base_is_rejected() {
+    assert!(matches!(
+        OpenAiCompatAdapter::new(
+            "x",
+            "http://127.0.0.1:11434/?a=b",
+            None,
+            Duration::from_secs(1)
+        )
+        .unwrap_err(),
+        AdapterConfigError::UrlHasQueryOrFragment(_)
+    ));
+}
+
+#[test]
 fn an_error_never_contains_the_key() {
     // The key-over-HTTP error, its Debug, and Display must not echo the secret.
     let err = OpenAiCompatAdapter::new(
