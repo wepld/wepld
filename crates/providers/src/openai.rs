@@ -3,32 +3,126 @@
 //! OpenAI API itself — so WePLD depends on no single provider (charter LLM
 //! philosophy; "Hermes + Ollama" is a first-class local mode).
 //!
-//! This build targets HTTP endpoints (local-first: Ollama & friends). Hosted
-//! HTTPS endpoints require a TLS-enabled build, added in a later slice; the
-//! adapter contract is unchanged by that.
+//! **This build is local-loopback-only.** It supports credential-free HTTP to
+//! verified loopback hosts (`127.0.0.1`, `localhost`, `::1`) and nothing else:
+//! non-loopback HTTP is refused, any API key over HTTP is refused, and HTTPS is
+//! refused because no TLS is built in yet. Hosted / API-key support is deferred
+//! until a verified-TLS build lands and is tested; `new` returns a typed
+//! [`AdapterConfigError`] rather than silently downgrading or leaking a key.
 
 use crate::{Adapter, AdapterError, AdapterRequest, AdapterResponse};
 use std::time::{Duration, Instant};
 use wepld_contracts::brain::Usage;
 
+/// Why an adapter configuration was refused. None of these variants ever embed
+/// the API key value — configuration errors are safe to log.
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+pub enum AdapterConfigError {
+    #[error("malformed provider URL (expected http://host[:port]): {0}")]
+    MalformedUrl(String),
+    #[error("unsupported URL scheme '{0}' (only http:// to loopback is supported in this build)")]
+    UnsupportedScheme(String),
+    #[error(
+        "HTTPS is not supported in this local-loopback-only build (verified-TLS build is deferred); \
+         refusing to reach {0}"
+    )]
+    HttpsUnsupported(String),
+    #[error(
+        "plaintext HTTP is only permitted to loopback hosts (127.0.0.1, localhost, ::1); refusing {0}"
+    )]
+    NonLoopbackHttp(String),
+    #[error(
+        "an API key must never be sent over plaintext HTTP; use a keyless loopback endpoint \
+         (a verified-TLS build is required for hosted/keyed providers)"
+    )]
+    KeyOverHttp,
+}
+
 pub struct OpenAiCompatAdapter {
     name: String,
     base_url: String,
-    api_key: Option<String>,
     timeout: Duration,
+}
+
+// Manual Debug so a future keyed build can never leak a credential through
+// `{:?}`. (This build holds no key, but the guarantee is structural.)
+impl std::fmt::Debug for OpenAiCompatAdapter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OpenAiCompatAdapter")
+            .field("name", &self.name)
+            .field("base_url", &self.base_url)
+            .field("api_key", &"<redacted>")
+            .finish()
+    }
 }
 
 impl OpenAiCompatAdapter {
     /// `name` is the adapter id a profile routes to (e.g. "ollama").
     /// `base_url` is the server root, e.g. `http://127.0.0.1:11434`.
-    pub fn new(name: &str, base_url: &str, api_key: Option<String>, timeout: Duration) -> Self {
-        Self {
+    ///
+    /// Validates the endpoint up front: loopback HTTP only, no key over HTTP,
+    /// no HTTPS in this build. Returns a typed error rather than constructing an
+    /// adapter that could reach a remote host or transmit a credential in clear.
+    pub fn new(
+        name: &str,
+        base_url: &str,
+        api_key: Option<String>,
+        timeout: Duration,
+    ) -> Result<Self, AdapterConfigError> {
+        validate_endpoint(base_url, api_key.is_some())?;
+        Ok(Self {
             name: name.to_owned(),
             base_url: base_url.trim_end_matches('/').to_owned(),
-            api_key,
             timeout,
-        }
+        })
     }
+}
+
+/// The one place transport policy is decided. Local-loopback-only: parse the
+/// scheme and host, then apply the rules. Never inspects or echoes the key.
+fn validate_endpoint(base_url: &str, has_key: bool) -> Result<(), AdapterConfigError> {
+    let (scheme, rest) = base_url
+        .split_once("://")
+        .ok_or_else(|| AdapterConfigError::MalformedUrl(base_url.to_owned()))?;
+    let scheme = scheme.to_ascii_lowercase();
+
+    // Authority is everything before the first '/', '?', or '#'.
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or("").to_string();
+    if authority.is_empty() {
+        return Err(AdapterConfigError::MalformedUrl(base_url.to_owned()));
+    }
+
+    match scheme.as_str() {
+        "https" => Err(AdapterConfigError::HttpsUnsupported(base_url.to_owned())),
+        "http" => {
+            if has_key {
+                // Refuse before we ever consider the host — a key never rides HTTP.
+                return Err(AdapterConfigError::KeyOverHttp);
+            }
+            if is_loopback_authority(&authority) {
+                Ok(())
+            } else {
+                Err(AdapterConfigError::NonLoopbackHttp(base_url.to_owned()))
+            }
+        }
+        other => Err(AdapterConfigError::UnsupportedScheme(other.to_owned())),
+    }
+}
+
+/// True only for verified loopback authorities: `127.0.0.1`, `localhost`, `::1`
+/// (bracketed or not), with an optional `:port`. Any other host is remote.
+fn is_loopback_authority(authority: &str) -> bool {
+    // Strip an IPv6 bracket form first: [::1]:8080 → ::1
+    if let Some(after) = authority.strip_prefix('[') {
+        let host = after.split(']').next().unwrap_or("");
+        return host == "::1";
+    }
+    // host[:port] — take the host (IPv4/hostname have a single colon at most).
+    let host = authority
+        .rsplit_once(':')
+        .map(|(h, _)| h)
+        .unwrap_or(authority);
+    matches!(host, "127.0.0.1" | "localhost" | "::1")
 }
 
 impl Adapter for OpenAiCompatAdapter {
@@ -54,11 +148,10 @@ impl Adapter for OpenAiCompatAdapter {
         let agent: ureq::Agent = cfg.into();
 
         let started = Instant::now();
-        let mut builder = agent.post(&url);
-        if let Some(key) = &self.api_key {
-            builder = builder.header("Authorization", format!("Bearer {key}"));
-        }
-        let mut response = builder
+        // Local-loopback-only: no Authorization header exists in this build, so
+        // a credential can never appear in a request or in an error string.
+        let mut response = agent
+            .post(&url)
             .send_json(&body)
             .map_err(|e| AdapterError::Provider(format!("request failed: {e}")))?;
         let parsed: serde_json::Value = response

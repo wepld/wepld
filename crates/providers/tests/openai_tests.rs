@@ -6,9 +6,13 @@ use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::time::Duration;
 use wepld_providers::{
-    cassette_key, Adapter, AdapterRequest, FixtureAdapter, Gateway, OpenAiCompatAdapter, Profile,
-    RecordingAdapter, SchemaRegistry,
+    cassette_key, Adapter, AdapterConfigError, AdapterRequest, FixtureAdapter, Gateway,
+    OpenAiCompatAdapter, Profile, RecordingAdapter, SchemaRegistry,
 };
+
+fn loopback(base: &str) -> OpenAiCompatAdapter {
+    OpenAiCompatAdapter::new("ollama", base, None, Duration::from_secs(5)).unwrap()
+}
 
 /// A tiny OpenAI-compatible server that returns a fixed chat-completion whose
 /// message content is `content_json`. Loops accepting connections until the
@@ -63,7 +67,7 @@ const PLAN_CONTENT: &str = r#"{"tasks":[{"id":"T1","title":"add flag","satisfies
 #[test]
 fn adapter_calls_endpoint_and_parses_structured_output() {
     let base = mock_server(PLAN_CONTENT);
-    let adapter = OpenAiCompatAdapter::new("ollama", &base, None, Duration::from_secs(5));
+    let adapter = loopback(&base);
 
     let resp = adapter.invoke(&request()).unwrap();
     assert_eq!(resp.output["tasks"][0]["id"], "T1");
@@ -76,7 +80,7 @@ fn adapter_calls_endpoint_and_parses_structured_output() {
 #[test]
 fn adapter_tolerates_fenced_and_noisy_output() {
     let base = mock_server("Here is your plan:\n```json\n{\"tasks\":[]}\n```\n");
-    let adapter = OpenAiCompatAdapter::new("ollama", &base, None, Duration::from_secs(5));
+    let adapter = loopback(&base);
     let resp = adapter.invoke(&request()).unwrap();
     assert!(resp.output["tasks"].is_array());
 }
@@ -88,7 +92,7 @@ fn record_mode_produces_a_replayable_cassette() {
     let base = mock_server(PLAN_CONTENT);
 
     // Record: a real adapter wrapped in the recorder.
-    let real = OpenAiCompatAdapter::new("ollama", &base, None, Duration::from_secs(5));
+    let real = loopback(&base);
     let recorder = RecordingAdapter::new(Box::new(real), cassette.clone());
     let recorded = recorder.invoke(&request()).unwrap();
     assert_eq!(recorded.output["tasks"][0]["id"], "T1");
@@ -121,15 +125,7 @@ fn recorded_cassette_flows_through_the_gateway() {
     let base = mock_server(PLAN_CONTENT);
 
     // Record against the mock, then serve the cassette through the gateway.
-    let recorder = RecordingAdapter::new(
-        Box::new(OpenAiCompatAdapter::new(
-            "ollama",
-            &base,
-            None,
-            Duration::from_secs(5),
-        )),
-        cassette,
-    );
+    let recorder = RecordingAdapter::new(Box::new(loopback(&base)), cassette);
     recorder.invoke(&request()).unwrap();
 
     // The fixture adapter (named "fixture") replays a recording that was made
@@ -157,4 +153,98 @@ fn recorded_cassette_flows_through_the_gateway() {
     assert_eq!(result.status, wepld_contracts::brain::BrainStatus::Ok);
     assert_eq!(result.output["tasks"][0]["id"], "T1");
     assert_eq!(result.usage.provider, "ollama");
+}
+
+// ── Local-loopback-only transport policy (Blocker 5) ───────────────────────
+
+const SECRET: &str = "sk-super-secret-key-value-do-not-leak";
+
+#[test]
+fn loopback_http_without_a_key_is_accepted() {
+    for base in [
+        "http://127.0.0.1:11434",
+        "http://localhost:8080",
+        "http://[::1]:1234",
+    ] {
+        assert!(
+            OpenAiCompatAdapter::new("ollama", base, None, Duration::from_secs(5)).is_ok(),
+            "loopback keyless HTTP must be accepted: {base}"
+        );
+    }
+}
+
+#[test]
+fn loopback_http_with_a_key_is_rejected() {
+    let err = OpenAiCompatAdapter::new(
+        "ollama",
+        "http://127.0.0.1:11434",
+        Some(SECRET.to_owned()),
+        Duration::from_secs(5),
+    )
+    .unwrap_err();
+    assert_eq!(err, AdapterConfigError::KeyOverHttp);
+}
+
+#[test]
+fn remote_http_is_rejected() {
+    let err = OpenAiCompatAdapter::new(
+        "ollama",
+        "http://198.51.100.10:11434",
+        None,
+        Duration::from_secs(5),
+    )
+    .unwrap_err();
+    assert!(matches!(err, AdapterConfigError::NonLoopbackHttp(_)));
+    // A hostname that merely contains "localhost" is still remote.
+    assert!(matches!(
+        OpenAiCompatAdapter::new(
+            "x",
+            "http://localhost.evil.com",
+            None,
+            Duration::from_secs(1)
+        )
+        .unwrap_err(),
+        AdapterConfigError::NonLoopbackHttp(_)
+    ));
+}
+
+#[test]
+fn https_is_rejected_without_silent_downgrade() {
+    let err = OpenAiCompatAdapter::new("x", "https://api.openai.com", None, Duration::from_secs(1))
+        .unwrap_err();
+    assert!(matches!(err, AdapterConfigError::HttpsUnsupported(_)));
+}
+
+#[test]
+fn malformed_and_unsupported_urls_are_rejected() {
+    assert!(matches!(
+        OpenAiCompatAdapter::new("x", "not a url", None, Duration::from_secs(1)).unwrap_err(),
+        AdapterConfigError::MalformedUrl(_)
+    ));
+    assert!(matches!(
+        OpenAiCompatAdapter::new("x", "http://", None, Duration::from_secs(1)).unwrap_err(),
+        AdapterConfigError::MalformedUrl(_)
+    ));
+    assert!(matches!(
+        OpenAiCompatAdapter::new("x", "ftp://127.0.0.1", None, Duration::from_secs(1)).unwrap_err(),
+        AdapterConfigError::UnsupportedScheme(_)
+    ));
+}
+
+#[test]
+fn an_error_never_contains_the_key() {
+    // The key-over-HTTP error, its Debug, and Display must not echo the secret.
+    let err = OpenAiCompatAdapter::new(
+        "ollama",
+        "http://127.0.0.1:11434",
+        Some(SECRET.to_owned()),
+        Duration::from_secs(5),
+    )
+    .unwrap_err();
+    assert!(!format!("{err}").contains(SECRET));
+    assert!(!format!("{err:?}").contains(SECRET));
+    // The adapter's own Debug never prints a credential either.
+    let adapter = loopback("http://127.0.0.1:11434");
+    assert!(format!("{adapter:?}").contains("<redacted>"));
+    assert!(!format!("{adapter:?}").contains(SECRET));
 }

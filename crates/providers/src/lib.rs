@@ -17,7 +17,7 @@ mod record;
 mod schema;
 
 pub use fixture::{cassette_key, write_cassette_entry, write_recorded, FixtureAdapter};
-pub use openai::OpenAiCompatAdapter;
+pub use openai::{AdapterConfigError, OpenAiCompatAdapter};
 pub use record::RecordingAdapter;
 pub use schema::SchemaRegistry;
 
