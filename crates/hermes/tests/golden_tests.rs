@@ -55,7 +55,7 @@ fn brief(repo: &Path) -> serde_json::Value {
         ],
         "gates_required": ["build", "test"],
         "gate_commands": { "build": "grep -q VERSION src/main.rs", "test": "grep -q version src/main.rs" },
-        "autonomy_mode": "bounded_auto",
+        "autonomy_mode": "manual",
         "envelope_declared": { "network": "deny", "dependency_install": "ask", "secrets": [] },
         "budget": { "max_cost_usd": 5.0, "max_wall_minutes": 90, "max_interrupts": 3 },
         "classification": "internal",
@@ -127,11 +127,16 @@ fn m0_first_mission_matches_golden_trace() {
     write_cassettes(store.path(), &brief);
 
     let mut core = open(store.path());
+    core.set_fixtures_root(workdir.path());
     create(&mut core, &brief);
     assert!(accepted(core.plan_mission("mis_first").unwrap()));
-    assert!(accepted(core.approve_plan("mis_first").unwrap()));
+    assert!(accepted(
+        core.approve_plan("mis_first", "principal_local").unwrap()
+    ));
     assert!(accepted(core.run_mission("mis_first").unwrap()));
-    assert!(accepted(core.accept_mission("mis_first", true).unwrap()));
+    assert!(accepted(
+        core.accept_mission("mis_first", "principal_local").unwrap()
+    ));
 
     // Normalized trace: the entry-type sequence.
     let actual: Vec<String> = core
@@ -157,10 +162,18 @@ fn m0_first_mission_matches_golden_trace() {
         "accepted"
     );
     assert!(core.verify().unwrap().is_valid());
+    // V0 never mutates the primary worktree: the edit lands on a proposal ref,
+    // and the working tree stays clean.
     let main = std::fs::read_to_string(repo.join("src/main.rs")).unwrap();
+    assert_eq!(main, "fn main() {}\n", "primary worktree is untouched");
+    let show = Command::new("git")
+        .args(["show", "refs/heads/wepld/mission-mis_first:src/main.rs"])
+        .current_dir(&repo)
+        .output()
+        .unwrap();
     assert!(
-        main.contains("VERSION"),
-        "the merge landed the edit on main"
+        String::from_utf8_lossy(&show.stdout).contains("VERSION"),
+        "the proposal ref carries the edit"
     );
 }
 
@@ -173,9 +186,10 @@ fn crash_during_build_is_uncertain_and_recoverable() {
     write_cassettes(store.path(), &brief);
 
     let mut core = open(store.path());
+    core.set_fixtures_root(workdir.path());
     create(&mut core, &brief);
     core.plan_mission("mis_first").unwrap();
-    core.approve_plan("mis_first").unwrap();
+    core.approve_plan("mis_first", "principal_local").unwrap();
 
     // The build worker crashes (exit before producing a result).
     core.set_worker_cmd(vec![

@@ -14,6 +14,17 @@ use wepld_contracts::vocabulary::EventType;
 use wepld_ledger::NewEntry;
 use wepld_workspace::Workspace;
 
+/// An injectable crash point in the acceptance sequence, used to prove
+/// effect/ledger recovery (Blocker 3). Production always uses `None`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AcceptFault {
+    None,
+    /// Stop after the decision is committed, before the proposal-ref effect.
+    BeforeEffect,
+    /// Stop after the proposal-ref effect, before `MissionAccepted` is recorded.
+    BeforeFinalRecord,
+}
+
 impl Core {
     /// Run the planner phase for a draft mission and record the proposed plan.
     /// The planner is a worker that reasons through the gateway; the plan is
@@ -107,8 +118,19 @@ impl Core {
     }
 
     /// Approve the latest proposed plan: materialize its tasks and move the
-    /// mission to running.
-    pub fn approve_plan(&mut self, mission_id: &str) -> Result<CommandOutcome, RuntimeError> {
+    /// mission to running. **Requires an explicit, authenticated approver** — a
+    /// caller-supplied human decision. The recorded `PlanApproved` fact carries
+    /// that real principal; the Core never fabricates a human actor.
+    pub fn approve_plan(
+        &mut self,
+        mission_id: &str,
+        approver: &str,
+    ) -> Result<CommandOutcome, RuntimeError> {
+        if !crate::is_authenticated_principal(approver) {
+            return Ok(rejected(format!(
+                "plan approval requires an authenticated principal, got {approver:?}"
+            )));
+        }
         let Some((_title, state)) = self.mission_row(mission_id)? else {
             return Ok(rejected(format!("no such mission: {mission_id}")));
         };
@@ -124,8 +146,9 @@ impl Core {
 
         let task_count = plan_doc.tasks.len();
         let mid = mission_id.to_owned();
+        let approver_s = approver.to_owned();
         self.store_mut().transact(|tx| {
-            tx.approve_plan_row(&plan_id, "principal_local")?;
+            tx.approve_plan_row(&plan_id, &approver_s)?;
             for (i, spec) in plan_doc.tasks.iter().enumerate() {
                 let task_id = format!("{mid}_{}", spec.id);
                 tx.insert_task(
@@ -142,10 +165,12 @@ impl Core {
                 aggregate_type: AggregateType::Mission,
                 aggregate_id: mid.clone(),
                 actor_type: ActorType::Human,
-                actor_id: "principal_local".to_owned(),
+                actor_id: approver_s.clone(),
                 correlation_id: mid.clone(),
                 causation_ref: None,
-                payload: serde_json::json!({ "plan_id": plan_id, "task_count": task_count }),
+                payload: serde_json::json!({
+                    "plan_id": plan_id, "task_count": task_count, "approved_by": approver_s
+                }),
             })?;
             tx.set_mission_state(&mid, "running")?;
             Ok(())
@@ -175,6 +200,12 @@ impl Core {
             .store_brief(mission_id)?
             .expect("running mission has brief");
         let brief: MissionBrief = serde_json::from_value(brief_json.clone())?;
+
+        // DEV-tier caps (IADR-0003): Manual mode only, fixture repos unless an
+        // explicit override was granted. Enforced before any worker runs.
+        if let Err(reason) = self.dev_tier_gate(&brief.scope.repo, brief.autonomy_mode) {
+            return Ok(rejected(reason));
+        }
 
         let ws = match Workspace::open(std::path::Path::new(&brief.scope.repo)) {
             Ok(w) => w,
@@ -342,24 +373,45 @@ impl Core {
         }
     }
 
-    /// Accept a proposed completion. With `merge`, merge the final workspace
-    /// snapshot into the base branch — the completion hard gate — then record
-    /// MissionAccepted and mark the mission accepted.
+    /// Accept a proposed completion by an explicit, authenticated approver.
+    /// **V0 never merges into the base branch or touches the primary worktree:**
+    /// it produces a reviewable *proposal ref* (`refs/heads/wepld/mission-<id>`)
+    /// at the final snapshot, for a human to merge later through an external
+    /// protected workflow. Recovery-safe and idempotent (see `accept_mission_at`).
     pub fn accept_mission(
         &mut self,
         mission_id: &str,
-        merge: bool,
+        approver: &str,
     ) -> Result<CommandOutcome, RuntimeError> {
+        self.accept_mission_at(mission_id, approver, AcceptFault::None)
+    }
+
+    /// The acceptance state machine with an injectable crash point. Production
+    /// callers use [`Core::accept_mission`] (`AcceptFault::None`); the fault
+    /// variants exist to prove recovery: a crash between the recorded decision
+    /// and the effect, or between the effect and the final record, always heals
+    /// idempotently on retry with no false `MissionAccepted` and no base mutation.
+    pub fn accept_mission_at(
+        &mut self,
+        mission_id: &str,
+        approver: &str,
+        fault: AcceptFault,
+    ) -> Result<CommandOutcome, RuntimeError> {
+        if !crate::is_authenticated_principal(approver) {
+            return Ok(rejected(format!(
+                "completion acceptance requires an authenticated principal, got {approver:?}"
+            )));
+        }
         let Some((_title, state)) = self.mission_row(mission_id)? else {
             return Ok(rejected(format!("no such mission: {mission_id}")));
         };
-        if state != "completion_proposed" {
-            return Ok(rejected(format!(
-                "mission is {state}, expected completion_proposed before acceptance"
-            )));
+
+        // Idempotent replay: a duplicate acceptance returns the recorded fact —
+        // no second MissionAccepted, no repeated effect.
+        if state == "accepted" {
+            return Ok(accepted(self.recorded_acceptance_detail(mission_id)?));
         }
 
-        // The final snapshot is the latest WorkspaceSnapshotRecorded fact.
         let Some(snapshot_commit) = self
             .timeline(mission_id)?
             .into_iter()
@@ -369,31 +421,164 @@ impl Core {
         else {
             return Ok(rejected("no workspace snapshot to accept".to_owned()));
         };
+        let proposal_ref = format!("refs/heads/wepld/mission-{mission_id}");
 
+        match state.as_str() {
+            "completion_proposed" => {
+                // 1. Durably record the explicit human decision + intended effect
+                //    and move to `acceptance_pending` BEFORE any git effect.
+                let mid = mission_id.to_owned();
+                let approver_s = approver.to_owned();
+                let intent = serde_json::json!({
+                    "decision": "approve_completion",
+                    "approved_by": approver_s,
+                    "intended_effect": {
+                        "kind": "create_proposal_ref",
+                        "proposal_ref": proposal_ref,
+                        "snapshot_commit": snapshot_commit,
+                    }
+                });
+                self.store_mut().transact(|tx| {
+                    tx.append(&NewEntry {
+                        entry_type: EventType::DecisionResolved,
+                        schema_version: 1,
+                        aggregate_type: AggregateType::Mission,
+                        aggregate_id: mid.clone(),
+                        actor_type: ActorType::Human,
+                        actor_id: approver_s.clone(),
+                        correlation_id: mid.clone(),
+                        causation_ref: None,
+                        payload: intent,
+                    })?;
+                    tx.set_mission_state(&mid, "acceptance_pending")?;
+                    Ok(())
+                })?;
+                if fault == AcceptFault::BeforeEffect {
+                    // Simulated crash after the decision, before the effect.
+                    return Ok(CommandOutcome::Deferred {
+                        reason: "acceptance pending (interrupted before effect)".to_owned(),
+                    });
+                }
+                self.finalize_acceptance(
+                    mission_id,
+                    approver,
+                    &snapshot_commit,
+                    &proposal_ref,
+                    fault,
+                )
+            }
+            // Recovery: the decision is already durable; re-attempt the reversible
+            // effect and complete idempotently.
+            "acceptance_pending" | "acceptance_uncertain" => self.finalize_acceptance(
+                mission_id,
+                approver,
+                &snapshot_commit,
+                &proposal_ref,
+                fault,
+            ),
+            other => Ok(rejected(format!(
+                "mission is {other}, expected completion_proposed before acceptance"
+            ))),
+        }
+    }
+
+    /// Steps 3–6: perform the reversible proposal-ref effect, probe the real git
+    /// state, and record `MissionAccepted` (or an explicit uncertain state).
+    /// Idempotent — safe to call repeatedly during recovery.
+    fn finalize_acceptance(
+        &mut self,
+        mission_id: &str,
+        approver: &str,
+        snapshot_commit: &str,
+        proposal_ref: &str,
+        fault: AcceptFault,
+    ) -> Result<CommandOutcome, RuntimeError> {
         let brief: MissionBrief = serde_json::from_value(
             self.store_brief(mission_id)?
-                .expect("completion-proposed mission has brief"),
+                .expect("pending mission has brief"),
         )?;
+        let base_before = self.base_branch_commit(&brief)?;
+        let ws = Workspace::open(std::path::Path::new(&brief.scope.repo))?;
 
-        let mut detail = serde_json::json!({
-            "mission_id": mission_id,
-            "merge": merge,
-            "snapshot_commit": snapshot_commit,
-            "state": "accepted",
-        });
-        let mut payload = detail.clone();
-
-        if merge {
-            let ws = Workspace::open(std::path::Path::new(&brief.scope.repo))?;
-            let merge_commit = ws.merge(
-                &snapshot_commit,
-                &format!("wepld: accept mission {mission_id}"),
-            )?;
-            detail["merge_commit"] = serde_json::json!(merge_commit);
-            payload["merge_commit"] = serde_json::json!(merge_commit);
+        // 3. Reversible, idempotent effect: create/update the proposal ref. This
+        //    never checks out, merges, or mutates the base branch or worktree.
+        ws.propose_ref(mission_id, snapshot_commit)?;
+        if fault == AcceptFault::BeforeFinalRecord {
+            // Simulated crash after the effect, before the final record.
+            return Ok(CommandOutcome::Deferred {
+                reason: "acceptance pending (interrupted before final record)".to_owned(),
+            });
         }
 
+        // 4. Probe the actual git state rather than trusting the effect call.
+        let observed = ws.branch_commit(&format!("wepld/mission-{mission_id}"))?;
+        let base_after = self.base_branch_commit(&brief)?;
+        if base_after != base_before {
+            // A base-branch change would be a governance violation; refuse to
+            // record acceptance and flag it.
+            let mid = mission_id.to_owned();
+            self.store_mut().transact(|tx| {
+                tx.set_mission_state(&mid, "acceptance_uncertain")?;
+                tx.append(&NewEntry {
+                    entry_type: EventType::AttemptUncertain,
+                    schema_version: 1,
+                    aggregate_type: AggregateType::Mission,
+                    aggregate_id: mid.clone(),
+                    actor_type: ActorType::Core,
+                    actor_id: "core".to_owned(),
+                    correlation_id: mid,
+                    causation_ref: None,
+                    payload: serde_json::json!({
+                        "reason": "base branch changed during acceptance",
+                        "base_before": base_before, "base_after": base_after,
+                    }),
+                })?;
+                Ok(())
+            })?;
+            return Ok(CommandOutcome::Deferred {
+                reason: "acceptance uncertain: base branch changed".to_owned(),
+            });
+        }
+        if observed.as_deref() != Some(snapshot_commit) {
+            // 6. Uncertain outcome: record an explicit uncertain state + evidence.
+            let mid = mission_id.to_owned();
+            let obs = observed.clone().unwrap_or_default();
+            let snap = snapshot_commit.to_owned();
+            self.store_mut().transact(|tx| {
+                tx.set_mission_state(&mid, "acceptance_uncertain")?;
+                tx.append(&NewEntry {
+                    entry_type: EventType::AttemptUncertain,
+                    schema_version: 1,
+                    aggregate_type: AggregateType::Mission,
+                    aggregate_id: mid.clone(),
+                    actor_type: ActorType::Core,
+                    actor_id: "core".to_owned(),
+                    correlation_id: mid,
+                    causation_ref: None,
+                    payload: serde_json::json!({
+                        "reason": "proposal ref not at expected snapshot",
+                        "expected": snap, "observed": obs,
+                    }),
+                })?;
+                Ok(())
+            })?;
+            return Ok(CommandOutcome::Deferred {
+                reason: "acceptance uncertain: proposal ref mismatch".to_owned(),
+            });
+        }
+
+        // 5. Effect confirmed → record MissionAccepted (real approver) + accept.
+        let detail = serde_json::json!({
+            "mission_id": mission_id,
+            "state": "accepted",
+            "approved_by": approver,
+            "proposal_ref": proposal_ref,
+            "proposal_commit": snapshot_commit,
+            "snapshot_commit": snapshot_commit,
+            "merged": false,
+        });
         let mid = mission_id.to_owned();
+        let payload = detail.clone();
         self.store_mut().transact(|tx| {
             tx.append(&NewEntry {
                 entry_type: EventType::MissionAccepted,
@@ -401,7 +586,7 @@ impl Core {
                 aggregate_type: AggregateType::Mission,
                 aggregate_id: mid.clone(),
                 actor_type: ActorType::Human,
-                actor_id: "principal_local".to_owned(),
+                actor_id: approver.to_owned(),
                 correlation_id: mid.clone(),
                 causation_ref: None,
                 payload,
@@ -409,8 +594,75 @@ impl Core {
             tx.set_mission_state(&mid, "accepted")?;
             Ok(())
         })?;
-
         Ok(accepted(detail))
+    }
+
+    /// Return a proposed completion instead of accepting it (an explicit human
+    /// decision). Records `MissionReturned` with the real approver.
+    pub fn return_mission(
+        &mut self,
+        mission_id: &str,
+        approver: &str,
+        reason: &str,
+    ) -> Result<CommandOutcome, RuntimeError> {
+        if !crate::is_authenticated_principal(approver) {
+            return Ok(rejected(
+                "returning a completion requires an authenticated principal".to_owned(),
+            ));
+        }
+        let Some((_t, state)) = self.mission_row(mission_id)? else {
+            return Ok(rejected(format!("no such mission: {mission_id}")));
+        };
+        if state != "completion_proposed" {
+            return Ok(rejected(format!(
+                "mission is {state}, expected completion_proposed before return"
+            )));
+        }
+        let mid = mission_id.to_owned();
+        let approver_s = approver.to_owned();
+        let reason_s = reason.to_owned();
+        self.store_mut().transact(|tx| {
+            tx.append(&NewEntry {
+                entry_type: EventType::MissionReturned,
+                schema_version: 1,
+                aggregate_type: AggregateType::Mission,
+                aggregate_id: mid.clone(),
+                actor_type: ActorType::Human,
+                actor_id: approver_s.clone(),
+                correlation_id: mid.clone(),
+                causation_ref: None,
+                payload: serde_json::json!({ "returned_by": approver_s, "reason": reason_s }),
+            })?;
+            tx.set_mission_state(&mid, "returned")?;
+            Ok(())
+        })?;
+        Ok(accepted(
+            serde_json::json!({ "mission_id": mission_id, "state": "returned" }),
+        ))
+    }
+
+    /// The recorded acceptance detail (from the `MissionAccepted` fact) — used
+    /// for idempotent replay of a duplicate acceptance.
+    fn recorded_acceptance_detail(
+        &self,
+        mission_id: &str,
+    ) -> Result<serde_json::Value, RuntimeError> {
+        let detail = self
+            .timeline(mission_id)?
+            .into_iter()
+            .rev()
+            .find(|e| e.entry_type == EventType::MissionAccepted)
+            .map(|e| e.payload_json)
+            .unwrap_or_else(
+                || serde_json::json!({ "mission_id": mission_id, "state": "accepted" }),
+            );
+        Ok(detail)
+    }
+
+    /// The current commit of a mission's base branch (for the no-mutation probe).
+    fn base_branch_commit(&self, brief: &MissionBrief) -> Result<Option<String>, RuntimeError> {
+        let ws = Workspace::open(std::path::Path::new(&brief.scope.repo))?;
+        Ok(ws.branch_commit(&brief.scope.base_branch)?)
     }
 
     /// The stored mission brief, if present.

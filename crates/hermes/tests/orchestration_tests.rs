@@ -94,7 +94,7 @@ fn plan_then_approve_produces_tasks() {
         .any(|e| e.entry_type == EventType::PlanProposed));
 
     // Approve.
-    let outcome = core.approve_plan("mis_orch").unwrap();
+    let outcome = core.approve_plan("mis_orch", "principal_local").unwrap();
     assert!(matches!(outcome, CommandOutcome::Accepted { .. }));
     assert_eq!(core.mission_row("mis_orch").unwrap().unwrap().1, "running");
 
@@ -125,7 +125,7 @@ fn plan_rejected_when_not_draft() {
     // Approve before plan.
     create(&mut core, &brief());
     assert!(matches!(
-        core.approve_plan("mis_orch").unwrap(),
+        core.approve_plan("mis_orch", "principal_local").unwrap(),
         CommandOutcome::Rejected { .. }
     ));
 }

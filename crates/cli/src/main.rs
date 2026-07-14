@@ -9,7 +9,7 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use std::process::ExitCode;
 use wepld_contracts::command::{Command, CommandOutcome};
-use wepld_runtime::{command_id_for, Core};
+use wepld_runtime::{command_id_for, Core, DEV_TIER_WARNING, LOCAL_PRINCIPAL};
 use wepld_specification::{parse, render, template, validate, TemplateKind};
 
 #[derive(Parser)]
@@ -22,6 +22,10 @@ struct Cli {
     /// Store directory (default: $WEPLD_HOME or ~/.wepld)
     #[arg(long, global = true)]
     store: Option<PathBuf>,
+    /// DEV tier: authorize running on a non-fixture (throwaway) repository.
+    /// There is no OS containment; use only on a repository you can discard.
+    #[arg(long, global = true)]
+    i_understand_dev_tier: bool,
     #[command(subcommand)]
     cmd: Cmd,
 }
@@ -93,13 +97,9 @@ enum MissionCmd {
     Plan { mission_id: String },
     /// Execute a running mission's tasks (build + gates)
     Run { mission_id: String },
-    /// Accept a proposed completion (optionally merging into the base branch)
-    Accept {
-        mission_id: String,
-        /// Merge the final snapshot into the base branch
-        #[arg(long)]
-        merge: bool,
-    },
+    /// Accept a proposed completion — creates a reviewable proposal ref
+    /// `refs/heads/wepld/mission-<id>`; never merges into the base branch.
+    Accept { mission_id: String },
     /// Create a mission from a specification markdown file
     Create {
         #[arg(long = "from-spec")]
@@ -151,6 +151,7 @@ fn run(cli: Cli) -> Result<ExitCode, Box<dyn std::error::Error>> {
         return Ok(ExitCode::SUCCESS);
     }
 
+    let dev_override = cli.i_understand_dev_tier;
     let dir = store_dir(cli.store)?;
     let mut core = Core::open(&dir)?;
     core.set_worker_cmd(locate_hermes());
@@ -189,13 +190,20 @@ fn run(cli: Cli) -> Result<ExitCode, Box<dyn std::error::Error>> {
                 }
             }
             MissionCmd::Run { mission_id } => {
+                if dev_override {
+                    if let Some(repo) = core.mission_repo(&mission_id)? {
+                        eprintln!("{DEV_TIER_WARNING}");
+                        core.allow_uncontained_repo(&repo, LOCAL_PRINCIPAL)?;
+                    }
+                }
                 let outcome = core.run_mission(&mission_id)?;
                 if !report(&outcome, "run") {
                     return Ok(ExitCode::FAILURE);
                 }
             }
-            MissionCmd::Accept { mission_id, merge } => {
-                let outcome = core.accept_mission(&mission_id, merge)?;
+            MissionCmd::Accept { mission_id } => {
+                // V0: acceptance produces a proposal ref, never a base merge.
+                let outcome = core.accept_mission(&mission_id, LOCAL_PRINCIPAL)?;
                 if !report(&outcome, "acceptance") {
                     return Ok(ExitCode::FAILURE);
                 }
@@ -208,8 +216,13 @@ fn run(cli: Cli) -> Result<ExitCode, Box<dyn std::error::Error>> {
             } => {
                 let doc = parse(&std::fs::read_to_string(&from_spec)?);
                 let slug = slug.unwrap_or_else(|| spec_slug(&from_spec));
+                let repo_str = repo.to_string_lossy().into_owned();
+                if dev_override {
+                    eprintln!("{DEV_TIER_WARNING}");
+                    core.allow_uncontained_repo(&repo_str, LOCAL_PRINCIPAL)?;
+                }
                 let outcome =
-                    core.create_mission_from_spec(&doc, &slug, &repo.to_string_lossy(), &base)?;
+                    core.create_mission_from_spec(&doc, &slug, &repo_str, &base, LOCAL_PRINCIPAL)?;
                 if !report(&outcome, "mission-from-spec") {
                     return Ok(ExitCode::FAILURE);
                 }
@@ -217,7 +230,7 @@ fn run(cli: Cli) -> Result<ExitCode, Box<dyn std::error::Error>> {
         },
         Cmd::Plan { cmd } => match cmd {
             PlanCmd::Approve { mission_id } => {
-                let outcome = core.approve_plan(&mission_id)?;
+                let outcome = core.approve_plan(&mission_id, LOCAL_PRINCIPAL)?;
                 if !report(&outcome, "approval") {
                     return Ok(ExitCode::FAILURE);
                 }

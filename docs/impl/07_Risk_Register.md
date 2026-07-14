@@ -27,6 +27,16 @@ Owner for every row: the founder. Review: at every milestone tag. Likelihood/Imp
 | M7 | invalidation cone correctness (false carries / over-invalidation) | MVP carries nothing (ADR-0012 stance) — over-invalidation is the safe default and the golden asserts the exact set; salvage stays V1 |
 | M8 | onboarding friction with strangers; second-OS surprise | install-time doctor command (checks git, node, tier prerequisites); cohort filtered to supported OS or S0 per IADR-0005 — stated openly in the invite |
 
+## V0 Build Feature slice risks (post-review, PR #1)
+
+| Risk | L | I | Trigger | Mitigation |
+| --- | --- | --- | --- | --- |
+| **Prompt injection via Engineering Memory** | M | H | a lesson's observation contains instruction-like text | *residual risk, not eliminated:* memory is structurally separated (labelled `untrusted-context`, structured fields, `MEMORY_POLICY` system instruction, schema-validated output); it grants no capability and changes no acceptance criteria; every effect stays behind independent approval + gates ([[09_Engineering_Memory_Contract]] §5) |
+| **DEV tier read as sandboxed** | M | H | a mission runs on a non-throwaway repo assuming isolation | no OS containment is *enforced under DEV*; caps are Manual-only + fixtures-only + explicit `--i-understand-dev-tier` override, all disclosed and ledger-recorded; the Envelope is descriptive, not enforced ([[10_V0_Governance_Safety_and_Limits]] §3) |
+| **Repo-identity edge cases** | L | M | a reused path or exotic filesystem confuses memory scope | identity = canonical common dir + root commit; relative/absolute/case resolve alike; reinit → new identity (no inherited lessons); it is a local fingerprint, not a global GUID — no "never leaks" claim |
+| **Credential exposure via provider adapter** | L | H | an API key or HTTPS endpoint is configured | local-loopback-only build: keys over HTTP and all HTTPS are refused with a typed error; no key reaches a request/log/Debug; hosted/keyed support deferred to a verified-TLS build |
+| **Acceptance effect/ledger inconsistency on crash** | L | H | a crash between acceptance decision and effect/record | intent-before-effect + idempotent proposal-ref + probe + explicit uncertain state; fault-injection tests cover both crash points; no false `MissionAccepted`, no base mutation |
+
 ## Standing unknowns (tracked, not blocked on)
 
 Whether solo pace sustains the expected band (checkpoint: M3 tag date vs. plan — slip >2 wk forces a scope council with self); whether design partners accept fixture-repo onboarding before their own repos (checkpoint: M8 cohort feedback); whether the openai-compat local path is good enough to matter for privacy-sensitive partners (checkpoint: M1 adapter conformance results); Seatbelt deprecation horizon (checkpoint: each macOS release — S0 fallback ready per ADR-0007).

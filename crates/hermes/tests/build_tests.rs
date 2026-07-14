@@ -60,7 +60,7 @@ fn brief(repo: &Path) -> serde_json::Value {
             "build": "grep -q VERSION src/main.rs",
             "test": "grep -q version src/main.rs"
         },
-        "autonomy_mode": "bounded_auto",
+        "autonomy_mode": "manual",
         "envelope_declared": { "network": "deny", "dependency_install": "ask", "secrets": [] },
         "budget": { "max_cost_usd": 5.0, "max_wall_minutes": 90, "max_interrupts": 3 },
         "classification": "internal",
@@ -131,6 +131,7 @@ fn full_bounded_loop_reaches_completion_proposed() {
 
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
+    core.set_fixtures_root(workdir.path());
 
     create(&mut core, &brief);
     assert!(matches!(
@@ -138,7 +139,7 @@ fn full_bounded_loop_reaches_completion_proposed() {
         CommandOutcome::Accepted { .. }
     ));
     assert!(matches!(
-        core.approve_plan("mis_build").unwrap(),
+        core.approve_plan("mis_build", "principal_local").unwrap(),
         CommandOutcome::Accepted { .. }
     ));
 
@@ -209,9 +210,10 @@ fn failing_gate_keeps_mission_running() {
 
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
+    core.set_fixtures_root(workdir.path());
     create(&mut core, &brief);
     core.plan_mission("mis_build").unwrap();
-    core.approve_plan("mis_build").unwrap();
+    core.approve_plan("mis_build", "principal_local").unwrap();
 
     let outcome = core.run_mission("mis_build").unwrap();
     assert!(

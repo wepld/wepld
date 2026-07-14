@@ -58,18 +58,24 @@ pub fn run(worker_cmd: Vec<String>) -> Result<(), Box<dyn Error>> {
 
     let mut core = Core::open(&store)?;
     core.set_worker_cmd(worker_cmd);
+    core.set_fixtures_root(&scratch);
 
     println!("── WePLD · Engineering Recipe: Build Feature ──\n");
-    println!("  You:    \"{REQUEST}\"\n");
+    println!("  You:    \"{REQUEST}\"");
+    println!("  {}\n", wepld_runtime::DEV_TIER_WARNING);
     println!("  Hermes is engineering this feature…\n");
 
-    match core.run_build_feature(REQUEST, SLUG, &repo_str, "main")? {
+    // One fully-authorized principal drives every governed stage explicitly.
+    match core.run_build_feature(REQUEST, SLUG, &repo_str, "main", "principal_local")? {
         RecipeOutcome::Completed(bf) => print_report(&bf, REQUEST),
         RecipeOutcome::NeedsClarification { questions, .. } => {
             println!("  Hermes needs clarification:");
             for q in questions {
                 println!("    • {q}");
             }
+        }
+        RecipeOutcome::NeedsPlanApproval { .. } | RecipeOutcome::NeedsCompletionApproval { .. } => {
+            println!("  (awaiting an explicit approval decision)");
         }
         RecipeOutcome::Rejected(reason) => println!("  Could not complete: {reason}"),
     }
@@ -145,10 +151,8 @@ fn record_cassettes(store: &Path, repo: &str) -> Result<(), Box<dyn Error>> {
     let doc = reasoned_spec();
 
     // specify: request → specification document (empty memory on first run).
-    let specify_pack = serde_json::json!({
-        "schema_version": 1, "intent": "specify", "request": REQUEST,
-        "engineering_memory": []
-    });
+    // Built through the canonical pack helper so the key matches production.
+    let specify_pack = wepld_runtime::specify_pack(REQUEST, vec![]);
     let specify_key = wepld_providers::cassette_key(
         "specify",
         &wepld_artifacts::hash_hex(&serde_json::to_vec(&specify_pack)?),

@@ -24,7 +24,15 @@ impl Core {
         slug: &str,
         repo: &str,
         base_branch: &str,
+        actor: &str,
     ) -> Result<CommandOutcome, RuntimeError> {
+        if !crate::is_authenticated_principal(actor) {
+            return Ok(CommandOutcome::Rejected {
+                reason: format!(
+                    "creating a mission requires an authenticated principal, got {actor:?}"
+                ),
+            });
+        }
         let spec_id = format!("spec_{slug}");
         let version = 1u32;
 
@@ -45,7 +53,7 @@ impl Core {
                     aggregate_type: AggregateType::Specification,
                     aggregate_id: sid.clone(),
                     actor_type: ActorType::Human,
-                    actor_id: "principal_local".to_owned(),
+                    actor_id: actor.to_owned(),
                     correlation_id: sid.clone(),
                     causation_ref: None,
                     payload: serde_json::json!({
@@ -102,7 +110,7 @@ impl Core {
                 aggregate_type: AggregateType::Mission,
                 aggregate_id: mid.clone(),
                 actor_type: ActorType::Human,
-                actor_id: "principal_local".to_owned(),
+                actor_id: actor.to_owned(),
                 correlation_id: mid.clone(),
                 causation_ref: None,
                 payload: serde_json::json!({ "title": title, "source": "specification" }),

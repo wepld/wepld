@@ -38,6 +38,14 @@ pub struct SnapRef {
     pub commit: String,
 }
 
+/// A local project fingerprint (canonical Git common dir + root commit). The
+/// runtime hashes this into a stable `project_id` used to scope memory.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectFingerprint {
+    pub common_dir: String,
+    pub root_commit: String,
+}
+
 impl Workspace {
     pub fn open(repo: &Path) -> Result<Self, WorkspaceError> {
         let ok = Command::new("git")
@@ -163,11 +171,76 @@ impl Workspace {
         Ok(())
     }
 
-    /// Merge a commit into the currently checked-out branch (mission
-    /// acceptance — the completion hard gate). Returns the merge commit.
+    /// Create or update a mission's **proposal ref**
+    /// `refs/heads/wepld/mission-<id>` at `commit`, without checking it out or
+    /// touching the base branch, `HEAD`, the index, or the primary worktree.
+    /// Idempotent (updating to the same commit is a no-op). This is the V0
+    /// acceptance effect: a reviewable proposal a human merges later through an
+    /// external protected workflow — never an in-repo merge.
+    pub fn propose_ref(&self, mission_id: &str, commit: &str) -> Result<SnapRef, WorkspaceError> {
+        let name = format!("refs/heads/wepld/mission-{mission_id}");
+        self.git(&["update-ref", &name, commit])?;
+        Ok(SnapRef {
+            name,
+            commit: commit.to_owned(),
+        })
+    }
+
+    /// **UNSUPPORTED in V0.** Retained only for a future protected-merge
+    /// workflow. The Build Feature recipe never calls this — acceptance produces
+    /// a proposal ref via [`Workspace::propose_ref`] and a human merges through
+    /// an external protected flow. Merging here mutates the base branch and the
+    /// primary worktree, which V0 forbids; do not add it to the V0 path.
+    #[deprecated(
+        note = "V0 acceptance uses propose_ref; in-repo base-branch merge is out of scope"
+    )]
     pub fn merge(&self, commit: &str, message: &str) -> Result<String, WorkspaceError> {
         self.git(&["merge", "--no-ff", "--no-edit", "-m", message, commit])?;
         Ok(self.git(&["rev-parse", "HEAD"])?.trim().to_owned())
+    }
+
+    /// The current commit of a branch, or `None` if the branch does not exist.
+    pub fn branch_commit(&self, branch: &str) -> Result<Option<String>, WorkspaceError> {
+        match self.git(&[
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            &format!("refs/heads/{branch}"),
+        ]) {
+            Ok(sha) => Ok(Some(sha.trim().to_owned())),
+            Err(_) => Ok(None),
+        }
+    }
+
+    /// A stable-enough V0 project fingerprint for scoping Engineering Memory:
+    /// the canonical Git common directory plus the repository's root commit.
+    /// See the Engineering Memory contract for clone / relocation / reinit
+    /// semantics (this identity intentionally changes on reinitialization).
+    pub fn project_fingerprint(&self) -> Result<ProjectFingerprint, WorkspaceError> {
+        let common_raw = self.git(&["rev-parse", "--git-common-dir"])?;
+        let common_raw = common_raw.trim();
+        let common_path = if Path::new(common_raw).is_absolute() {
+            PathBuf::from(common_raw)
+        } else {
+            self.repo.join(common_raw)
+        };
+        // Canonicalize + lowercase so relative/absolute and case-variant paths
+        // to the same repository resolve to one identity (Windows-friendly).
+        let common_dir = std::fs::canonicalize(&common_path)
+            .unwrap_or(common_path)
+            .to_string_lossy()
+            .to_lowercase();
+        let root_commit = self
+            .git(&["rev-list", "--max-parents=0", "HEAD"])
+            .unwrap_or_default()
+            .split_whitespace()
+            .next()
+            .unwrap_or("")
+            .to_owned();
+        Ok(ProjectFingerprint {
+            common_dir,
+            root_commit,
+        })
     }
 
     /// The commit the given ref/branch currently points at.

@@ -120,11 +120,11 @@ fn invalid_transitions_are_rejected() {
         CommandOutcome::Rejected { .. }
     ));
     assert!(matches!(
-        core.approve_plan("mis_x").unwrap(),
+        core.approve_plan("mis_x", "principal_local").unwrap(),
         CommandOutcome::Rejected { .. }
     ));
     assert!(matches!(
-        core.accept_mission("mis_x", true).unwrap(),
+        core.accept_mission("mis_x", "principal_local").unwrap(),
         CommandOutcome::Rejected { .. }
     ));
     assert_eq!(core.mission_row("mis_x").unwrap().unwrap().1, "draft");
@@ -140,11 +140,11 @@ fn invalid_transitions_are_rejected() {
     ));
     // Approve, then double approve is rejected.
     assert!(matches!(
-        core.approve_plan("mis_x").unwrap(),
+        core.approve_plan("mis_x", "principal_local").unwrap(),
         CommandOutcome::Accepted { .. }
     ));
     assert!(matches!(
-        core.approve_plan("mis_x").unwrap(),
+        core.approve_plan("mis_x", "principal_local").unwrap(),
         CommandOutcome::Rejected { .. }
     ));
     assert!(core.verify().unwrap().is_valid());
@@ -205,13 +205,17 @@ fn garbage_worker_is_uncertain() {
 #[test]
 fn bad_repo_path_is_clean_rejection() {
     let store = tempfile::tempdir().unwrap();
-    let brief = brief("/nonexistent/not-a-repo", "mis_b");
+    let mut brief = brief("/nonexistent/not-a-repo", "mis_b");
+    // Manual + allow the (bad) path past the DEV gate so we exercise the
+    // workspace-open failure specifically, not the tier caps.
+    brief["autonomy_mode"] = serde_json::json!("manual");
     write_plan_cassette(store.path(), &brief); // cassettes load at Core::open
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
+    core.set_fixtures_root(Path::new("/"));
     create(&mut core, &brief);
     core.plan_mission("mis_b").unwrap();
-    core.approve_plan("mis_b").unwrap();
+    core.approve_plan("mis_b", "principal_local").unwrap();
 
     let outcome = core.run_mission("mis_b").unwrap();
     assert!(

@@ -41,9 +41,13 @@ pub fn run(worker_cmd: Vec<String>) -> Result<(), Box<dyn Error>> {
 
     let mut core = Core::open(&store)?;
     core.set_worker_cmd(worker_cmd);
+    // The scratch repo is this demo's fixtures root (DEV-tier: fixture repos
+    // only). No OS containment exists — disclosed up front.
+    core.set_fixtures_root(&scratch);
 
     println!("── WePLD demo ──  (Operating System for Autonomous Engineering)");
-    println!("scratch: {}\n", scratch.display());
+    println!("scratch: {}", scratch.display());
+    println!("{}\n", wepld_runtime::DEV_TIER_WARNING);
 
     let create = WCommand {
         command_id: command_id_for("create_mission", &brief),
@@ -53,9 +57,15 @@ pub fn run(worker_cmd: Vec<String>) -> Result<(), Box<dyn Error>> {
     };
     step("create mission", &core.submit(&create)?);
     step("plan", &core.plan_mission(&mission_id)?);
-    step("approve plan", &core.approve_plan(&mission_id)?);
+    step(
+        "approve plan",
+        &core.approve_plan(&mission_id, "principal_local")?,
+    );
     step("run (build + gates)", &core.run_mission(&mission_id)?);
-    step("accept --merge", &core.accept_mission(&mission_id, true)?);
+    step(
+        "accept (proposal)",
+        &core.accept_mission(&mission_id, "principal_local")?,
+    );
 
     println!("\n── timeline ──");
     for e in core.timeline(&mission_id)? {
@@ -72,12 +82,15 @@ pub fn run(worker_cmd: Vec<String>) -> Result<(), Box<dyn Error>> {
         },
         report.total
     );
-    let merged = std::fs::read_to_string(repo.join("src/main.rs"))?;
+    // V0 acceptance never mutates the primary worktree or base branch: it
+    // creates a reviewable proposal ref for an external protected merge.
+    let primary = std::fs::read_to_string(repo.join("src/main.rs"))?;
     println!(
-        "primary repo now has --version: {}",
-        merged.contains("--version")
+        "primary worktree unchanged (no --version in the working tree): {}",
+        !primary.contains("--version")
     );
-    println!("\nThis is WePLD: a mission became evidence-backed, replayable engineering.");
+    println!("proposal ref: refs/heads/wepld/mission-{mission_id} — review and merge externally");
+    println!("\nThis is WePLD: a mission became an evidence-backed, replayable merge proposal.");
     Ok(())
 }
 

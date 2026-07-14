@@ -99,14 +99,19 @@ fn spec_to_mission_matches_golden_trace() {
 
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
+    core.set_fixtures_root(std::path::Path::new(&repo_str));
 
     let mission_id = format!("mis_{SLUG}_v1");
     assert!(ok(core
-        .create_mission_from_spec(&doc, SLUG, &repo_str, "main")
+        .create_mission_from_spec(&doc, SLUG, &repo_str, "main", "principal_local")
         .unwrap()));
-    assert!(ok(core.approve_plan(&mission_id).unwrap()));
+    assert!(ok(core
+        .approve_plan(&mission_id, "principal_local")
+        .unwrap()));
     assert!(ok(core.run_mission(&mission_id).unwrap()));
-    assert!(ok(core.accept_mission(&mission_id, true).unwrap()));
+    assert!(ok(core
+        .accept_mission(&mission_id, "principal_local")
+        .unwrap()));
 
     let actual: Vec<String> = core
         .all_entries()
@@ -130,10 +135,21 @@ fn spec_to_mission_matches_golden_trace() {
         "accepted"
     );
     assert!(core.verify().unwrap().is_valid());
+    // V0: the spec-derived edit lands on a proposal ref, never on the primary
+    // worktree, which stays clean.
     let main = std::fs::read_to_string(repo.join("src/main.rs")).unwrap();
+    assert!(!main.contains("VERSION"), "primary worktree is untouched");
+    let show = std::process::Command::new("git")
+        .args([
+            "show",
+            &format!("refs/heads/wepld/mission-{mission_id}:src/main.rs"),
+        ])
+        .current_dir(&repo)
+        .output()
+        .unwrap();
     assert!(
-        main.contains("VERSION"),
-        "the merge landed the spec-derived edit on main"
+        String::from_utf8_lossy(&show.stdout).contains("VERSION"),
+        "the proposal ref carries the spec-derived edit"
     );
 }
 

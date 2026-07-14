@@ -17,17 +17,43 @@ mod spec;
 
 pub use commands::command_id_for;
 pub use memory::RecordedLesson;
-pub use orchestration::{builder_pack, planner_pack};
+pub use orchestration::{builder_pack, planner_pack, AcceptFault};
 pub use phase::{PhaseOutcome, PhaseRun, PhaseSpec};
-pub use recipe::{specify_memory_entries, BuildFeatureReport, RecipeOutcome};
+pub use recipe::{
+    specify_memory_entries, specify_pack, BuildFeatureReport, CompletionProposal, RecipeOutcome,
+    MEMORY_POLICY,
+};
 pub use report::EngineeringReport;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use wepld_contracts::command::{Command, CommandOutcome};
 use wepld_contracts::envelope::SandboxTier;
 use wepld_contracts::ledger::{ActorType, AggregateType, LedgerEntry};
+use wepld_contracts::mission::AutonomyMode;
 use wepld_contracts::vocabulary::EventType;
 use wepld_ledger::{ChainReport, LedgerError, LedgerStore, NewEntry, TaskRow};
+use wepld_workspace::Workspace;
+
+/// The truthful DEV-tier disclosure surfaced to operators (IADR-0003). The
+/// Envelope is *descriptive* under DEV — there is no OS-level enforcement.
+pub const DEV_TIER_WARNING: &str =
+    "DEV tier: no OS containment; worker and gate processes have ambient host authority.";
+
+/// The single authenticated local principal in the MVP. Governance decisions
+/// (plan approval, completion acceptance, tier override) must name a principal;
+/// the Core refuses to fabricate a human actor.
+pub const LOCAL_PRINCIPAL: &str = "principal_local";
+
+/// DEV-tier safety caps (IADR-0003): fixture repositories only, unless the
+/// founder grants an explicit, actor-attributed override for one repo.
+#[derive(Default)]
+struct DevTier {
+    /// Canonical fixtures root; missions must operate within it by default.
+    fixtures_root: Option<PathBuf>,
+    /// Explicit override: (canonical repo path, granting actor). Permits that
+    /// one uncontained repo — never a blanket default.
+    allow_uncontained: Option<(PathBuf, String)>,
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum RuntimeError {
@@ -43,6 +69,23 @@ pub enum RuntimeError {
     Workspace(#[from] wepld_workspace::WorkspaceError),
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
+    #[error("unauthenticated principal: {0:?} (a governance decision must name an authenticated principal)")]
+    Unauthenticated(String),
+}
+
+/// Whether `actor` is an authenticated principal that may make a governance
+/// decision. MVP: the single local principal. Empty or unknown ids are refused,
+/// so the Core never fabricates a human actor.
+pub(crate) fn is_authenticated_principal(actor: &str) -> bool {
+    actor == LOCAL_PRINCIPAL
+}
+
+/// Canonicalize a path and lowercase it for stable, case-insensitive scope
+/// comparisons. Returns `None` if the path does not resolve.
+fn canonical_lower(path: &Path) -> Option<PathBuf> {
+    std::fs::canonicalize(path)
+        .ok()
+        .map(|p| PathBuf::from(p.to_string_lossy().to_lowercase()))
 }
 
 pub struct Core {
@@ -54,6 +97,8 @@ pub struct Core {
     worker_cmd: Vec<String>,
     /// The operational store directory (worktrees are created beneath it).
     root: std::path::PathBuf,
+    /// DEV-tier safety caps and any explicit override.
+    dev: DevTier,
 }
 
 impl Core {
@@ -111,6 +156,7 @@ impl Core {
             gateway,
             worker_cmd: vec!["hermes".to_owned()],
             root: dir.to_path_buf(),
+            dev: DevTier::default(),
         })
     }
 
@@ -118,6 +164,98 @@ impl Core {
     /// which locate `hermes` next to `wepld`).
     pub fn set_worker_cmd(&mut self, cmd: Vec<String>) {
         self.worker_cmd = cmd;
+    }
+
+    // ── DEV-tier safety (IADR-0003, Blocker 4) ─────────────────────────────
+
+    /// Set the canonical fixtures root. Under DEV, missions must operate on a
+    /// repository within this root unless an explicit override is granted.
+    pub fn set_fixtures_root(&mut self, path: &Path) {
+        self.dev.fixtures_root = canonical_lower(path);
+    }
+
+    /// Grant an explicit, actor-attributed override permitting one uncontained
+    /// (non-fixture) repository under the DEV tier — the `--i-understand-dev-tier`
+    /// escape hatch. Recorded durably (repo, actor, tier, warning). Refuses an
+    /// unauthenticated actor; there is no silent or default override.
+    pub fn allow_uncontained_repo(&mut self, repo: &str, actor: &str) -> Result<(), RuntimeError> {
+        if !is_authenticated_principal(actor) {
+            return Err(RuntimeError::Unauthenticated(actor.to_owned()));
+        }
+        let canon =
+            canonical_lower(Path::new(repo)).unwrap_or_else(|| PathBuf::from(repo.to_lowercase()));
+        let repo_disp = canon.to_string_lossy().into_owned();
+        self.dev.allow_uncontained = Some((canon, actor.to_owned()));
+        let tier = serde_json::to_value(SandboxTier::Dev)?;
+        self.store_mut().transact(|tx| {
+            tx.append(&NewEntry {
+                entry_type: EventType::SandboxTierDetected,
+                schema_version: 1,
+                aggregate_type: AggregateType::System,
+                aggregate_id: "system".to_owned(),
+                actor_type: ActorType::Human,
+                actor_id: actor.to_owned(),
+                correlation_id: "system".to_owned(),
+                causation_ref: None,
+                payload: serde_json::json!({
+                    "tier": tier,
+                    "override": "allow_uncontained_repo",
+                    "repo": repo_disp,
+                    "granted_by": actor,
+                    "warning": DEV_TIER_WARNING,
+                }),
+            })?;
+            Ok(())
+        })?;
+        Ok(())
+    }
+
+    /// A stable V0 project identity for memory scoping (Blocker 7): a hash of
+    /// the canonical Git common directory plus the repository's root commit.
+    /// Relative/absolute/case-variant paths to the same repo resolve alike; a
+    /// reinitialized repo (new root commit) gets a new identity.
+    pub fn project_identity(&self, repo_path: &str) -> Result<String, RuntimeError> {
+        let ws = Workspace::open(Path::new(repo_path))?;
+        let fp = ws.project_fingerprint()?;
+        let digest = wepld_artifacts::hash_hex(
+            format!("{}\u{0}{}", fp.common_dir, fp.root_commit).as_bytes(),
+        );
+        Ok(format!("proj_{}", &digest[..16]))
+    }
+
+    /// Whether a repository would be permitted to run under the current DEV-tier
+    /// configuration (Manual mode). Public for governance tests and inspection.
+    pub fn is_repo_allowed_under_dev(&self, repo: &str) -> bool {
+        self.dev_tier_gate(repo, AutonomyMode::Manual).is_ok()
+    }
+
+    /// Enforce DEV-tier caps for a mission about to run: Manual mode only, and
+    /// the repository must be within the fixtures root or explicitly overridden.
+    /// Returns the rejection reason if the mission may not run.
+    pub(crate) fn dev_tier_gate(&self, repo: &str, mode: AutonomyMode) -> Result<(), String> {
+        if mode == AutonomyMode::BoundedAuto {
+            return Err(format!(
+                "DEV tier permits Manual mode only; Bounded-Auto is refused. {DEV_TIER_WARNING}"
+            ));
+        }
+        let canon =
+            canonical_lower(Path::new(repo)).unwrap_or_else(|| PathBuf::from(repo.to_lowercase()));
+        if let Some(root) = &self.dev.fixtures_root {
+            if canon.starts_with(root) {
+                return Ok(());
+            }
+        }
+        if let Some((allowed, _actor)) = &self.dev.allow_uncontained {
+            if &canon == allowed {
+                return Ok(());
+            }
+        }
+        Err(format!(
+            "DEV tier: repository {} is not within the fixtures root and has no explicit \
+             override. Re-run with --i-understand-dev-tier to authorize this throwaway repo. \
+             {DEV_TIER_WARNING}",
+            canon.display()
+        ))
     }
 
     /// The command pipeline (v2-02 §2): idempotency, validation, transition —
@@ -133,7 +271,7 @@ impl Core {
             return Ok(serde_json::from_str(&outcome_json)?);
         }
         // 2. Authorization: MVP has one local principal; checked, not assumed.
-        if cmd.actor != "principal_local" {
+        if !is_authenticated_principal(&cmd.actor) {
             return Ok(CommandOutcome::Rejected {
                 reason: format!("unknown principal: {}", cmd.actor),
             });
@@ -161,6 +299,14 @@ impl Core {
 
     pub fn mission_row(&self, mission_id: &str) -> Result<Option<(String, String)>, RuntimeError> {
         Ok(self.store.mission_row(mission_id)?)
+    }
+
+    /// The repository path a mission operates on (from its stored brief).
+    pub fn mission_repo(&self, mission_id: &str) -> Result<Option<String>, RuntimeError> {
+        Ok(self
+            .store
+            .mission_brief(mission_id)?
+            .and_then(|b| b["scope"]["repo"].as_str().map(str::to_owned)))
     }
 
     pub fn attempt_state(&self, attempt_id: &str) -> Result<Option<String>, RuntimeError> {

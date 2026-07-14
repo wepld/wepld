@@ -65,9 +65,7 @@ fn spec_for(overview: &str, token: &str) -> SpecificationDocument {
 
 fn write_cassettes(store: &Path, repo: &str) {
     let doc = reasoned_spec();
-    let specify_pack = serde_json::json!({
-        "schema_version": 1, "intent": "specify", "request": REQUEST, "engineering_memory": []
-    });
+    let specify_pack = wepld_runtime::specify_pack(REQUEST, vec![]);
     let specify_key = wepld_providers::cassette_key(
         "specify",
         &wepld_artifacts::hash_hex(&serde_json::to_vec(&specify_pack).unwrap()),
@@ -125,10 +123,7 @@ fn write_feature_cassettes(
     edited_main: &str,
 ) {
     let cassette = store.join("cassettes/r.jsonl");
-    let specify_pack = serde_json::json!({
-        "schema_version": 1, "intent": "specify", "request": request,
-        "engineering_memory": prior_memory,
-    });
+    let specify_pack = wepld_runtime::specify_pack(request, prior_memory.to_vec());
     let specify_key = wepld_providers::cassette_key(
         "specify",
         &wepld_artifacts::hash_hex(&serde_json::to_vec(&specify_pack).unwrap()),
@@ -183,9 +178,10 @@ fn build_feature_recipe_matches_golden_and_reports_full_confidence() {
 
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
+    core.set_fixtures_root(workdir.path());
 
     let outcome = core
-        .run_build_feature(REQUEST, SLUG, &repo_str, "main")
+        .run_build_feature(REQUEST, SLUG, &repo_str, "main", "principal_local")
         .unwrap();
     let bf = match outcome {
         RecipeOutcome::Completed(r) => *r,
@@ -268,9 +264,43 @@ fn build_feature_recipe_matches_golden_and_reports_full_confidence() {
         "recipe trace diverged from the golden file"
     );
 
-    // The feature landed on main.
-    let main = std::fs::read_to_string(repo.join("src/main.rs")).unwrap();
-    assert!(main.contains("VERSION"));
+    // Blocker 2: acceptance never mutates the primary worktree or base branch —
+    // the feature lands on a proposal ref, not on main.
+    let primary = std::fs::read_to_string(repo.join("src/main.rs")).unwrap();
+    assert_eq!(
+        primary, "fn main() {}\n",
+        "primary worktree is never mutated"
+    );
+    let base = Command::new("git")
+        .args(["rev-parse", "main"])
+        .current_dir(&repo)
+        .output()
+        .unwrap();
+    let base_head = String::from_utf8_lossy(&base.stdout).trim().to_owned();
+    // The proposal ref exists and carries the change; base HEAD != proposal.
+    let show = Command::new("git")
+        .args([
+            "show",
+            "refs/heads/wepld/mission-mis_version-flag_v1:src/main.rs",
+        ])
+        .current_dir(&repo)
+        .output()
+        .unwrap();
+    assert!(show.status.success(), "proposal ref exists");
+    assert!(
+        String::from_utf8_lossy(&show.stdout).contains("VERSION"),
+        "the proposal ref carries the feature"
+    );
+    let proposal = Command::new("git")
+        .args(["rev-parse", "refs/heads/wepld/mission-mis_version-flag_v1"])
+        .current_dir(&repo)
+        .output()
+        .unwrap();
+    assert_ne!(
+        base_head,
+        String::from_utf8_lossy(&proposal.stdout).trim(),
+        "base branch was not advanced to the proposal"
+    );
     assert!(core.verify().unwrap().is_valid());
 }
 
@@ -285,9 +315,7 @@ fn recipe_asks_for_clarification_when_the_spec_has_open_questions() {
     let mut doc = reasoned_spec();
     doc.open_questions
         .push("Which version string source?".to_owned());
-    let specify_pack = serde_json::json!({
-        "schema_version": 1, "intent": "specify", "request": REQUEST, "engineering_memory": []
-    });
+    let specify_pack = wepld_runtime::specify_pack(REQUEST, vec![]);
     let key = wepld_providers::cassette_key(
         "specify",
         &wepld_artifacts::hash_hex(&serde_json::to_vec(&specify_pack).unwrap()),
@@ -305,7 +333,7 @@ fn recipe_asks_for_clarification_when_the_spec_has_open_questions() {
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
     let outcome = core
-        .run_build_feature(REQUEST, SLUG, &repo_str, "main")
+        .run_build_feature(REQUEST, SLUG, &repo_str, "main", "principal_local")
         .unwrap();
     assert!(matches!(outcome, RecipeOutcome::NeedsClarification { .. }));
     // No mission was created — the recipe stopped to ask.
@@ -324,10 +352,11 @@ fn a_second_feature_applies_the_first_lesson() {
 
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
+    core.set_fixtures_root(workdir.path());
 
     // Feature 1 records a lesson.
     let one = core
-        .run_build_feature(REQUEST, SLUG, &repo_str, "main")
+        .run_build_feature(REQUEST, SLUG, &repo_str, "main", "principal_local")
         .unwrap();
     assert!(matches!(one, RecipeOutcome::Completed(_)));
     let lessons = core.lessons_for_repo(&repo_str).unwrap();
@@ -345,11 +374,9 @@ fn a_second_feature_applies_the_first_lesson() {
         .insert("build".to_owned(), "grep -q HELP src/main.rs".to_owned());
 
     // Build the pack exactly as production does — through the same bounded,
-    // provenance-labelling selection function — so the cassette key matches.
+    // structured selection + pack helpers — so the cassette key matches.
     let memory = wepld_runtime::specify_memory_entries(&lessons);
-    let specify_pack2 = serde_json::json!({
-        "schema_version": 1, "intent": "specify", "request": request2, "engineering_memory": memory
-    });
+    let specify_pack2 = wepld_runtime::specify_pack(request2, memory);
     let specify_key2 = wepld_providers::cassette_key(
         "specify",
         &wepld_artifacts::hash_hex(&serde_json::to_vec(&specify_pack2).unwrap()),
@@ -400,6 +427,7 @@ fn a_second_feature_applies_the_first_lesson() {
     drop(core);
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
+    core.set_fixtures_root(workdir.path());
 
     // Restart durability: a brand-new process loads feature 1's lesson from the
     // persistent store — proof beyond a single continuously-alive process.
@@ -408,7 +436,7 @@ fn a_second_feature_applies_the_first_lesson() {
     assert_eq!(reloaded[0].lesson_id, "lesson_mis_version-flag_v1");
 
     let two = core
-        .run_build_feature(request2, slug2, &repo_str, "main")
+        .run_build_feature(request2, slug2, &repo_str, "main", "principal_local")
         .unwrap();
     match two {
         RecipeOutcome::Completed(bf) => {
@@ -449,8 +477,9 @@ fn a_non_accepted_mission_records_no_lesson() {
 
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
+    core.set_fixtures_root(workdir.path());
     let outcome = core
-        .run_build_feature(REQUEST, "noversion", &repo_str, "main")
+        .run_build_feature(REQUEST, "noversion", &repo_str, "main", "principal_local")
         .unwrap();
 
     if let RecipeOutcome::Completed(bf) = &outcome {
@@ -507,8 +536,9 @@ fn lessons_do_not_leak_across_repositories() {
     core.set_worker_cmd(vec![hermes_bin()]);
 
     // Feature on repo A records a lesson scoped to A.
+    core.set_fixtures_root(work_a.path());
     let ra = core
-        .run_build_feature(REQUEST, "version-flag", &a, "main")
+        .run_build_feature(REQUEST, "version-flag", &a, "main", "principal_local")
         .unwrap();
     assert!(matches!(ra, RecipeOutcome::Completed(_)));
     assert_eq!(core.lessons_for_repo(&a).unwrap().len(), 1);
@@ -520,8 +550,15 @@ fn lessons_do_not_leak_across_repositories() {
 
     // Feature on repo B sees no memory from A. (If A's lesson had leaked into
     // B's pack, the cassette key would differ and this run would fail outright.)
+    core.set_fixtures_root(work_b.path());
     match core
-        .run_build_feature("Add a --quiet flag to notes-cli", "quiet-flag", &b, "main")
+        .run_build_feature(
+            "Add a --quiet flag to notes-cli",
+            "quiet-flag",
+            &b,
+            "main",
+            "principal_local",
+        )
         .unwrap()
     {
         RecipeOutcome::Completed(bf) => {

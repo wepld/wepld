@@ -16,5 +16,6 @@ ArtifactRecorded
 GateEvaluated
 TaskCompleted
 CompletionProposed
+DecisionResolved
 MissionAccepted
 InsightRecorded

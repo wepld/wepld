@@ -95,7 +95,11 @@ pub fn convert(input: ConvertInput) -> Result<Conversion, ConversionError> {
         acceptance_criteria,
         gates_required: gates,
         gate_commands,
-        autonomy_mode: AutonomyMode::BoundedAuto,
+        // V0 runs under the DEV tier, which caps autonomy at Manual mode
+        // (IADR-0003): every plan approval and completion acceptance is an
+        // explicit human decision. Bounded-Auto is deferred to a tier with
+        // real containment.
+        autonomy_mode: AutonomyMode::Manual,
         envelope_declared: DeclaredEnvelope {
             network: "deny".to_owned(),
             dependency_install: "ask".to_owned(),

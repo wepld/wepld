@@ -72,16 +72,23 @@ pub fn run(worker_cmd: Vec<String>) -> Result<(), Box<dyn Error>> {
 
     let mut core = Core::open(&store)?;
     core.set_worker_cmd(worker_cmd);
+    core.set_fixtures_root(&scratch);
 
     println!("── pipeline ──");
     step(
         "spec → mission (convert)",
-        &core.create_mission_from_spec(&doc, SLUG, &repo_str, "main")?,
+        &core.create_mission_from_spec(&doc, SLUG, &repo_str, "main", "principal_local")?,
     );
     let mission_id = format!("mis_{SLUG}_v1");
-    step("approve plan", &core.approve_plan(&mission_id)?);
+    step(
+        "approve plan",
+        &core.approve_plan(&mission_id, "principal_local")?,
+    );
     step("run (Hermes build + gate)", &core.run_mission(&mission_id)?);
-    step("accept --merge", &core.accept_mission(&mission_id, true)?);
+    step(
+        "accept (proposal)",
+        &core.accept_mission(&mission_id, "principal_local")?,
+    );
 
     println!("\n── specification timeline ──");
     for e in core.timeline(&format!("spec_{SLUG}"))? {
