@@ -127,7 +127,7 @@ fn m0_first_mission_matches_golden_trace() {
     write_cassettes(store.path(), &brief);
 
     let mut core = open(store.path());
-    core.set_fixtures_root(workdir.path());
+    core.set_fixtures_root(workdir.path()).unwrap();
     create(&mut core, &brief);
     assert!(accepted(core.plan_mission("mis_first").unwrap()));
     assert!(accepted(
@@ -186,7 +186,7 @@ fn crash_during_build_is_uncertain_and_recoverable() {
     write_cassettes(store.path(), &brief);
 
     let mut core = open(store.path());
-    core.set_fixtures_root(workdir.path());
+    core.set_fixtures_root(workdir.path()).unwrap();
     create(&mut core, &brief);
     core.plan_mission("mis_first").unwrap();
     core.approve_plan("mis_first", "principal_local").unwrap();

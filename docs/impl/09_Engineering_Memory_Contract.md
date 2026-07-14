@@ -93,7 +93,10 @@ explicit):
 This is stronger than a raw-path match but is still a **local fingerprint**, not
 a global project GUID. We do not claim memory can *never* leak under every
 filesystem trick; we claim exact-identity scoping with documented, tested
-resolution. Broader matching (path/subsystem, language/toolchain, recipe, gate
+resolution. Identity resolution **fails closed**: if the Git common directory
+cannot be canonicalized, or the repository is unborn/empty (no root commit),
+`project_fingerprint` returns an error instead of falling back to an empty or
+unresolved identity — no lesson is scoped to an unstable key. Broader matching (path/subsystem, language/toolchain, recipe, gate
 type) and cross-project learning are deliberately **out of scope**.
 
 ## 4. Confidence vs. validity — do not conflate

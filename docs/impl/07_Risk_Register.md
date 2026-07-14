@@ -37,6 +37,15 @@ Owner for every row: the founder. Review: at every milestone tag. Likelihood/Imp
 | **Credential exposure via provider adapter** | L | H | an API key or HTTPS endpoint is configured | local-loopback-only build: keys over HTTP and all HTTPS are refused with a typed error; no key reaches a request/log/Debug; hosted/keyed support deferred to a verified-TLS build |
 | **Acceptance effect/ledger inconsistency on crash** | L | H | a crash between acceptance decision and effect/record | intent-before-effect + idempotent proposal-ref + probe + explicit uncertain state; fault-injection tests cover both crash points; no false `MissionAccepted`, no base mutation |
 
+## V0 security-boundary risks (final remediation)
+
+| Risk | L | I | Trigger | Mitigation |
+| --- | --- | --- | --- | --- |
+| **Model edit path escapes the worktree** | M | H | a builder edit uses `..`, an absolute path, or a symlink | edit paths are validated `WorkspaceRelativePath` (Component-based, not substring) and written symlink-safe (no symlink parent/target); a pre-existing link cannot redirect a write outside the worktree ([[10_V0_Governance_Safety_and_Limits]] §5) |
+| **Untrusted id becomes path/ref syntax** | M | H | a slug/mission/task/base value contains separators, `..`, `@{`, or a leading `-` | central validation contracts reject them as deterministic recorded rejections before persistence; plan output is validated semantically; workspace independently refuses unsafe attempt ids and resolves base refs to a commit with `--end-of-options` |
+| **Recoverable acceptance mistaken for failure** | L | M | a proposal-ref conflict or interrupted acceptance | preserved as `RecipeOutcome::Deferred` (durable decision, not final, no merge) — never flattened to `Rejected`; the CLI surfaces the distinction |
+| **Silent canonicalization fallback** | L | M | a fixtures root or repo cannot be canonicalized | `set_fixtures_root` and `project_fingerprint` fail closed — a failed update never clears/weakens the prior authorization, and an unborn repo yields `NoRootCommit` |
+
 ## Standing unknowns (tracked, not blocked on)
 
 Whether solo pace sustains the expected band (checkpoint: M3 tag date vs. plan — slip >2 wk forces a scope council with self); whether design partners accept fixture-repo onboarding before their own repos (checkpoint: M8 cohort feedback); whether the openai-compat local path is good enough to matter for privacy-sensitive partners (checkpoint: M1 adapter conformance results); Seatbelt deprecation horizon (checkpoint: each macOS release — S0 fallback ready per ADR-0007).

@@ -116,7 +116,7 @@ fn write_cassettes(store: &Path, repo: &str) {
 fn to_completion_proposed(store: &Path, repo: &str) -> Core {
     let mut core = Core::open(store).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
-    core.set_fixtures_root(Path::new(repo));
+    core.set_fixtures_root(Path::new(repo)).unwrap();
     match core
         .start_build_feature(REQUEST, SLUG, repo, "main", "principal_local")
         .unwrap()
@@ -167,7 +167,7 @@ fn start_stops_at_plan_approval_without_executing() {
 
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
-    core.set_fixtures_root(Path::new(&repo_str));
+    core.set_fixtures_root(Path::new(&repo_str)).unwrap();
     let outcome = core
         .start_build_feature(REQUEST, SLUG, &repo_str, "main", "principal_local")
         .unwrap();
@@ -195,7 +195,7 @@ fn approvals_require_an_authenticated_principal() {
     write_cassettes(store.path(), &repo_str);
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
-    core.set_fixtures_root(Path::new(&repo_str));
+    core.set_fixtures_root(Path::new(&repo_str)).unwrap();
     core.start_build_feature(REQUEST, SLUG, &repo_str, "main", "principal_local")
         .unwrap();
 
@@ -456,7 +456,7 @@ fn running_mission(
     let mut core = Core::open(store).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
     if set_root {
-        core.set_fixtures_root(Path::new(repo));
+        core.set_fixtures_root(Path::new(repo)).unwrap();
     }
     if let Some(o) = override_repo {
         core.allow_uncontained_repo(o, "principal_local").unwrap();
@@ -605,7 +605,7 @@ fn no_public_recipe_entrypoint_can_auto_approve_or_auto_accept() {
     write_cassettes(store.path(), &repo_str);
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
-    core.set_fixtures_root(Path::new(&repo_str));
+    core.set_fixtures_root(Path::new(&repo_str)).unwrap();
 
     // The only public recipe entrypoint. A single call stops at plan approval.
     let outcome = core
@@ -776,7 +776,7 @@ fn unix_case_sensitive_repos_are_distinct_scopes() {
         core.project_identity(&lower_s).unwrap(),
         "case-differing repos must not share a project identity"
     );
-    core.set_fixtures_root(&upper);
+    core.set_fixtures_root(&upper).unwrap();
     assert!(core.is_repo_allowed_under_dev(&upper_s));
     assert!(
         !core.is_repo_allowed_under_dev(&lower_s),
@@ -796,7 +796,7 @@ fn a_denied_repo_never_spawns_a_worker() {
     let marker = workdir.path().join("WORKER_SPAWNED");
 
     let mut core = Core::open(store.path()).unwrap();
-    core.set_fixtures_root(workdir.path()); // authorize creation
+    core.set_fixtures_root(workdir.path()).unwrap(); // authorize creation
     let brief = serde_json::json!({
         "schema_version": 1, "mission_id": "mis_deny", "title": "t", "outcome": "o",
         "scope": { "repo": repo_str, "base_branch": "main", "paths": ["src/**"], "forbidden_paths": [] },
@@ -820,7 +820,7 @@ fn a_denied_repo_never_spawns_a_worker() {
 
     // Now DENY the repo (fixtures root no longer contains it) and arm a marker
     // "worker" that would prove a spawn if it ever ran.
-    core.set_fixtures_root(store.path());
+    core.set_fixtures_root(store.path()).unwrap();
     core.set_worker_cmd(vec![
         "sh".to_owned(),
         "-c".to_owned(),
@@ -840,4 +840,236 @@ fn a_denied_repo_never_spawns_a_worker() {
         .unwrap()
         .iter()
         .any(|e| e.entry_type.code() == "AttemptSpawned"));
+}
+
+// ── Blocker 2: untrusted identifiers never reach paths or refs ──────────────
+
+fn dev_brief(repo: &str, mission_id: &str, base: &str, mode: &str) -> serde_json::Value {
+    serde_json::json!({
+        "schema_version": 1, "mission_id": mission_id, "title": "t", "outcome": "o",
+        "scope": { "repo": repo, "base_branch": base, "paths": ["src/**"], "forbidden_paths": [] },
+        "acceptance_criteria": [ { "id": "AC1", "text": "x", "verify": "gate:build" } ],
+        "gates_required": ["build"], "gate_commands": { "build": "true" },
+        "autonomy_mode": mode,
+        "envelope_declared": { "network": "deny", "dependency_install": "ask", "secrets": [] },
+        "budget": { "max_cost_usd": 5.0, "max_wall_minutes": 90, "max_interrupts": 3 },
+        "classification": "internal", "owner": "principal_local"
+    })
+}
+
+fn submit_create(core: &mut Core, brief: serde_json::Value) -> CommandOutcome {
+    let cmd = WCommand {
+        command_id: command_id_for("create_mission", &brief),
+        command_type: "create_mission".to_owned(),
+        actor: "principal_local".to_owned(),
+        payload: brief,
+    };
+    core.submit(&cmd).unwrap()
+}
+
+#[test]
+fn an_invalid_slug_is_rejected_before_any_mission_is_created() {
+    let workdir = tempfile::tempdir().unwrap();
+    let store = tempfile::tempdir().unwrap();
+    let repo = fixture_repo(workdir.path());
+    let repo_str = repo.to_string_lossy().into_owned();
+    let mut core = Core::open(store.path()).unwrap();
+    core.set_worker_cmd(vec![hermes_bin()]);
+    core.set_fixtures_root(Path::new(&repo_str)).unwrap();
+    let doc = spec();
+    for bad in [
+        "../../outside",
+        "/absolute",
+        "a\\b",
+        "UPPER",
+        "a/b",
+        "-x",
+        "",
+    ] {
+        let outcome = core
+            .create_mission_from_spec(&doc, bad, &repo_str, "main", "principal_local")
+            .unwrap();
+        assert!(
+            matches!(&outcome, CommandOutcome::Rejected { reason } if reason.contains("slug")),
+            "slug {bad:?} → {outcome:?}"
+        );
+    }
+    assert!(core
+        .all_entries()
+        .unwrap()
+        .iter()
+        .all(|e| e.entry_type.code() != "MissionCreated"));
+    assert!(!workdir.path().join("outside").exists());
+}
+
+#[test]
+fn malicious_mission_id_and_base_branch_are_rejected_at_creation() {
+    let workdir = tempfile::tempdir().unwrap();
+    let store = tempfile::tempdir().unwrap();
+    let repo = fixture_repo(workdir.path());
+    let repo_str = repo.to_string_lossy().into_owned();
+    let mut core = Core::open(store.path()).unwrap();
+    core.set_fixtures_root(workdir.path()).unwrap();
+
+    for bad_base in ["--output=/tmp/leak", "a..b", "a@{0}", "a b"] {
+        let outcome = submit_create(
+            &mut core,
+            dev_brief(&repo_str, "mis_ok", bad_base, "manual"),
+        );
+        assert!(
+            matches!(&outcome, CommandOutcome::Rejected { reason } if reason.contains("base_branch")),
+            "base {bad_base:?} → {outcome:?}"
+        );
+    }
+    for bad_id in ["../evil", "a/b", "-x", "..", "a\\b"] {
+        let outcome = submit_create(&mut core, dev_brief(&repo_str, bad_id, "main", "manual"));
+        assert!(
+            matches!(&outcome, CommandOutcome::Rejected { reason } if reason.contains("mission_id")),
+            "id {bad_id:?} → {outcome:?}"
+        );
+        assert!(
+            core.mission_row(bad_id).unwrap().is_none(),
+            "no mission for {bad_id:?}"
+        );
+    }
+    assert!(core
+        .all_entries()
+        .unwrap()
+        .iter()
+        .all(|e| e.entry_type.code() != "MissionCreated"));
+    assert!(!workdir.path().join("leak").exists());
+}
+
+#[test]
+fn a_malicious_plan_task_id_is_rejected_with_no_task_row_or_worker() {
+    let workdir = tempfile::tempdir().unwrap();
+    let store = tempfile::tempdir().unwrap();
+    let repo = fixture_repo(workdir.path());
+    let repo_str = repo.to_string_lossy().into_owned();
+    let brief = dev_brief(&repo_str, "mis_ok", "main", "manual");
+
+    // The planner "returns" a task whose id is a path-traversal string.
+    let evil_plan = serde_json::json!({
+        "tasks": [ { "id": "../../../outside", "title": "t", "satisfies": ["AC1"] } ]
+    });
+    let key = wepld_providers::cassette_key(
+        "plan",
+        &wepld_artifacts::hash_hex(&serde_json::to_vec(&planner_pack(&brief)).unwrap()),
+        "plan.v1",
+        "fixture-model",
+    );
+    wepld_providers::write_cassette_entry(
+        &store.path().join("cassettes/p.jsonl"),
+        &key,
+        &evil_plan,
+        "fixture-model",
+    )
+    .unwrap();
+
+    let mut core = Core::open(store.path()).unwrap();
+    core.set_worker_cmd(vec![hermes_bin()]);
+    core.set_fixtures_root(workdir.path()).unwrap();
+    assert!(matches!(
+        submit_create(&mut core, brief),
+        CommandOutcome::Accepted { .. }
+    ));
+
+    let outcome = core.plan_mission("mis_ok").unwrap();
+    assert!(
+        matches!(&outcome, CommandOutcome::Rejected { reason } if reason.contains("task id")),
+        "malicious task id → {outcome:?}"
+    );
+    assert!(core.tasks("mis_ok").unwrap().is_empty());
+    assert_eq!(core.mission_row("mis_ok").unwrap().unwrap().1, "draft");
+    assert!(!workdir.path().join("outside").exists());
+}
+
+// ── Blocker 3: Deferred is preserved (not flattened to Rejected) ────────────
+
+#[test]
+fn an_acceptance_conflict_is_deferred_not_rejected() {
+    let workdir = tempfile::tempdir().unwrap();
+    let store = tempfile::tempdir().unwrap();
+    let repo = fixture_repo(workdir.path());
+    let repo_str = repo.to_string_lossy().into_owned();
+    write_cassettes(store.path(), &repo_str);
+    let mut core = to_completion_proposed(store.path(), &repo_str);
+
+    let base = String::from_utf8(
+        Command::new("git")
+            .args(["rev-parse", "main"])
+            .current_dir(&repo)
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .unwrap()
+    .trim()
+    .to_owned();
+    Command::new("git")
+        .args([
+            "update-ref",
+            &format!("refs/heads/wepld/mission-{MID}"),
+            &base,
+        ])
+        .current_dir(&repo)
+        .output()
+        .unwrap();
+
+    match core
+        .decide_completion(MID, "principal_local", true)
+        .unwrap()
+    {
+        RecipeOutcome::Deferred {
+            mission_id, state, ..
+        } => {
+            assert_eq!(mission_id, MID);
+            assert_eq!(state, "acceptance_uncertain");
+        }
+        other => panic!(
+            "expected Deferred, got {:?}",
+            std::mem::discriminant(&other)
+        ),
+    }
+
+    // Deferred and Rejected are distinct outcomes.
+    let deferred = matches!(
+        core.decide_completion(MID, "principal_local", true)
+            .unwrap(),
+        RecipeOutcome::Deferred { .. }
+    );
+    let rejected = matches!(
+        core.decide_completion(MID, "not-a-principal", true)
+            .unwrap(),
+        RecipeOutcome::Rejected(_)
+    );
+    assert!(
+        deferred && rejected,
+        "Deferred must be distinct from Rejected"
+    );
+}
+
+// ── Blocker 4: fixtures-root canonicalization fails closed ─────────────────
+
+#[test]
+fn set_fixtures_root_fails_closed_and_preserves_the_prior_root() {
+    let good = tempfile::tempdir().unwrap();
+    let store = tempfile::tempdir().unwrap();
+    let repo = fixture_repo(good.path());
+    let repo_str = repo.to_string_lossy().into_owned();
+    let mut core = Core::open(store.path()).unwrap();
+
+    core.set_fixtures_root(good.path()).unwrap();
+    assert!(core.is_repo_allowed_under_dev(&repo_str));
+
+    // A non-canonicalizable root errors AND does not clear the prior one.
+    assert!(
+        core.set_fixtures_root(Path::new("/nonexistent/definitely/not/here"))
+            .is_err(),
+        "non-canonicalizable fixtures root must error"
+    );
+    assert!(
+        core.is_repo_allowed_under_dev(&repo_str),
+        "a failed update must preserve the previously-authorized root"
+    );
 }

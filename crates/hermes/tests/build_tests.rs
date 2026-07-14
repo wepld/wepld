@@ -131,7 +131,7 @@ fn full_bounded_loop_reaches_completion_proposed() {
 
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
-    core.set_fixtures_root(workdir.path());
+    core.set_fixtures_root(workdir.path()).unwrap();
 
     create(&mut core, &brief);
     assert!(matches!(
@@ -210,7 +210,7 @@ fn failing_gate_keeps_mission_running() {
 
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
-    core.set_fixtures_root(workdir.path());
+    core.set_fixtures_root(workdir.path()).unwrap();
     create(&mut core, &brief);
     core.plan_mission("mis_build").unwrap();
     core.approve_plan("mis_build", "principal_local").unwrap();

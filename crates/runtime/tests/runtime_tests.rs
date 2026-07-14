@@ -13,7 +13,7 @@ fn open_core() -> (tempfile::TempDir, Core, String) {
     let dir = tempfile::tempdir().unwrap();
     let repo = real_repo(dir.path());
     let mut core = Core::open(dir.path()).unwrap();
-    core.set_fixtures_root(dir.path());
+    core.set_fixtures_root(dir.path()).unwrap();
     (dir, core, repo)
 }
 

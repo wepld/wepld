@@ -50,7 +50,7 @@ fn entry_types(core: &Core, attempt: &str) -> Vec<EventType> {
 fn happy_path_records_full_lifecycle() {
     let dir = tempfile::tempdir().unwrap();
     let mut core = Core::open(dir.path()).unwrap();
-    core.set_fixtures_root(dir.path());
+    core.set_fixtures_root(dir.path()).unwrap();
     let repo = dir.path().to_string_lossy().into_owned();
 
     let outcome = core
@@ -75,7 +75,7 @@ fn happy_path_records_full_lifecycle() {
 fn killed_worker_is_recorded_uncertain_never_failed() {
     let dir = tempfile::tempdir().unwrap();
     let mut core = Core::open(dir.path()).unwrap();
-    core.set_fixtures_root(dir.path());
+    core.set_fixtures_root(dir.path()).unwrap();
     let repo = dir.path().to_string_lossy().into_owned();
 
     let outcome = core
@@ -103,7 +103,7 @@ fn killed_worker_is_recorded_uncertain_never_failed() {
 fn silent_worker_trips_the_watchdog() {
     let dir = tempfile::tempdir().unwrap();
     let mut core = Core::open(dir.path()).unwrap();
-    core.set_fixtures_root(dir.path());
+    core.set_fixtures_root(dir.path()).unwrap();
     let repo = dir.path().to_string_lossy().into_owned();
 
     let outcome = core

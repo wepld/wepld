@@ -108,7 +108,50 @@ No credential is ever placed in a request, `Debug`, `Display`, log, event, or
 error in this build. Hosted / API-key support is **deferred** until a
 verified-TLS build lands and is tested.
 
-## 5. ADR / status honesty
+## 5. Untrusted input is confined at the boundary
+
+Model- and brief-produced text is **untrusted** and never becomes path or ref
+*syntax*. The central validation contracts (`wepld_contracts::validation`) are
+enforced at the Core boundary:
+
+- **Edit paths** — the builder worker validates every edit path into a
+  `WorkspaceRelativePath` (rejects absolute paths, drive/UNC prefixes, and every
+  `..` component by inspecting `std::path::Component`, so `release..notes.txt` is
+  fine while `a/../../x` is not) and writes **symlink-safe**: no existing parent
+  or final component may be a symlink, so a pre-existing link cannot redirect a
+  write outside the worktree. Workspace confinement is enforced by validated
+  paths and symlink-safe writes — not by string inspection.
+- **Identifiers are data** — slugs (`[a-z0-9]+(-[a-z0-9]+)*`), mission/task/
+  attempt ids (`[A-Za-z0-9][A-Za-z0-9_-]*`), and base refs are validated before
+  they seed a filesystem path or a Git ref. An invalid identifier is a
+  deterministic *recorded command rejection*, never a panic or a later Git error.
+- **Plan output is validated semantically** — after deserializing a model plan,
+  the Core checks bounded task count, valid + unique task ids, non-empty titles,
+  and acceptance-criterion references *before* the plan is approved, stored,
+  materialized into task rows, or given a worktree.
+- **Git defense in depth** — `Workspace::create_worktree` independently refuses
+  an unsafe `attempt_id` and proves the destination is a direct child of the
+  worktrees root; base refs are resolved to a commit SHA with `--end-of-options`
+  (so a value beginning with `-` can never become an option); and every
+  generated ref is checked with `git check-ref-format`.
+
+## 6. `Deferred` is not `Rejected`
+
+A recoverable acceptance is preserved as `RecipeOutcome::Deferred { mission_id,
+state, reason }` — the durable decision stands, acceptance is not final, no merge
+occurred, and a retry can still reach `Completed`. It is never flattened into
+`Rejected`. The CLI/demo surfaces this distinctly ("acceptance NOT final —
+retry to recover; no merge occurred").
+
+## 7. Fail-closed canonicalization
+
+`set_fixtures_root` returns a `Result`: a path that cannot be canonicalized is
+refused and the previously-authorized root is **left unchanged** (never silently
+cleared or weakened). `Workspace::project_fingerprint` likewise fails closed —
+no fallback to an unresolved path, and an **unborn/empty** repository (no root
+commit) yields `NoRootCommit` rather than an empty, unstable identity.
+
+## 8. ADR / status honesty
 
 - **ADR-0013 (workspace snapshot refs)** still holds. What changed is the
   *acceptance effect*: V0 produces a proposal ref instead of an in-repo merge,

@@ -202,7 +202,7 @@ fn build_feature_recipe_matches_golden_and_reports_full_confidence() {
 
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
-    core.set_fixtures_root(workdir.path());
+    core.set_fixtures_root(workdir.path()).unwrap();
 
     let outcome = drive(
         &mut core,
@@ -388,7 +388,7 @@ fn a_second_feature_applies_the_first_lesson() {
 
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
-    core.set_fixtures_root(workdir.path());
+    core.set_fixtures_root(workdir.path()).unwrap();
 
     // Feature 1 records a lesson.
     let one = drive(
@@ -469,7 +469,7 @@ fn a_second_feature_applies_the_first_lesson() {
     drop(core);
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
-    core.set_fixtures_root(workdir.path());
+    core.set_fixtures_root(workdir.path()).unwrap();
 
     // Restart durability: a brand-new process loads feature 1's lesson from the
     // persistent store — proof beyond a single continuously-alive process.
@@ -525,7 +525,7 @@ fn a_non_accepted_mission_records_no_lesson() {
 
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
-    core.set_fixtures_root(workdir.path());
+    core.set_fixtures_root(workdir.path()).unwrap();
     let outcome = drive(
         &mut core,
         REQUEST,
@@ -590,7 +590,7 @@ fn lessons_do_not_leak_across_repositories() {
     core.set_worker_cmd(vec![hermes_bin()]);
 
     // Feature on repo A records a lesson scoped to A.
-    core.set_fixtures_root(work_a.path());
+    core.set_fixtures_root(work_a.path()).unwrap();
     let ra = drive(
         &mut core,
         REQUEST,
@@ -610,7 +610,7 @@ fn lessons_do_not_leak_across_repositories() {
 
     // Feature on repo B sees no memory from A. (If A's lesson had leaked into
     // B's pack, the cassette key would differ and this run would fail outright.)
-    core.set_fixtures_root(work_b.path());
+    core.set_fixtures_root(work_b.path()).unwrap();
     match drive(
         &mut core,
         "Add a --quiet flag to notes-cli",

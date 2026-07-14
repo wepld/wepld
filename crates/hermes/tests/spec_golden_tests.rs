@@ -99,7 +99,8 @@ fn spec_to_mission_matches_golden_trace() {
 
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
-    core.set_fixtures_root(std::path::Path::new(&repo_str));
+    core.set_fixtures_root(std::path::Path::new(&repo_str))
+        .unwrap();
 
     let mission_id = format!("mis_{SLUG}_v1");
     assert!(ok(core

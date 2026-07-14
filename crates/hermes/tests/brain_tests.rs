@@ -59,7 +59,7 @@ fn brain_round_trip_replays_cassette_and_records_invocation() {
     .unwrap();
 
     let mut core = Core::open(dir.path()).unwrap();
-    core.set_fixtures_root(dir.path());
+    core.set_fixtures_root(dir.path()).unwrap();
     let repo = dir.path().to_string_lossy().into_owned();
     let outcome = core
         .run_phase_stub(&brain_spec(&repo, "att_brain"))
@@ -101,7 +101,7 @@ fn cassette_miss_is_loud_recorded_and_fails_the_phase() {
     let dir = tempfile::tempdir().unwrap();
     // No cassette written: the gateway must miss loudly, never improvise.
     let mut core = Core::open(dir.path()).unwrap();
-    core.set_fixtures_root(dir.path());
+    core.set_fixtures_root(dir.path()).unwrap();
     let repo = dir.path().to_string_lossy().into_owned();
     let outcome = core.run_phase_stub(&brain_spec(&repo, "att_miss")).unwrap();
     assert_eq!(outcome, PhaseOutcome::Failed);
@@ -129,7 +129,7 @@ fn deterministic_phase_makes_zero_brain_calls() {
     // a first-class execution, not a degraded one.
     let dir = tempfile::tempdir().unwrap();
     let mut core = Core::open(dir.path()).unwrap();
-    core.set_fixtures_root(dir.path());
+    core.set_fixtures_root(dir.path()).unwrap();
     let repo = dir.path().to_string_lossy().into_owned();
     let mut spec = brain_spec(&repo, "att_zero");
     spec.worker_cmd = hermes_cmd("echo");

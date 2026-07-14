@@ -99,7 +99,7 @@ fn plan_then_approve_produces_tasks() {
 
     let mut core = Core::open(dir.path()).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
-    core.set_fixtures_root(dir.path());
+    core.set_fixtures_root(dir.path()).unwrap();
     create(&mut core, &brief);
 
     // Plan.
@@ -139,7 +139,7 @@ fn plan_rejected_when_not_draft() {
     let dir = tempfile::tempdir().unwrap();
     let mut core = Core::open(dir.path()).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
-    core.set_fixtures_root(dir.path());
+    core.set_fixtures_root(dir.path()).unwrap();
 
     // Missing mission.
     assert!(matches!(
@@ -160,7 +160,7 @@ fn plan_rejected_on_cassette_miss() {
     let dir = tempfile::tempdir().unwrap();
     let mut core = Core::open(dir.path()).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
-    core.set_fixtures_root(dir.path());
+    core.set_fixtures_root(dir.path()).unwrap();
     create(&mut core, &brief(&real_repo(dir.path())));
 
     // No cassette: planner phase fails loudly, mission stays draft.

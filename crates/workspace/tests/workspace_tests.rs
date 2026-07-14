@@ -4,7 +4,7 @@
 
 use std::path::Path;
 use std::process::Command;
-use wepld_workspace::Workspace;
+use wepld_workspace::{Workspace, WorkspaceError};
 
 fn sh(dir: &Path, cmd: &str, args: &[&str]) {
     let out = Command::new(cmd)
@@ -133,6 +133,67 @@ fn snapshots_are_invisible_to_normal_git_log() {
 fn open_refuses_non_repos() {
     let dir = tempfile::tempdir().unwrap();
     assert!(Workspace::open(dir.path()).is_err());
+}
+
+// ── Blocker 2: worktree + ref defense in depth ─────────────────────────────
+
+#[test]
+fn create_worktree_refuses_unsafe_attempt_ids() {
+    let (dir, repo) = fixture_repo();
+    let ws = Workspace::open(&repo).unwrap();
+    let root = dir.path().join("wt");
+    for bad in ["../escape", "a/b", "..", ".", "", "-x", "a\\b"] {
+        assert!(
+            ws.create_worktree("main", bad, &root).is_err(),
+            "must refuse unsafe attempt id {bad:?}"
+        );
+    }
+    // Nothing escaped the worktrees root.
+    assert!(!dir.path().join("escape").exists());
+}
+
+#[test]
+fn resolve_commit_refuses_option_like_and_missing_refs() {
+    let (_dir, repo) = fixture_repo();
+    let ws = Workspace::open(&repo).unwrap();
+    assert!(ws.resolve_commit("--output=/tmp/leak").is_err());
+    assert!(ws.resolve_commit("-x").is_err());
+    assert!(ws.resolve_commit("no-such-branch").is_err());
+    // A real branch resolves to a 40-hex commit (never an option).
+    let sha = ws.resolve_commit("main").unwrap();
+    assert_eq!(sha.len(), 40);
+    assert!(sha.bytes().all(|b| b.is_ascii_hexdigit()));
+}
+
+// ── Blocker 4: project fingerprint fails closed ────────────────────────────
+
+#[test]
+fn project_fingerprint_requires_a_root_commit() {
+    let dir = tempfile::tempdir().unwrap();
+    let repo = dir.path().join("unborn");
+    std::fs::create_dir_all(&repo).unwrap();
+    sh(&repo, "git", &["init", "-q", "-b", "main"]); // no commit yet
+    let ws = Workspace::open(&repo).unwrap();
+    assert!(matches!(
+        ws.project_fingerprint(),
+        Err(WorkspaceError::NoRootCommit)
+    ));
+}
+
+#[test]
+fn project_fingerprint_is_independent_of_path_form() {
+    let (_dir, repo) = fixture_repo();
+    let fp_plain = Workspace::open(&repo)
+        .unwrap()
+        .project_fingerprint()
+        .unwrap();
+    // The same repo referenced with a trailing "." resolves to one identity.
+    let fp_dot = Workspace::open(&repo.join("."))
+        .unwrap()
+        .project_fingerprint()
+        .unwrap();
+    assert_eq!(fp_plain, fp_dot);
+    assert!(!fp_plain.root_commit.is_empty());
 }
 
 /// Regression for the stale-lock collision: repeated snapshots of the same

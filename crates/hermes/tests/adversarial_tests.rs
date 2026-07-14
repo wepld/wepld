@@ -100,7 +100,7 @@ fn brain_call_budget_is_enforced() {
     let repo = real_repo(store.path());
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(hermes_mode("brainspam"));
-    core.set_fixtures_root(store.path());
+    core.set_fixtures_root(store.path()).unwrap();
     create(&mut core, &brief(&repo, "mis_spam"));
 
     // The planner floods brain.requests; the Core caps them and fails the phase.
@@ -136,7 +136,7 @@ fn invalid_transitions_are_rejected() {
     write_plan_cassette(store.path(), &b); // cassettes load at Core::open
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
-    core.set_fixtures_root(store.path());
+    core.set_fixtures_root(store.path()).unwrap();
     create(&mut core, &b);
 
     // run before approve; approve before plan; accept before completion.
@@ -181,7 +181,7 @@ fn duplicate_mission_id_is_rejected() {
     let store = tempfile::tempdir().unwrap();
     let repo = real_repo(store.path());
     let mut core = Core::open(store.path()).unwrap();
-    core.set_fixtures_root(store.path());
+    core.set_fixtures_root(store.path()).unwrap();
 
     let first = brief(&repo, "mis_dup");
     let mut second = first.clone();
@@ -213,7 +213,7 @@ fn garbage_worker_is_uncertain() {
     let repo = real_repo(store.path());
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(hermes_mode("garbage"));
-    core.set_fixtures_root(store.path());
+    core.set_fixtures_root(store.path()).unwrap();
     create(&mut core, &brief(&repo, "mis_g"));
 
     let outcome = core.plan_mission("mis_g").unwrap();
@@ -240,7 +240,7 @@ fn bad_repo_path_is_clean_rejection() {
     // Even a broad fixtures root cannot rescue a repo that does not exist: the
     // DEV preflight refuses a non-canonicalizable repository cleanly at
     // creation — no durable mission, no corruption.
-    core.set_fixtures_root(Path::new("/"));
+    core.set_fixtures_root(Path::new("/")).unwrap();
     let outcome = create(&mut core, &brief);
     assert!(
         matches!(&outcome, CommandOutcome::Rejected { reason }
@@ -261,7 +261,7 @@ fn tampering_after_flow_is_detected() {
     let repo = real_repo(store.path());
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
-    core.set_fixtures_root(store.path());
+    core.set_fixtures_root(store.path()).unwrap();
     let brief = brief(&repo, "mis_t");
     create(&mut core, &brief);
     write_plan_cassette(store.path(), &brief);
@@ -291,7 +291,7 @@ fn store_reopens_cleanly() {
     let repo = real_repo(store.path());
     {
         let mut core = Core::open(store.path()).unwrap();
-        core.set_fixtures_root(store.path());
+        core.set_fixtures_root(store.path()).unwrap();
         create(&mut core, &brief(&repo, "mis_r"));
     }
     let core = Core::open(store.path()).unwrap();
