@@ -13,6 +13,7 @@ pub mod envelope;
 pub mod ledger;
 pub mod mission;
 pub mod specification;
+pub mod validation;
 pub mod vocabulary;
 pub mod wwp;
 
@@ -23,7 +24,9 @@ pub mod wwp;
 /// 0.4.0: added gate_commands, PlanDoc, TaskSpec (additive).
 /// 0.5.0: Engineering Specification System — specification contract +
 ///        rev-3 vocabulary + Specification aggregate (additive).
-pub const CONTRACTS_VERSION: &str = "0.5.0";
+/// 0.6.0: central validation contracts (slug/identifier/git-ref/edit-path)
+///        for the security-boundary remediation (additive; pure validation).
+pub const CONTRACTS_VERSION: &str = "0.6.0";
 
 /// Event vocabulary revision (rev 2 = base 32 + Chronicle 7;
 /// rev 3 = + Specification System 13).
