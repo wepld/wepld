@@ -45,7 +45,13 @@ impl Core {
             Some(b) => b,
             None => return Ok(None),
         };
-        let repo = brief["scope"]["repo"].as_str().unwrap_or("").to_owned();
+        // Scope the lesson by stable project identity (Blocker 7), not the raw
+        // path — so relocation/relative paths resolve consistently and a
+        // reinitialized repo does not inherit old lessons.
+        let repo_path = brief["scope"]["repo"].as_str().unwrap_or("");
+        let repo = self
+            .project_identity(repo_path)
+            .unwrap_or_else(|_| repo_path.to_owned());
 
         // Evidence: the verification recipes that passed, and the diff.
         let mut gates_learned: Vec<(String, String)> = Vec::new();
@@ -149,9 +155,19 @@ impl Core {
         }))
     }
 
-    /// Lessons recorded for a repo — Engineering Memory for future missions.
+    /// Lessons for a repository path — resolves the path to a stable project
+    /// identity (Blocker 7) and returns that project's memory. Convenience over
+    /// [`Core::lessons_for_project`] for callers holding a path.
     pub fn lessons_for_repo(&self, repo: &str) -> Result<Vec<LessonRow>, RuntimeError> {
-        Ok(self.store.lessons_for_repo(repo)?)
+        let key = self
+            .project_identity(repo)
+            .unwrap_or_else(|_| repo.to_owned());
+        Ok(self.store.lessons_for_repo(&key)?)
+    }
+
+    /// Lessons for a resolved project identity — the true scope key.
+    pub fn lessons_for_project(&self, project_id: &str) -> Result<Vec<LessonRow>, RuntimeError> {
+        Ok(self.store.lessons_for_repo(project_id)?)
     }
 }
 

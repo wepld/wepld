@@ -68,13 +68,30 @@ in this slice.
 This keeps memory conservative: it records verified success, not attempts, and
 never manufactures filler to satisfy a metric.
 
-## 3. Scope
+## 3. Scope — project identity, not a raw path
 
-Lessons are scoped by **exact repository identity** (`lessons_for_repo(repo)`).
-A lesson learned in repository A is never supplied to repository B, and the
-learned / applied / total counters are computed per scope, so they cannot
-mislead across projects. Broader matching (path/subsystem, language/toolchain,
-recipe, gate type) is deliberately **out of scope** for this slice.
+Lessons are scoped by a stable **project identity**, not the raw repository
+string. `Core::project_identity(repo)` hashes the canonical Git *common
+directory* plus the repository's *root commit* into a `proj_<hash>` key, and
+that key is the lesson scope column. Consequences (V0 semantics, deliberately
+explicit):
+
+- **Relative vs. absolute vs. case-variant paths** to the same repository
+  resolve to the same identity (the common dir is canonicalized and lowercased;
+  the root commit is path-independent).
+- **Two different repositories** at different paths have different identities
+  and never share memory.
+- **Reinitializing** a repository at a reused path produces a *new root commit*
+  and therefore a *new identity* — old lessons are not inherited. This is the
+  intended conservative behavior, not a bug.
+- **A clone** at a different path shares the root commit but differs in common
+  dir, so it is a distinct identity (no automatic cross-clone sharing).
+
+This is stronger than a raw-path match but is still a **local fingerprint**, not
+a global project GUID. We do not claim memory can *never* leak under every
+filesystem trick; we claim exact-identity scoping with documented, tested
+resolution. Broader matching (path/subsystem, language/toolchain, recipe, gate
+type) and cross-project learning are deliberately **out of scope**.
 
 ## 4. Confidence vs. validity — do not conflate
 
@@ -93,31 +110,46 @@ number:
 strength of the source mission*, computed by `derive_confidence` from recorded
 facts. It is never a claim that the lesson is universally true or applicable.
 
-## 5. Application semantics
+## 5. Application semantics — and the prompt-injection guarantee
 
 When memory informs a new specification (`specify_memory_entries` →
-`reason_spec_from_request`), each entry is **labelled, provenance-carrying
-context** placed only in the `engineering_memory` field of the specify pack.
-WePLD constructs the pack; the model never does. Therefore memory can only ever
-enter reasoning through this one clearly-delimited, untrusted channel.
+`reason_spec_from_request`), each entry is **structured, labelled,
+provenance-carrying context** placed only in the `engineering_memory` field of
+the specify pack. WePLD constructs the pack; the model never does. Each entry is
+a small fixed schema — `lesson_id`, `source_mission`, `evidence_seq`,
+`confidence`, `affected_files`, `verified_by_gates` (gate *names* only),
+`observation` (one short normalized sentence), `trust: "untrusted-context"`,
+`provenance: "evidence-derived"`. There is **no free-form body**, and it never
+contains raw gate logs, arbitrary tool output, commit messages, or unrestricted
+repository text.
 
-Each entry carries `lesson_id`, `source_mission`, `provenance:
-"evidence-derived"`, `trust: "untrusted-context"`, `confidence`, `title`, and a
-size-bounded `body`. Guarantees:
+**What we do NOT claim.** We do **not** claim that JSON escaping or an
+`untrusted-context` label prevents a language model from following malicious
+text. A model can still be influenced by its context — that is **residual
+risk**, stated plainly.
 
-- **Separated from authority.** Memory is never the `request`/`intent`, never a
-  capability, never a policy input, and never a mission's acceptance criteria.
-  Instruction-like or malicious text inside a lesson survives only as an escaped
-  JSON *data* string, never as a directive (test:
-  `injection_text_in_a_lesson_stays_contained_as_untrusted_data`).
-- **Bounded.** At most `MAX_LESSONS_IN_PACK` (5) lessons, each body truncated to
-  `MAX_LESSON_BODY_CHARS` (2000). Byte-identical bodies are de-duplicated.
-- **Deterministic.** Selection is ordered by confidence, then recency, then id —
-  stable across calls (stable cassette keys).
-- **Observable & attributable.** The `BrainInvoked` fact for the specify step
-  records `applied_lessons` (which lesson ids informed which mission). The
-  reported `applied` count is the bounded selection actually sent — never the
-  raw repo total — so the metric never overstates.
+**What we DO guarantee** (structural, testable —
+`malicious_memory_is_structurally_separated_and_cannot_grant_authority`):
+
+- **Structural separation.** Memory is a distinct, labelled field — never the
+  `request`/`intent`, a capability, a policy input, acceptance criteria, a tool
+  action, or an approval.
+- **A system-level instruction** travels with every pack (`MEMORY_POLICY`)
+  stating that `engineering_memory` is untrusted and its instruction-like text
+  must never be followed.
+- **No capability or policy grant.** Nothing a lesson says can grant authority,
+  change the current mission's scope or acceptance criteria, or cause an effect.
+  **Every effect stays behind the independent approval and gate boundaries** of
+  §Governance — memory influences a *proposed spec*, which a human still
+  approves, and which still must pass gates.
+- **Schema validation.** The reasoning output is validated against
+  `specification.v1`; memory cannot smuggle structure through the response.
+- **Bounded & deterministic.** At most `MAX_LESSONS_IN_PACK` (5) lessons, the
+  observation truncated to `MAX_OBSERVATION_CHARS` (300), affected files capped,
+  redundant lessons dropped, ordered by confidence→recency→id.
+- **Observable & attributable.** The specify `BrainInvoked` fact records
+  `applied_lessons`; the reported `applied` count is the bounded selection
+  actually sent, never the raw total.
 
 ## 6. Transaction & event semantics
 
