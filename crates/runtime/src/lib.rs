@@ -181,8 +181,14 @@ impl Core {
 
     /// Set the canonical fixtures root. Under DEV, missions must operate on a
     /// repository within this root unless an explicit override is granted.
-    pub fn set_fixtures_root(&mut self, path: &Path) {
-        self.dev.fixtures_root = canonical_scope_path(path);
+    /// **Fails closed (Blocker 4):** a path that cannot be canonicalized returns
+    /// `UnresolvablePath` and leaves any previously-authorized root **unchanged**
+    /// — a failed update never silently clears or weakens authorization.
+    pub fn set_fixtures_root(&mut self, path: &Path) -> Result<(), RuntimeError> {
+        let canon = canonical_scope_path(path)
+            .ok_or_else(|| RuntimeError::UnresolvablePath(path.display().to_string()))?;
+        self.dev.fixtures_root = Some(canon);
+        Ok(())
     }
 
     /// Grant an explicit, actor-attributed override permitting one uncontained

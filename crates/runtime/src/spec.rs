@@ -40,6 +40,20 @@ impl Core {
         {
             return Ok(CommandOutcome::Rejected { reason });
         }
+        // The slug is untrusted input that seeds spec_id, mission_id, plan ids,
+        // and refs — validate it (and the base ref) before deriving anything.
+        if let Err(e) = wepld_contracts::validation::validate_slug(slug) {
+            return Ok(CommandOutcome::Rejected {
+                reason: format!("invalid slug: {e}"),
+            });
+        }
+        if let Err(e) =
+            wepld_contracts::validation::validate_git_ref_name("base_branch", base_branch)
+        {
+            return Ok(CommandOutcome::Rejected {
+                reason: format!("invalid base_branch: {e}"),
+            });
+        }
         let spec_id = format!("spec_{slug}");
         let version = 1u32;
 

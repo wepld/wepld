@@ -16,6 +16,12 @@ pub enum WorkspaceError {
     NotARepo(PathBuf),
     #[error("git {args:?} failed: {stderr}")]
     GitFailed { args: Vec<String>, stderr: String },
+    #[error("unsafe identifier for a path or ref: {0:?}")]
+    UnsafeIdentifier(String),
+    #[error("invalid or unresolvable git ref: {0:?}")]
+    InvalidRef(String),
+    #[error("repository has no root commit (unborn or empty)")]
+    NoRootCommit,
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
 }
@@ -60,26 +66,64 @@ impl Workspace {
         })
     }
 
-    /// `git worktree add --detach <root>/<attempt_id> <base>`
+    /// `git worktree add --detach <root>/<attempt_id> <base-commit>`.
+    /// **Defense in depth (Blocker 2):** the `attempt_id` must be a single safe
+    /// path component (no separator, `..`, leading `-`, or NUL) and the created
+    /// destination is proven to be a direct child of `root`; the base ref is
+    /// validated and resolved to a commit SHA (via `--end-of-options`) so it can
+    /// never act as a Git option.
     pub fn create_worktree(
         &self,
         base: &str,
         attempt_id: &str,
         root: &Path,
     ) -> Result<Worktree, WorkspaceError> {
+        if !is_safe_path_component(attempt_id) {
+            return Err(WorkspaceError::UnsafeIdentifier(attempt_id.to_owned()));
+        }
         std::fs::create_dir_all(root)?;
         let path = root.join(attempt_id);
+        // Lexical confinement: the worktree must be a direct child of `root`.
+        if path.parent() != Some(root) {
+            return Err(WorkspaceError::UnsafeIdentifier(attempt_id.to_owned()));
+        }
+        let base_commit = self.resolve_commit(base)?;
         self.git(&[
             "worktree",
             "add",
             "--detach",
             path.to_str().expect("utf8 path"),
-            base,
+            &base_commit,
         ])?;
         Ok(Worktree {
             path,
             attempt_id: attempt_id.to_owned(),
         })
+    }
+
+    /// Validate a ref-ish and resolve it to a full commit SHA — the SHA (40 hex)
+    /// can never be misread as a Git option. `--end-of-options` guards the
+    /// resolution itself against an option-shaped value.
+    pub fn resolve_commit(&self, refish: &str) -> Result<String, WorkspaceError> {
+        if refish.is_empty() || refish.starts_with('-') {
+            return Err(WorkspaceError::UnsafeIdentifier(refish.to_owned()));
+        }
+        let out = self
+            .git(&[
+                "rev-parse",
+                "--verify",
+                "--end-of-options",
+                &format!("{refish}^{{commit}}"),
+            ])
+            .map_err(|_| WorkspaceError::InvalidRef(refish.to_owned()))?;
+        Ok(out.trim().to_owned())
+    }
+
+    /// Ask Git itself whether a full ref name is well-formed (Blocker 2).
+    fn check_ref_format(&self, full_ref: &str) -> Result<(), WorkspaceError> {
+        self.git(&["check-ref-format", full_ref])
+            .map(|_| ())
+            .map_err(|_| WorkspaceError::InvalidRef(full_ref.to_owned()))
     }
 
     /// Snapshot the worktree state to `refs/wepld/<attempt>/<label>` using a
@@ -124,6 +168,7 @@ impl Workspace {
         )?;
         let commit = commit.trim().to_owned();
         let name = format!("refs/wepld/{}/{}", wt.attempt_id, label);
+        self.check_ref_format(&name)?;
         git_in(&wt.path, &["update-ref", &name, &commit], &[])?;
         // `tmp` drops here (or on any early `?` above), removing the index.
         Ok(SnapRef { name, commit })
@@ -187,6 +232,7 @@ impl Workspace {
     ) -> Result<SnapRef, WorkspaceError> {
         const ZERO: &str = "0000000000000000000000000000000000000000";
         let name = format!("refs/heads/wepld/mission-{mission_id}");
+        self.check_ref_format(&name)?;
         let old = expected_old.unwrap_or(ZERO);
         self.git(&["update-ref", &name, commit, old])?;
         Ok(SnapRef {
@@ -223,8 +269,12 @@ impl Workspace {
 
     /// A stable-enough V0 project fingerprint for scoping Engineering Memory:
     /// the canonical Git common directory plus the repository's root commit.
-    /// See the Engineering Memory contract for clone / relocation / reinit
-    /// semantics (this identity intentionally changes on reinitialization).
+    /// **Fails closed (Blocker 4):** if the common dir cannot be canonicalized
+    /// there is no unresolved-path fallback (`Io`/`InvalidRef`), and an **unborn
+    /// or empty** repository — one with no root commit — yields
+    /// [`WorkspaceError::NoRootCommit`] rather than an empty, unstable id. See
+    /// the Engineering Memory contract for clone / relocation / reinit semantics
+    /// (this identity intentionally changes on reinitialization).
     pub fn project_fingerprint(&self) -> Result<ProjectFingerprint, WorkspaceError> {
         let common_raw = self.git(&["rev-parse", "--git-common-dir"])?;
         let common_raw = common_raw.trim();
@@ -235,8 +285,9 @@ impl Workspace {
         };
         // Canonicalize with platform-correct case handling: Windows filesystems
         // are case-insensitive (normalize case); Unix/macOS are case-sensitive
-        // (preserve case) so two repos differing only by case stay distinct.
-        let canon = std::fs::canonicalize(&common_path).unwrap_or(common_path);
+        // (preserve case). No fallback to the unresolved path — a project id must
+        // rest on a real, canonical directory.
+        let canon = std::fs::canonicalize(&common_path)?;
         let common_dir = normalize_case(&canon.to_string_lossy());
         let root_commit = self
             .git(&["rev-list", "--max-parents=0", "HEAD"])
@@ -245,6 +296,9 @@ impl Workspace {
             .next()
             .unwrap_or("")
             .to_owned();
+        if root_commit.is_empty() {
+            return Err(WorkspaceError::NoRootCommit);
+        }
         Ok(ProjectFingerprint {
             common_dir,
             root_commit,
@@ -274,6 +328,12 @@ impl Workspace {
     fn git(&self, args: &[&str]) -> Result<String, WorkspaceError> {
         git_in(&self.repo, args, &[])
     }
+}
+
+/// A single safe path component: non-empty, not `.`/`..`, no leading `-`, and
+/// no path separator or NUL — so it can never traverse out of its parent.
+fn is_safe_path_component(s: &str) -> bool {
+    !s.is_empty() && s != "." && s != ".." && !s.starts_with('-') && !s.contains(['/', '\\', '\0'])
 }
 
 /// Platform-correct path-case normalization for project identity: lowercase on

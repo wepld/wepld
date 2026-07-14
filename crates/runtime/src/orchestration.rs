@@ -10,9 +10,62 @@ use crate::{Core, PhaseOutcome, RuntimeError};
 use wepld_contracts::command::CommandOutcome;
 use wepld_contracts::ledger::{ActorType, AggregateType};
 use wepld_contracts::mission::{MissionBrief, PlanDoc};
+use wepld_contracts::validation::validate_identifier;
 use wepld_contracts::vocabulary::EventType;
 use wepld_ledger::NewEntry;
 use wepld_workspace::Workspace;
+
+/// Upper bound on tasks in a single plan (a model plan is untrusted input).
+const MAX_PLAN_TASKS: usize = 64;
+
+/// Semantic validation of a (model-produced) plan at the Core boundary: bounded
+/// task count, every task id valid + unique, non-empty titles, and every
+/// `satisfies` reference resolving to a real acceptance-criterion id. Enforced
+/// before a plan is stored, approved, materialized into task rows, or executed.
+fn validate_plan(plan: &PlanDoc, ac_ids: &[String]) -> Result<(), String> {
+    if plan.tasks.is_empty() {
+        return Err("plan contains no tasks".to_owned());
+    }
+    if plan.tasks.len() > MAX_PLAN_TASKS {
+        return Err(format!(
+            "plan has too many tasks ({} > {MAX_PLAN_TASKS})",
+            plan.tasks.len()
+        ));
+    }
+    let mut seen = std::collections::HashSet::new();
+    for t in &plan.tasks {
+        if let Err(e) = validate_identifier("task id", &t.id) {
+            return Err(format!("invalid task id: {e}"));
+        }
+        if !seen.insert(t.id.as_str()) {
+            return Err(format!("duplicate task id: {}", t.id));
+        }
+        if t.title.trim().is_empty() {
+            return Err(format!("task {} has an empty title", t.id));
+        }
+        for ac in &t.satisfies {
+            if !ac_ids.iter().any(|a| a == ac) {
+                return Err(format!(
+                    "task {} references unknown acceptance criterion {ac:?}",
+                    t.id
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Acceptance-criterion ids from a stored brief JSON value.
+fn brief_ac_ids(brief: &serde_json::Value) -> Vec<String> {
+    brief["acceptance_criteria"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|c| c["id"].as_str().map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default()
+}
 
 /// An injectable crash point in the acceptance sequence, used to prove
 /// effect/ledger recovery (Blocker 3). Production always uses `None`.
@@ -86,8 +139,10 @@ impl Core {
             ));
         };
         let plan_doc: PlanDoc = serde_json::from_slice(&self.artifact(&plan_ref)?)?;
-        if plan_doc.tasks.is_empty() {
-            return Ok(rejected("plan contains no tasks".to_owned()));
+        // The plan is untrusted model output: validate it semantically before it
+        // is stored or ever materialized into tasks/attempts/paths.
+        if let Err(reason) = validate_plan(&plan_doc, &brief_ac_ids(&brief)) {
+            return Ok(rejected(reason));
         }
 
         let plan_id = format!("plan_{mission_id}_1");
@@ -151,6 +206,14 @@ impl Core {
             return Ok(rejected("no proposed plan to approve".to_owned()));
         };
         let plan_doc: PlanDoc = serde_json::from_value(plan_json)?;
+        // Defense in depth: re-validate the plan before materializing task rows.
+        let ac_ids = self
+            .store_brief(mission_id)?
+            .map(|b| brief_ac_ids(&b))
+            .unwrap_or_default();
+        if let Err(reason) = validate_plan(&plan_doc, &ac_ids) {
+            return Ok(rejected(reason));
+        }
 
         let task_count = plan_doc.tasks.len();
         let mid = mission_id.to_owned();

@@ -4,6 +4,7 @@
 use wepld_contracts::command::{Command, CommandOutcome};
 use wepld_contracts::ledger::{ActorType, AggregateType};
 use wepld_contracts::mission::MissionBrief;
+use wepld_contracts::validation::{validate_git_ref_name, validate_identifier};
 use wepld_contracts::vocabulary::EventType;
 use wepld_ledger::{payload_hash, LedgerStore, NewEntry};
 
@@ -40,6 +41,14 @@ pub(crate) fn create_mission(
     }
     if brief.acceptance_criteria.is_empty() {
         return record_rejection(store, cmd, "at least one acceptance criterion".to_owned());
+    }
+    // Untrusted identifiers must never reach a filesystem path or Git ref as
+    // syntax: validate before persistence, as a deterministic recorded rejection.
+    if let Err(e) = validate_identifier("mission_id", &brief.mission_id) {
+        return record_rejection(store, cmd, format!("invalid mission_id: {e}"));
+    }
+    if let Err(e) = validate_git_ref_name("base_branch", &brief.scope.base_branch) {
+        return record_rejection(store, cmd, format!("invalid base_branch: {e}"));
     }
     if store.mission_row(&brief.mission_id)?.is_some() {
         return record_rejection(store, cmd, format!("mission exists: {}", brief.mission_id));
