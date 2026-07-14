@@ -275,29 +275,12 @@ impl Core {
         self.completed_report(mission_id, lessons_learned)
     }
 
-    /// A single fully-authorized run through every stage, threading one explicit
-    /// authenticated principal. Convenience for a caller that is that principal;
-    /// the staged methods are the governed path for separated decisions.
-    pub fn run_build_feature(
-        &mut self,
-        request: &str,
-        slug: &str,
-        repo: &str,
-        base: &str,
-        principal: &str,
-    ) -> Result<RecipeOutcome, RuntimeError> {
-        match self.start_build_feature(request, slug, repo, base, principal)? {
-            RecipeOutcome::NeedsPlanApproval { mission_id, .. } => {
-                match self.approve_plan_and_execute(&mission_id, principal)? {
-                    RecipeOutcome::NeedsCompletionApproval { mission_id, .. } => {
-                        self.decide_completion(&mission_id, principal, true)
-                    }
-                    other => Ok(other),
-                }
-            }
-            other => Ok(other),
-        }
-    }
+    // NOTE (Blocker 1): there is intentionally **no** public convenience that
+    // runs start → approve → accept in one call. Plan approval and completion
+    // acceptance are separate, explicit governance decisions; a caller must
+    // invoke `start_build_feature`, then `approve_plan_and_execute`, then
+    // `decide_completion` as distinct actions. A shared principal string is not
+    // evidence that two decisions occurred, so no such pipeline is offered.
 
     /// Assemble the evidence-derived completion report + memory deltas.
     fn completed_report(

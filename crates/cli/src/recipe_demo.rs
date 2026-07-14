@@ -65,25 +65,62 @@ pub fn run(worker_cmd: Vec<String>) -> Result<(), Box<dyn Error>> {
     println!("  {}\n", wepld_runtime::DEV_TIER_WARNING);
     println!("  Hermes is engineering this feature…\n");
 
-    // One fully-authorized principal drives every governed stage explicitly.
-    match core.run_build_feature(REQUEST, SLUG, &repo_str, "main", "principal_local")? {
-        RecipeOutcome::Completed(bf) => print_report(&bf, REQUEST),
-        RecipeOutcome::NeedsClarification { questions, .. } => {
-            println!("  Hermes needs clarification:");
-            for q in questions {
-                println!("    • {q}");
+    // Governance is explicit: three distinct decisions, each an explicit call.
+    // Stage 1 — start (reason spec, create mission, propose plan).
+    let mission_id =
+        match core.start_build_feature(REQUEST, SLUG, &repo_str, "main", "principal_local")? {
+            RecipeOutcome::NeedsPlanApproval { mission_id, .. } => {
+                println!("  ① plan proposed — awaiting explicit plan approval");
+                mission_id
             }
+            RecipeOutcome::NeedsClarification { questions, .. } => {
+                println!("  Hermes needs clarification:");
+                for q in questions {
+                    println!("    • {q}");
+                }
+                return finish(&repo);
+            }
+            RecipeOutcome::Rejected(reason) => {
+                println!("  Could not start: {reason}");
+                return finish(&repo);
+            }
+            _ => return finish(&repo),
+        };
+    // Stage 2 — an explicit human approves the plan; the mission executes.
+    match core.approve_plan_and_execute(&mission_id, "principal_local")? {
+        RecipeOutcome::NeedsCompletionApproval { .. } => {
+            println!("  ② gates green — awaiting explicit completion approval");
         }
-        RecipeOutcome::NeedsPlanApproval { .. } | RecipeOutcome::NeedsCompletionApproval { .. } => {
-            println!("  (awaiting an explicit approval decision)");
+        RecipeOutcome::Completed(bf) => {
+            print_report(&bf, REQUEST);
+            return finish(&repo);
+        }
+        RecipeOutcome::Rejected(reason) => {
+            println!("  Could not execute: {reason}");
+            return finish(&repo);
+        }
+        _ => return finish(&repo),
+    }
+    // Stage 3 — a second, separate explicit decision accepts the completion.
+    match core.decide_completion(&mission_id, "principal_local", true)? {
+        RecipeOutcome::Completed(bf) => {
+            println!("  ③ completion accepted");
+            print_report(&bf, REQUEST);
         }
         RecipeOutcome::Rejected(reason) => println!("  Could not complete: {reason}"),
+        _ => {}
     }
+    finish(&repo)
+}
 
-    let merged = std::fs::read_to_string(repo.join("src/main.rs"))?;
+/// V0 acceptance never mutates the primary worktree: the change lands on a
+/// proposal ref for an external protected merge.
+fn finish(repo: &Path) -> Result<(), Box<dyn Error>> {
+    let primary = std::fs::read_to_string(repo.join("src/main.rs"))?;
     println!(
-        "\n  (the feature is now on main: --version present = {})",
-        merged.contains("--version")
+        "\n  (primary worktree untouched — no --version in the working tree: {}; \
+         review the proposal ref refs/heads/wepld/mission-* to merge externally)",
+        !primary.contains("--version")
     );
     Ok(())
 }

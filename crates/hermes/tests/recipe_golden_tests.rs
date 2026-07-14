@@ -168,6 +168,30 @@ fn write_feature_cassettes(
     .unwrap();
 }
 
+/// Test driver: three explicit, distinct governed calls (start → approve plan
+/// & execute → decide completion). The test is the caller making separate
+/// decisions — there is no public one-shot recipe method (Blocker 1).
+fn drive(
+    core: &mut Core,
+    request: &str,
+    slug: &str,
+    repo: &str,
+    base: &str,
+    principal: &str,
+) -> Result<RecipeOutcome, wepld_runtime::RuntimeError> {
+    match core.start_build_feature(request, slug, repo, base, principal)? {
+        RecipeOutcome::NeedsPlanApproval { mission_id, .. } => {
+            match core.approve_plan_and_execute(&mission_id, principal)? {
+                RecipeOutcome::NeedsCompletionApproval { mission_id, .. } => {
+                    core.decide_completion(&mission_id, principal, true)
+                }
+                other => Ok(other),
+            }
+        }
+        other => Ok(other),
+    }
+}
+
 #[test]
 fn build_feature_recipe_matches_golden_and_reports_full_confidence() {
     let workdir = tempfile::tempdir().unwrap();
@@ -180,9 +204,15 @@ fn build_feature_recipe_matches_golden_and_reports_full_confidence() {
     core.set_worker_cmd(vec![hermes_bin()]);
     core.set_fixtures_root(workdir.path());
 
-    let outcome = core
-        .run_build_feature(REQUEST, SLUG, &repo_str, "main", "principal_local")
-        .unwrap();
+    let outcome = drive(
+        &mut core,
+        REQUEST,
+        SLUG,
+        &repo_str,
+        "main",
+        "principal_local",
+    )
+    .unwrap();
     let bf = match outcome {
         RecipeOutcome::Completed(r) => *r,
         other => panic!(
@@ -332,9 +362,15 @@ fn recipe_asks_for_clarification_when_the_spec_has_open_questions() {
 
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
-    let outcome = core
-        .run_build_feature(REQUEST, SLUG, &repo_str, "main", "principal_local")
-        .unwrap();
+    let outcome = drive(
+        &mut core,
+        REQUEST,
+        SLUG,
+        &repo_str,
+        "main",
+        "principal_local",
+    )
+    .unwrap();
     assert!(matches!(outcome, RecipeOutcome::NeedsClarification { .. }));
     // No mission was created — the recipe stopped to ask.
     assert!(core.mission_row("mis_version-flag_v1").unwrap().is_none());
@@ -355,9 +391,15 @@ fn a_second_feature_applies_the_first_lesson() {
     core.set_fixtures_root(workdir.path());
 
     // Feature 1 records a lesson.
-    let one = core
-        .run_build_feature(REQUEST, SLUG, &repo_str, "main", "principal_local")
-        .unwrap();
+    let one = drive(
+        &mut core,
+        REQUEST,
+        SLUG,
+        &repo_str,
+        "main",
+        "principal_local",
+    )
+    .unwrap();
     assert!(matches!(one, RecipeOutcome::Completed(_)));
     let lessons = core.lessons_for_repo(&repo_str).unwrap();
     assert_eq!(lessons.len(), 1);
@@ -435,9 +477,15 @@ fn a_second_feature_applies_the_first_lesson() {
     assert_eq!(reloaded.len(), 1, "the lesson survived a full store reopen");
     assert_eq!(reloaded[0].lesson_id, "lesson_mis_version-flag_v1");
 
-    let two = core
-        .run_build_feature(request2, slug2, &repo_str, "main", "principal_local")
-        .unwrap();
+    let two = drive(
+        &mut core,
+        request2,
+        slug2,
+        &repo_str,
+        "main",
+        "principal_local",
+    )
+    .unwrap();
     match two {
         RecipeOutcome::Completed(bf) => {
             assert_eq!(
@@ -478,9 +526,15 @@ fn a_non_accepted_mission_records_no_lesson() {
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
     core.set_fixtures_root(workdir.path());
-    let outcome = core
-        .run_build_feature(REQUEST, "noversion", &repo_str, "main", "principal_local")
-        .unwrap();
+    let outcome = drive(
+        &mut core,
+        REQUEST,
+        "noversion",
+        &repo_str,
+        "main",
+        "principal_local",
+    )
+    .unwrap();
 
     if let RecipeOutcome::Completed(bf) = &outcome {
         assert_ne!(bf.report.state, "accepted", "gate failed → not accepted");
@@ -537,9 +591,15 @@ fn lessons_do_not_leak_across_repositories() {
 
     // Feature on repo A records a lesson scoped to A.
     core.set_fixtures_root(work_a.path());
-    let ra = core
-        .run_build_feature(REQUEST, "version-flag", &a, "main", "principal_local")
-        .unwrap();
+    let ra = drive(
+        &mut core,
+        REQUEST,
+        "version-flag",
+        &a,
+        "main",
+        "principal_local",
+    )
+    .unwrap();
     assert!(matches!(ra, RecipeOutcome::Completed(_)));
     assert_eq!(core.lessons_for_repo(&a).unwrap().len(), 1);
     assert!(
@@ -551,15 +611,15 @@ fn lessons_do_not_leak_across_repositories() {
     // Feature on repo B sees no memory from A. (If A's lesson had leaked into
     // B's pack, the cassette key would differ and this run would fail outright.)
     core.set_fixtures_root(work_b.path());
-    match core
-        .run_build_feature(
-            "Add a --quiet flag to notes-cli",
-            "quiet-flag",
-            &b,
-            "main",
-            "principal_local",
-        )
-        .unwrap()
+    match drive(
+        &mut core,
+        "Add a --quiet flag to notes-cli",
+        "quiet-flag",
+        &b,
+        "main",
+        "principal_local",
+    )
+    .unwrap()
     {
         RecipeOutcome::Completed(bf) => {
             assert_eq!(bf.prior_lessons_applied, 0, "no cross-repo memory applied");
