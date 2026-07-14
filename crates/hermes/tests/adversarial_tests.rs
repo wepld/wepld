@@ -31,12 +31,33 @@ fn brief(repo: &str, id: &str) -> serde_json::Value {
         "acceptance_criteria": [ { "id": "AC1", "text": "x", "verify": "gate:build" } ],
         "gates_required": ["build"],
         "gate_commands": { "build": "true" },
-        "autonomy_mode": "bounded_auto",
+        "autonomy_mode": "manual",
         "envelope_declared": { "network": "deny", "dependency_install": "ask", "secrets": [] },
         "budget": { "max_cost_usd": 5.0, "max_wall_minutes": 90, "max_interrupts": 3 },
         "classification": "internal",
         "owner": "principal_local"
     })
+}
+
+/// A real git repo under `dir` so DEV mission-creation authorization can pass.
+fn real_repo(dir: &Path) -> String {
+    let repo = dir.join("repo");
+    std::fs::create_dir_all(repo.join("src")).unwrap();
+    std::fs::write(repo.join("src/main.rs"), "fn main() {}\n").unwrap();
+    for a in [
+        &["init", "-q", "-b", "main"][..],
+        &["config", "user.name", "t"],
+        &["config", "user.email", "t@l"],
+        &["add", "-A"],
+        &["commit", "-q", "-m", "i"],
+    ] {
+        std::process::Command::new("git")
+            .args(a)
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+    }
+    repo.to_string_lossy().into_owned()
 }
 
 fn create(core: &mut Core, brief: &serde_json::Value) -> CommandOutcome {
@@ -76,9 +97,11 @@ fn write_plan_cassette(store: &Path, brief: &serde_json::Value) {
 #[test]
 fn brain_call_budget_is_enforced() {
     let store = tempfile::tempdir().unwrap();
+    let repo = real_repo(store.path());
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(hermes_mode("brainspam"));
-    create(&mut core, &brief("/tmp/x", "mis_spam"));
+    core.set_fixtures_root(store.path());
+    create(&mut core, &brief(&repo, "mis_spam"));
 
     // The planner floods brain.requests; the Core caps them and fails the phase.
     let outcome = core.plan_mission("mis_spam").unwrap();
@@ -108,10 +131,12 @@ fn brain_call_budget_is_enforced() {
 #[test]
 fn invalid_transitions_are_rejected() {
     let store = tempfile::tempdir().unwrap();
-    let b = brief("/tmp/x", "mis_x");
+    let repo = real_repo(store.path());
+    let b = brief(&repo, "mis_x");
     write_plan_cassette(store.path(), &b); // cassettes load at Core::open
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
+    core.set_fixtures_root(store.path());
     create(&mut core, &b);
 
     // run before approve; approve before plan; accept before completion.
@@ -154,9 +179,11 @@ fn invalid_transitions_are_rejected() {
 #[test]
 fn duplicate_mission_id_is_rejected() {
     let store = tempfile::tempdir().unwrap();
+    let repo = real_repo(store.path());
     let mut core = Core::open(store.path()).unwrap();
+    core.set_fixtures_root(store.path());
 
-    let first = brief("/tmp/x", "mis_dup");
+    let first = brief(&repo, "mis_dup");
     let mut second = first.clone();
     second["title"] = serde_json::json!("different title, same id");
 
@@ -183,9 +210,11 @@ fn duplicate_mission_id_is_rejected() {
 #[test]
 fn garbage_worker_is_uncertain() {
     let store = tempfile::tempdir().unwrap();
+    let repo = real_repo(store.path());
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(hermes_mode("garbage"));
-    create(&mut core, &brief("/tmp/x", "mis_g"));
+    core.set_fixtures_root(store.path());
+    create(&mut core, &brief(&repo, "mis_g"));
 
     let outcome = core.plan_mission("mis_g").unwrap();
     assert!(
@@ -205,24 +234,23 @@ fn garbage_worker_is_uncertain() {
 #[test]
 fn bad_repo_path_is_clean_rejection() {
     let store = tempfile::tempdir().unwrap();
-    let mut brief = brief("/nonexistent/not-a-repo", "mis_b");
-    // Manual + allow the (bad) path past the DEV gate so we exercise the
-    // workspace-open failure specifically, not the tier caps.
-    brief["autonomy_mode"] = serde_json::json!("manual");
-    write_plan_cassette(store.path(), &brief); // cassettes load at Core::open
+    let brief = brief("/nonexistent/not-a-repo", "mis_b");
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
+    // Even a broad fixtures root cannot rescue a repo that does not exist: the
+    // DEV preflight refuses a non-canonicalizable repository cleanly at
+    // creation — no durable mission, no corruption.
     core.set_fixtures_root(Path::new("/"));
-    create(&mut core, &brief);
-    core.plan_mission("mis_b").unwrap();
-    core.approve_plan("mis_b", "principal_local").unwrap();
-
-    let outcome = core.run_mission("mis_b").unwrap();
+    let outcome = create(&mut core, &brief);
     assert!(
-        matches!(&outcome, CommandOutcome::Rejected { reason } if reason.contains("repository")),
+        matches!(&outcome, CommandOutcome::Rejected { reason }
+            if reason.contains("canonicalize") || reason.contains("repository")),
         "got {outcome:?}"
     );
-    assert_eq!(core.mission_row("mis_b").unwrap().unwrap().1, "running");
+    assert!(
+        core.mission_row("mis_b").unwrap().is_none(),
+        "no mission was created"
+    );
     assert!(core.verify().unwrap().is_valid());
 }
 
@@ -230,9 +258,11 @@ fn bad_repo_path_is_clean_rejection() {
 #[test]
 fn tampering_after_flow_is_detected() {
     let store = tempfile::tempdir().unwrap();
+    let repo = real_repo(store.path());
     let mut core = Core::open(store.path()).unwrap();
     core.set_worker_cmd(vec![hermes_bin()]);
-    let brief = brief("/tmp/x", "mis_t");
+    core.set_fixtures_root(store.path());
+    let brief = brief(&repo, "mis_t");
     create(&mut core, &brief);
     write_plan_cassette(store.path(), &brief);
     core.plan_mission("mis_t").unwrap();
@@ -258,9 +288,11 @@ fn tampering_after_flow_is_detected() {
 #[test]
 fn store_reopens_cleanly() {
     let store = tempfile::tempdir().unwrap();
+    let repo = real_repo(store.path());
     {
         let mut core = Core::open(store.path()).unwrap();
-        create(&mut core, &brief("/tmp/x", "mis_r"));
+        core.set_fixtures_root(store.path());
+        create(&mut core, &brief(&repo, "mis_r"));
     }
     let core = Core::open(store.path()).unwrap();
     assert_eq!(core.mission_row("mis_r").unwrap().unwrap().1, "draft");

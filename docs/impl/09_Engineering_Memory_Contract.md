@@ -76,9 +76,12 @@ directory* plus the repository's *root commit* into a `proj_<hash>` key, and
 that key is the lesson scope column. Consequences (V0 semantics, deliberately
 explicit):
 
-- **Relative vs. absolute vs. case-variant paths** to the same repository
-  resolve to the same identity (the common dir is canonicalized and lowercased;
-  the root commit is path-independent).
+- **Relative vs. absolute paths** to the same repository resolve to the same
+  identity (the common dir is canonicalized; the root commit is
+  path-independent). Case handling is **platform-correct**: on case-insensitive
+  Windows the path is case-normalized; on case-sensitive Unix/macOS case is
+  **preserved**, so two repositories differing only by case are distinct scopes
+  (never lossily lowercased).
 - **Two different repositories** at different paths have different identities
   and never share memory.
 - **Reinitializing** a repository at a reused path produces a *new root commit*

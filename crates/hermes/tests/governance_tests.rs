@@ -417,9 +417,18 @@ fn duplicate_acceptance_is_idempotent() {
 
 // ── Blocker 4: DEV-tier safety caps ────────────────────────────────────────
 
-/// Build a running mission on `repo` with the given autonomy mode, via the raw
-/// command path (so we can choose Bounded-Auto), ready for `run_mission`.
-fn running_mission(store: &Path, repo: &str, mode: &str, set_root: bool) -> Core {
+/// Attempt to create a mission on `repo` with the given autonomy mode via the
+/// raw command path (so we can choose Bounded-Auto). Returns the Core and the
+/// **creation outcome** — since the DEV preflight now runs at mission creation,
+/// an unauthorized repo or Bounded-Auto is refused here. `override_repo` grants
+/// an explicit uncontained override before creating.
+fn running_mission(
+    store: &Path,
+    repo: &str,
+    mode: &str,
+    set_root: bool,
+    override_repo: Option<&str>,
+) -> (Core, CommandOutcome) {
     let brief = serde_json::json!({
         "schema_version": 1, "mission_id": "mis_dev", "title": "t", "outcome": "o",
         "scope": { "repo": repo, "base_branch": "main", "paths": ["src/**"], "forbidden_paths": [] },
@@ -449,16 +458,20 @@ fn running_mission(store: &Path, repo: &str, mode: &str, set_root: bool) -> Core
     if set_root {
         core.set_fixtures_root(Path::new(repo));
     }
+    if let Some(o) = override_repo {
+        core.allow_uncontained_repo(o, "principal_local").unwrap();
+    }
     let cmd = WCommand {
         command_id: command_id_for("create_mission", &brief),
         command_type: "create_mission".to_owned(),
         actor: "principal_local".to_owned(),
         payload: brief,
     };
-    core.submit(&cmd).unwrap();
+    let created = core.submit(&cmd).unwrap();
+    // Best-effort next stages (no-ops if creation was denied).
     core.plan_mission("mis_dev").unwrap();
     core.approve_plan("mis_dev", "principal_local").unwrap();
-    core
+    (core, created)
 }
 
 #[test]
@@ -467,7 +480,11 @@ fn dev_tier_accepts_a_repo_within_the_fixtures_root() {
     let store = tempfile::tempdir().unwrap();
     let repo = fixture_repo(workdir.path());
     let repo_str = repo.to_string_lossy().into_owned();
-    let mut core = running_mission(store.path(), &repo_str, "manual", true);
+    let (mut core, created) = running_mission(store.path(), &repo_str, "manual", true, None);
+    assert!(
+        matches!(created, CommandOutcome::Accepted { .. }),
+        "fixture repo creation accepted"
+    );
     // Within fixtures root + Manual → runs (Deferred/Accepted, not tier-rejected).
     let outcome = core.run_mission("mis_dev").unwrap();
     let rejected_by_tier =
@@ -484,14 +501,24 @@ fn dev_tier_rejects_an_arbitrary_repo_by_default() {
     let store = tempfile::tempdir().unwrap();
     let repo = fixture_repo(workdir.path());
     let repo_str = repo.to_string_lossy().into_owned();
-    // No fixtures root, no override.
-    let mut core = running_mission(store.path(), &repo_str, "manual", false);
-    let outcome = core.run_mission("mis_dev").unwrap();
+    // No fixtures root, no override — creation itself is refused (before any
+    // durable mission, planner spawn, gate, or proposal ref).
+    let (core, created) = running_mission(store.path(), &repo_str, "manual", false, None);
     assert!(
-        matches!(&outcome, CommandOutcome::Rejected { reason }
+        matches!(&created, CommandOutcome::Rejected { reason }
             if reason.contains("fixtures root") && reason.contains("--i-understand-dev-tier")),
-        "got {outcome:?}"
+        "got {created:?}"
     );
+    assert!(
+        core.mission_row("mis_dev").unwrap().is_none(),
+        "no durable mission"
+    );
+    // No attempts were ever spawned for the denied repo.
+    assert!(!core
+        .all_entries()
+        .unwrap()
+        .iter()
+        .any(|e| e.entry_type.code() == "AttemptSpawned"));
 }
 
 #[test]
@@ -500,12 +527,16 @@ fn dev_tier_rejects_bounded_auto() {
     let store = tempfile::tempdir().unwrap();
     let repo = fixture_repo(workdir.path());
     let repo_str = repo.to_string_lossy().into_owned();
-    // Repo allowed via fixtures root, so Bounded-Auto is the ONLY blocker.
-    let mut core = running_mission(store.path(), &repo_str, "bounded_auto", true);
-    let outcome = core.run_mission("mis_dev").unwrap();
+    // Repo allowed via fixtures root, so Bounded-Auto is the ONLY blocker — and
+    // it is refused at creation.
+    let (core, created) = running_mission(store.path(), &repo_str, "bounded_auto", true, None);
     assert!(
-        matches!(&outcome, CommandOutcome::Rejected { reason } if reason.contains("Bounded-Auto")),
-        "got {outcome:?}"
+        matches!(&created, CommandOutcome::Rejected { reason } if reason.contains("Bounded-Auto")),
+        "got {created:?}"
+    );
+    assert!(
+        core.mission_row("mis_dev").unwrap().is_none(),
+        "no durable mission"
     );
 }
 
@@ -518,10 +549,14 @@ fn dev_tier_override_permits_only_that_repo_and_is_recorded() {
     let other = fixture_repo(&workdir.path().join("other-parent"));
     let other_str = other.to_string_lossy().into_owned();
 
-    let mut core = running_mission(store.path(), &repo_str, "manual", false);
-    // Explicit override for exactly this repo, by an authenticated actor.
-    core.allow_uncontained_repo(&repo_str, "principal_local")
-        .unwrap();
+    // Explicit override for exactly this repo, granted (by an authenticated
+    // actor) before creation — so creation and running are authorized.
+    let (mut core, created) =
+        running_mission(store.path(), &repo_str, "manual", false, Some(&repo_str));
+    assert!(
+        matches!(created, CommandOutcome::Accepted { .. }),
+        "overridden repo creation accepted: {created:?}"
+    );
 
     let outcome = core.run_mission("mis_dev").unwrap();
     assert!(
@@ -557,4 +592,252 @@ fn dev_tier_override_requires_an_authenticated_actor() {
     assert!(core
         .allow_uncontained_repo("/tmp/whatever", "intruder")
         .is_err());
+}
+
+// ── Blocker 1: no public auto-approval entrypoint ──────────────────────────
+
+#[test]
+fn no_public_recipe_entrypoint_can_auto_approve_or_auto_accept() {
+    let workdir = tempfile::tempdir().unwrap();
+    let store = tempfile::tempdir().unwrap();
+    let repo = fixture_repo(workdir.path());
+    let repo_str = repo.to_string_lossy().into_owned();
+    write_cassettes(store.path(), &repo_str);
+    let mut core = Core::open(store.path()).unwrap();
+    core.set_worker_cmd(vec![hermes_bin()]);
+    core.set_fixtures_root(Path::new(&repo_str));
+
+    // The only public recipe entrypoint. A single call stops at plan approval.
+    let outcome = core
+        .start_build_feature(REQUEST, SLUG, &repo_str, "main", "principal_local")
+        .unwrap();
+    assert!(matches!(outcome, RecipeOutcome::NeedsPlanApproval { .. }));
+
+    // No governance decision or execution happened from that one call.
+    let codes: Vec<String> = core
+        .all_entries()
+        .unwrap()
+        .iter()
+        .map(|e| e.entry_type.code().to_owned())
+        .collect();
+    assert!(
+        !codes.contains(&"PlanApproved".to_owned()),
+        "no auto plan approval"
+    );
+    assert!(
+        !codes.contains(&"MissionAccepted".to_owned()),
+        "no auto acceptance"
+    );
+    assert!(
+        !codes.contains(&"AttemptSpawned".to_owned()),
+        "no execution attempt"
+    );
+    let has_ref = Command::new("git")
+        .args([
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            &format!("refs/heads/wepld/mission-{MID}"),
+        ])
+        .current_dir(&repo)
+        .output()
+        .unwrap();
+    assert!(
+        !has_ref.status.success(),
+        "no proposal ref from a start call"
+    );
+}
+
+// ── Blocker 3: proposal-ref conflict safety & actor preservation ───────────
+
+#[test]
+fn acceptance_refuses_to_overwrite_a_conflicting_proposal_ref() {
+    let workdir = tempfile::tempdir().unwrap();
+    let store = tempfile::tempdir().unwrap();
+    let repo = fixture_repo(workdir.path());
+    let repo_str = repo.to_string_lossy().into_owned();
+    write_cassettes(store.path(), &repo_str);
+    let mut core = to_completion_proposed(store.path(), &repo_str);
+
+    // Pre-create the proposal ref at a DIFFERENT commit (the base HEAD).
+    let base = String::from_utf8(
+        Command::new("git")
+            .args(["rev-parse", "main"])
+            .current_dir(&repo)
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .unwrap()
+    .trim()
+    .to_owned();
+    Command::new("git")
+        .args([
+            "update-ref",
+            &format!("refs/heads/wepld/mission-{MID}"),
+            &base,
+        ])
+        .current_dir(&repo)
+        .output()
+        .unwrap();
+
+    // Acceptance must detect the conflict, NOT overwrite, and defer.
+    assert!(matches!(
+        core.accept_mission(MID, "principal_local").unwrap(),
+        CommandOutcome::Deferred { .. }
+    ));
+    assert_eq!(
+        core.mission_row(MID).unwrap().unwrap().1,
+        "acceptance_uncertain"
+    );
+    assert_eq!(accepted_events(&core), 0, "no MissionAccepted on conflict");
+    let now = String::from_utf8(
+        Command::new("git")
+            .args(["rev-parse", &format!("refs/heads/wepld/mission-{MID}")])
+            .current_dir(&repo)
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .unwrap()
+    .trim()
+    .to_owned();
+    assert_eq!(
+        now, base,
+        "conflicting proposal ref must not be force-replaced"
+    );
+    assert!(core.all_entries().unwrap().iter().any(|e| e.entry_type
+        == EventType::AttemptUncertain
+        && e.payload_json["reason"]
+            .as_str()
+            .unwrap_or("")
+            .contains("conflict")));
+    assert!(core.verify().unwrap().is_valid());
+}
+
+#[test]
+fn acceptance_retry_preserves_the_original_approver() {
+    let workdir = tempfile::tempdir().unwrap();
+    let store = tempfile::tempdir().unwrap();
+    let repo = fixture_repo(workdir.path());
+    let repo_str = repo.to_string_lossy().into_owned();
+    write_cassettes(store.path(), &repo_str);
+    let mut core = to_completion_proposed(store.path(), &repo_str);
+
+    // Crash after the effect, before the final record — decision is durable.
+    assert!(matches!(
+        core.accept_mission_at(MID, "principal_local", AcceptFault::BeforeFinalRecord)
+            .unwrap(),
+        CommandOutcome::Deferred { .. }
+    ));
+    // A retry by a non-authenticated principal is refused — never rewrites the
+    // recorded decision.
+    assert!(matches!(
+        core.accept_mission(MID, "intruder").unwrap(),
+        CommandOutcome::Rejected { .. }
+    ));
+    assert_eq!(accepted_events(&core), 0);
+
+    // The legitimate retry completes; MissionAccepted names the ORIGINAL
+    // approver taken from the recorded DecisionResolved fact.
+    assert!(matches!(
+        core.accept_mission(MID, "principal_local").unwrap(),
+        CommandOutcome::Accepted { .. }
+    ));
+    let ma = core
+        .timeline(MID)
+        .unwrap()
+        .into_iter()
+        .find(|e| e.entry_type == EventType::MissionAccepted)
+        .unwrap();
+    assert_eq!(
+        ma.actor_id, "principal_local",
+        "recorded approver preserved"
+    );
+    assert_eq!(accepted_events(&core), 1);
+}
+
+// ── Blocker 4: platform-correct (case-sensitive) path identity on Unix ─────
+
+#[cfg(unix)]
+#[test]
+fn unix_case_sensitive_repos_are_distinct_scopes() {
+    let workdir = tempfile::tempdir().unwrap();
+    let store = tempfile::tempdir().unwrap();
+    // Two real repos differing only by case (Unix filesystems are case-sensitive).
+    let upper = fixture_repo(&workdir.path().join("Upper"));
+    let lower = fixture_repo(&workdir.path().join("upper"));
+    let upper_s = upper.to_string_lossy().into_owned();
+    let lower_s = lower.to_string_lossy().into_owned();
+
+    let mut core = Core::open(store.path()).unwrap();
+    assert_ne!(
+        core.project_identity(&upper_s).unwrap(),
+        core.project_identity(&lower_s).unwrap(),
+        "case-differing repos must not share a project identity"
+    );
+    core.set_fixtures_root(&upper);
+    assert!(core.is_repo_allowed_under_dev(&upper_s));
+    assert!(
+        !core.is_repo_allowed_under_dev(&lower_s),
+        "lowercase sibling must not pass an uppercase fixtures-root check"
+    );
+}
+
+// ── Blocker 5: worker-spawn boundary denies a denied repo (marker proof) ───
+
+#[cfg(unix)]
+#[test]
+fn a_denied_repo_never_spawns_a_worker() {
+    let workdir = tempfile::tempdir().unwrap();
+    let store = tempfile::tempdir().unwrap();
+    let repo = fixture_repo(workdir.path());
+    let repo_str = repo.to_string_lossy().into_owned();
+    let marker = workdir.path().join("WORKER_SPAWNED");
+
+    let mut core = Core::open(store.path()).unwrap();
+    core.set_fixtures_root(workdir.path()); // authorize creation
+    let brief = serde_json::json!({
+        "schema_version": 1, "mission_id": "mis_deny", "title": "t", "outcome": "o",
+        "scope": { "repo": repo_str, "base_branch": "main", "paths": ["src/**"], "forbidden_paths": [] },
+        "acceptance_criteria": [ { "id": "AC1", "text": "x", "verify": "gate:build" } ],
+        "gates_required": ["build"], "gate_commands": { "build": "true" },
+        "autonomy_mode": "manual",
+        "envelope_declared": { "network": "deny", "dependency_install": "ask", "secrets": [] },
+        "budget": { "max_cost_usd": 5.0, "max_wall_minutes": 90, "max_interrupts": 3 },
+        "classification": "internal", "owner": "principal_local"
+    });
+    let cmd = WCommand {
+        command_id: command_id_for("create_mission", &brief),
+        command_type: "create_mission".to_owned(),
+        actor: "principal_local".to_owned(),
+        payload: brief,
+    };
+    assert!(matches!(
+        core.submit(&cmd).unwrap(),
+        CommandOutcome::Accepted { .. }
+    ));
+
+    // Now DENY the repo (fixtures root no longer contains it) and arm a marker
+    // "worker" that would prove a spawn if it ever ran.
+    core.set_fixtures_root(store.path());
+    core.set_worker_cmd(vec![
+        "sh".to_owned(),
+        "-c".to_owned(),
+        format!("touch {}; exit 1", marker.display()),
+    ]);
+    let outcome = core.plan_mission("mis_deny").unwrap();
+    assert!(
+        matches!(outcome, CommandOutcome::Rejected { .. }),
+        "denied plan: {outcome:?}"
+    );
+    assert!(
+        !marker.exists(),
+        "no planner worker may spawn for a denied repository"
+    );
+    assert!(!core
+        .all_entries()
+        .unwrap()
+        .iter()
+        .any(|e| e.entry_type.code() == "AttemptSpawned"));
 }

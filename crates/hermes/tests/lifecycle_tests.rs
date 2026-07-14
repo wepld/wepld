@@ -20,12 +20,13 @@ fn hermes_cmd(mode: &str, hb_ms: u64) -> Vec<String> {
     ]
 }
 
-fn spec(attempt: &str, mode: &str, hb_ms: u64, heartbeat_timeout_ms: u64) -> PhaseSpec {
+fn spec(repo: &str, attempt: &str, mode: &str, hb_ms: u64, heartbeat_timeout_ms: u64) -> PhaseSpec {
     PhaseSpec {
         mission_id: "mis_t".to_owned(),
         task_id: "tsk_t".to_owned(),
         attempt_id: attempt.to_owned(),
         phase: "build".to_owned(),
+        repo: repo.to_owned(),
         worker_cmd: hermes_cmd(mode, hb_ms),
         pack: serde_json::json!({ "schema_version": 1, "tiers": {} }),
         brain_profile: "fixture-default".to_owned(),
@@ -49,9 +50,11 @@ fn entry_types(core: &Core, attempt: &str) -> Vec<EventType> {
 fn happy_path_records_full_lifecycle() {
     let dir = tempfile::tempdir().unwrap();
     let mut core = Core::open(dir.path()).unwrap();
+    core.set_fixtures_root(dir.path());
+    let repo = dir.path().to_string_lossy().into_owned();
 
     let outcome = core
-        .run_phase_stub(&spec("att_ok", "echo", 100, 2000))
+        .run_phase_stub(&spec(&repo, "att_ok", "echo", 100, 2000))
         .unwrap();
     assert_eq!(outcome, PhaseOutcome::Succeeded);
 
@@ -72,9 +75,11 @@ fn happy_path_records_full_lifecycle() {
 fn killed_worker_is_recorded_uncertain_never_failed() {
     let dir = tempfile::tempdir().unwrap();
     let mut core = Core::open(dir.path()).unwrap();
+    core.set_fixtures_root(dir.path());
+    let repo = dir.path().to_string_lossy().into_owned();
 
     let outcome = core
-        .run_phase_stub(&spec("att_die", "die", 100, 2000))
+        .run_phase_stub(&spec(&repo, "att_die", "die", 100, 2000))
         .unwrap();
     assert!(matches!(outcome, PhaseOutcome::Uncertain(_)));
 
@@ -98,9 +103,11 @@ fn killed_worker_is_recorded_uncertain_never_failed() {
 fn silent_worker_trips_the_watchdog() {
     let dir = tempfile::tempdir().unwrap();
     let mut core = Core::open(dir.path()).unwrap();
+    core.set_fixtures_root(dir.path());
+    let repo = dir.path().to_string_lossy().into_owned();
 
     let outcome = core
-        .run_phase_stub(&spec("att_mute", "mute", 100, 300))
+        .run_phase_stub(&spec(&repo, "att_mute", "mute", 100, 300))
         .unwrap();
     match outcome {
         PhaseOutcome::Uncertain(reason) => assert!(reason.contains("heartbeat")),

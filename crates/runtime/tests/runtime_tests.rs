@@ -7,10 +7,42 @@ use wepld_runtime::{command_id_for, Core};
 
 const BRIEF: &str = include_str!("../../contracts/tests/fixtures/mission_rate_limiting.json");
 
-fn open_core() -> (tempfile::TempDir, Core) {
+/// Open a Core authorized for a real repo under its store dir (DEV tier: the
+/// mission-creation preflight requires a canonicalizable, fixtures-root repo).
+fn open_core() -> (tempfile::TempDir, Core, String) {
     let dir = tempfile::tempdir().unwrap();
-    let core = Core::open(dir.path()).unwrap();
-    (dir, core)
+    let repo = real_repo(dir.path());
+    let mut core = Core::open(dir.path()).unwrap();
+    core.set_fixtures_root(dir.path());
+    (dir, core, repo)
+}
+
+fn real_repo(dir: &std::path::Path) -> String {
+    let repo = dir.join("repo");
+    std::fs::create_dir_all(repo.join("src")).unwrap();
+    std::fs::write(repo.join("src/main.rs"), "fn main() {}\n").unwrap();
+    for a in [
+        &["init", "-q", "-b", "main"][..],
+        &["config", "user.name", "t"],
+        &["config", "user.email", "t@l"],
+        &["add", "-A"],
+        &["commit", "-q", "-m", "i"],
+    ] {
+        std::process::Command::new("git")
+            .args(a)
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+    }
+    repo.to_string_lossy().into_owned()
+}
+
+/// The shared brief, pointed at an authorized repo and Manual mode (DEV caps).
+fn brief_for(repo: &str) -> serde_json::Value {
+    let mut b: serde_json::Value = serde_json::from_str(BRIEF).unwrap();
+    b["scope"]["repo"] = serde_json::json!(repo);
+    b["autonomy_mode"] = serde_json::json!("manual");
+    b
 }
 
 fn create_cmd(payload: serde_json::Value) -> Command {
@@ -24,7 +56,7 @@ fn create_cmd(payload: serde_json::Value) -> Command {
 
 #[test]
 fn tier_fact_is_recorded_once_at_init() {
-    let (dir, core) = open_core();
+    let (dir, core, _repo) = open_core();
     let entries = core.all_entries().unwrap();
     assert_eq!(entries.len(), 1);
     assert_eq!(entries[0].entry_type, EventType::SandboxTierDetected);
@@ -38,8 +70,9 @@ fn tier_fact_is_recorded_once_at_init() {
 
 #[test]
 fn create_mission_accepted_and_recorded() {
-    let (_dir, mut core) = open_core();
-    let payload: serde_json::Value = serde_json::from_str(BRIEF).unwrap();
+    let (_dir, mut core, repo) = open_core();
+    let payload = brief_for(&repo);
+    let expected_cmd_id = create_cmd(payload.clone()).command_id;
     let outcome = core.submit(&create_cmd(payload)).unwrap();
 
     assert!(matches!(outcome, CommandOutcome::Accepted { .. }));
@@ -48,11 +81,7 @@ fn create_mission_accepted_and_recorded() {
     assert_eq!(timeline[0].entry_type, EventType::MissionCreated);
     assert_eq!(
         timeline[0].causation_ref.as_deref(),
-        Some(
-            create_cmd(serde_json::from_str(BRIEF).unwrap())
-                .command_id
-                .as_str()
-        )
+        Some(expected_cmd_id.as_str())
     );
     let (_, state) = core
         .mission_row("mis_01J8QZ3F0000000000000000")
@@ -64,8 +93,8 @@ fn create_mission_accepted_and_recorded() {
 
 #[test]
 fn duplicate_command_is_idempotent() {
-    let (_dir, mut core) = open_core();
-    let payload: serde_json::Value = serde_json::from_str(BRIEF).unwrap();
+    let (_dir, mut core, repo) = open_core();
+    let payload = brief_for(&repo);
     let first = core.submit(&create_cmd(payload.clone())).unwrap();
     let second = core.submit(&create_cmd(payload)).unwrap();
 
@@ -82,8 +111,8 @@ fn duplicate_command_is_idempotent() {
 
 #[test]
 fn command_id_reuse_with_different_payload_is_rejected() {
-    let (_dir, mut core) = open_core();
-    let payload: serde_json::Value = serde_json::from_str(BRIEF).unwrap();
+    let (_dir, mut core, repo) = open_core();
+    let payload = brief_for(&repo);
     let cmd = create_cmd(payload.clone());
     core.submit(&cmd).unwrap();
 
@@ -102,8 +131,8 @@ fn command_id_reuse_with_different_payload_is_rejected() {
 
 #[test]
 fn missing_verify_method_is_rejected_without_ledger_noise() {
-    let (_dir, mut core) = open_core();
-    let mut payload: serde_json::Value = serde_json::from_str(BRIEF).unwrap();
+    let (_dir, mut core, repo) = open_core();
+    let mut payload = brief_for(&repo);
     payload["acceptance_criteria"][0]["verify"] = serde_json::json!("");
     let outcome = core.submit(&create_cmd(payload)).unwrap();
 
@@ -117,8 +146,8 @@ fn missing_verify_method_is_rejected_without_ledger_noise() {
 
 #[test]
 fn duplicate_mission_and_unknown_command_are_rejected() {
-    let (_dir, mut core) = open_core();
-    let payload: serde_json::Value = serde_json::from_str(BRIEF).unwrap();
+    let (_dir, mut core, repo) = open_core();
+    let payload = brief_for(&repo);
     core.submit(&create_cmd(payload.clone())).unwrap();
 
     // Same mission_id, different command_id (title tweak changes the hash).

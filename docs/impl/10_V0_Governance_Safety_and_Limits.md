@@ -20,9 +20,10 @@ as explicit, resumable stages:
 3. **Decide completion** (`decide_completion`, authenticated approver) —
    explicitly accept or return. Acceptance is **never** automatic.
 
-`run_build_feature(…, principal)` is a convenience that threads *one* explicit
-authenticated principal through every stage; it is not an auto-approver — each
-gate still validates the principal and records real provenance.
+There is **no public one-shot recipe method**: a caller must invoke each stage
+as a distinct, explicit action. A shared principal string is not evidence that
+two governance decisions occurred, so no convenience that auto-runs approval and
+acceptance is offered (`no_public_recipe_entrypoint_can_auto_approve_or_auto_accept`).
 
 **Actor provenance.** `PlanApproved`, `MissionAccepted`, and `MissionReturned`
 record `ActorType::Human` with the **caller-supplied** principal id. The Core
@@ -46,10 +47,26 @@ branch HEAD and the primary worktree are unchanged after acceptance.
 Acceptance records intent before effect and heals idempotently:
 
 1. record the explicit decision + intended effect, set `acceptance_pending`;
-2. perform the reversible, idempotent ref effect;
+2. perform the ref effect as a **compare-and-swap** (`git update-ref <ref> <new>
+   <expected-old>`): create only if absent, no-op if already at the snapshot,
+   and **refuse to overwrite** a ref that points elsewhere — a conflict records
+   `acceptance_uncertain` and defers (never force-replaces);
 3. probe the real git state (and confirm the base branch did not move);
 4. record `MissionAccepted` + `accepted`, or an explicit `acceptance_uncertain`
    with evidence.
+
+Recovery reuses the **original** approver recorded in the `DecisionResolved`
+fact — a retry caller cannot rewrite who approved.
+
+The provider adapter parses endpoints with a standards-compliant URL parser
+(`url::Url`): scheme must be `http`, no userinfo, no query/fragment, and the
+host must be a real loopback IP (or a `localhost` that resolves only to
+loopback) — so `http://127.0.0.1@evil.example` and similar spoofs are refused.
+
+The DEV preflight runs at **every** point that could reach a worker: mission
+creation (including spec-derived), planning, running, and the worker-spawn
+boundary itself (defense in depth) — a denied repository creates no mission,
+spawns no worker, and produces no attempt, gate, or proposal ref.
 
 A crash before the effect or before the final record leaves `acceptance_pending`
 with **no** `MissionAccepted`; a retry probes and completes with exactly one
