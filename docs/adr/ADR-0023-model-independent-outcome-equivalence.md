@@ -15,6 +15,8 @@ Adopt [33_Model_Independent_Outcome_Convergence.md](../33_Model_Independent_Outc
 
 Internal strategies, attempt counts, model/tool sequences, formatting, and non-contractual style may vary. The final quality and evidence bar never changes with profile. A profile that cannot converge follows the common escalation ladder and stops honestly as `NonConvergent` rather than lowering gates or fabricating completion.
 
+When risk or uncertainty justifies a controlled multi-route race, the approved specification, Outcome Contract, repository commit, policy, tools, environment, budget class, scoring gates, and attempt rules remain fixed. Each plan or builder candidate must independently pass the unchanged contract. Model vote, relative rank, or visual preference cannot accept a candidate.
+
 ## Reason
 
 Contract-relative equivalence is the engineering truth users need from replaceable models. It permits implementation and cost choice while keeping acceptance, security, and evidence invariant.
@@ -34,6 +36,6 @@ Contract-relative equivalence is the engineering truth users need from replaceab
 
 ## Migration
 
-H8 evidence must show at least two supported builder profiles attempting the same approved mission set under identical gates; accepted outputs that are contract-equivalent; unchanged thresholds; documented efficiency and escalation differences; and honest non-convergence on out-of-scope capability cases.
+H8 evidence must show at least two supported builder profiles attempting the same approved mission set under identical gates; accepted outputs that are contract-equivalent; unchanged thresholds; documented efficiency and escalation differences; and honest non-convergence on out-of-scope capability cases. RS-29 multi-route treatments must preregister fixed controls, score every candidate independently, retain failed/partial evidence, report added cost and selection bias, and disable the race when benefit does not exceed overhead or any relative/subjective selection bypasses the contract.
 
 Draft PR #1's provider-neutral gateway, acceptance criteria, gates, staged completion, and fixture replay are candidate inputs. A narrow single-profile Build Feature trace is not evidence of outcome equivalence or certification, and this ADR does not ratify the PR.

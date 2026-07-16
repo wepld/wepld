@@ -4,7 +4,7 @@
 
 WePLD separates a reasoning role from the model that supplies reasoning:
 
-- **Brain Agent:** the governed planner, architect, risk analyst, and replanner. It proposes structured artifacts and decisions but never approves them, executes tools, mutates durable state, or communicates directly with a user.
+- **Brain Agent:** the governed planner, architect, risk analyst, and replanner. It proposes structured artifacts and recommendations but never approves them, executes tools, mutates durable state, or communicates directly with a user.
 - **Brain profile:** a versioned, policy-scoped configuration for a replaceable reasoning provider.
 - **Builder profile/model:** a replaceable reasoning provider selected to implement one bounded TaskPacket; it proposes artifacts and typed actions but has no direct tool authority.
 - **Brain Gateway:** the only component that knows provider-specific APIs and normalizes all model invocations.
@@ -30,7 +30,7 @@ flowchart LR
 
 Model names never appear in mission-domain authority rules. Native model tool calls are normalized into `ProposedAction` values and returned to Core; they are not executed by the provider, Gateway, Brain Agent, builder, or Hermes.
 
-## Brain Agent planning contract
+## Brain Agent planning and qualification contract
 
 The Brain Agent receives only authorized, provenance-labelled inputs, including:
 
@@ -41,7 +41,7 @@ The Brain Agent receives only authorized, provenance-labelled inputs, including:
 - available Hermes skills, supported profiles, tools, capabilities, budgets, and deadlines;
 - current risks, assumptions, uncertainties, decisions, and phase state.
 
-Its structured planning output includes:
+Its structured `PlanProposal` output includes:
 
 - delivery strategy and tailored phase graph;
 - task decomposition and requirement-to-phase/task/evidence traceability;
@@ -51,7 +51,27 @@ Its structured planning output includes:
 - phase entry/exit conditions, WIP, budgets, and evidence requirements;
 - estimates, stop conditions, escalation conditions, and recovery considerations.
 
-The output is a proposal. Core validates schema, provenance, traceability, policy, budgets, cycles, scope, and required gates before presenting it for approval. Evidence discovered during execution can trigger a controlled replan, not an implicit plan rewrite.
+The output is never a `DeliveryPlan` and never carries approval authority. Plan qualification follows one explicit pipeline:
+
+`Brain Agent → PlanProposal → deterministic compiler/normalization → candidate DeliveryPlan → structural validation → initial PlanAssessment → independent review when policy requires → finalized Ready PlanAssessment → authenticated PlanDecision → approved DeliveryPlan`
+
+The deterministic compiler canonicalizes identifiers, versions, ordering, defaults, trace edges, budgets, and policy references without inventing strategy. Structural validation rejects schema errors, stale provenance, missing trace edges, dependency cycles, invalid scopes, budget/WIP violations, and policy-incompatible gates. A `PlanAssessment` then records:
+
+- specification and Outcome Contract coverage;
+- acceptance and evidence sufficiency;
+- DAG validity and delivery ordering;
+- architecture fitness and constraint compliance;
+- proportionality to mission size and risk;
+- security, operational, delivery, and residual risk;
+- budget and WIP feasibility;
+- rollback and recovery adequacy;
+- assumptions, uncertainty, and material alternatives;
+- reviewer identity, role, and independence;
+- blockers and an explicit readiness recommendation.
+
+Policy classifies the candidate before decision. The initial assessment becomes `ReviewRequired` when policy names independent reviews. Those reviewers create separate immutable records; Core then finalizes a new `Ready` assessment version bound to the exact policy/risk-tier version and every required review record ID/version/hash. A low-risk plan may move from deterministic validation to a `Ready` assessment and an authenticated decision by an authorized user without an independent-review set when policy explicitly permits it. Medium- and high-risk plans require independent architecture, quality, and security review in the combinations named by policy. The proposal producer cannot approve it or act as the sole acceptance-critical reviewer. Multiple models may surface disagreements or alternatives, but model voting is evidence only and never authority. Core alone validates the decision actor and records the immutable `PlanDecision` that creates an approved `DeliveryPlan` version.
+
+WePLD does not require multiple plans by default. Alternative proposals are requested only when risk, uncertainty, material architectural choice, or a failed assessment justifies their cost. Evidence discovered during execution can trigger the same controlled qualification path for a replacement plan, not an implicit plan rewrite.
 
 ## Provider-neutral request and result
 
@@ -91,7 +111,7 @@ Provider credentials live in an OS-backed secure store or approved enterprise se
 
 Every supported profile is certified for named roles and task classes through controlled harness evaluations. Evaluation includes schema validity, outcome-equivalence rate, gate pass rate, regressions, unsafe-effect proposals, evidence completeness, attempts, tokens/cost, wall time, interventions, escalations, recovery, and non-convergence honesty.
 
-Controlled comparisons hold mission, repository commit, approved specification, policy, OutcomeContract, tools, environment, budget class, and maximum attempts constant. They vary brain/builder profile and, where testing the harness, LSP, retrieval, memory, loops, subagents, and skill routing. Promotion, quarantine, or removal is a documented Core policy decision; provider regressions never require mission-domain changes.
+Controlled comparisons hold mission, repository commit, approved specification, policy, OutcomeContract, tools, environment, budget class, and maximum attempts constant. An `EvaluationCase` expands into one or more `EvaluationRun` records with explicit `TreatmentArm`, immutable `RunManifest`, append-only `MetricObservation`, any `ProtocolDeviation`, and a derived `EvaluationResult`. Exact provenance binds fixture and source hashes, governing artifact versions, profile/provider/model and adapter versions, prompts/context manifests, skills/tools, environment, seed where supported, budgets, timestamps, and raw evidence references. Comparisons vary brain/builder profile and, where testing the harness, LSP, retrieval, memory, loops, subagents, and skill routing. Promotion, quarantine, or removal is a documented Core policy decision; provider regressions never require mission-domain changes.
 
 The full protocol is defined in [34_Harness_Evaluation_Protocol.md](34_Harness_Evaluation_Protocol.md).
 

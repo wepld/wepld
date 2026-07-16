@@ -18,7 +18,7 @@ The strategic promise is **“Different brains. Same engineering truth.”** Sup
 
 ## Scope and branch boundary
 
-This branch contains planning and documentation only. The package does not implement Hermes Intelligence, change Rust source, push a branch, open a pull request, merge code, or authorize a release.
+This Draft PR contains planning and documentation only. It does not implement Hermes Intelligence, modify production runtime source, accept ADRs, merge code, mark either PR ready for review, or authorize implementation or release.
 
 [Draft PR #1](https://github.com/wepld/wepld/pull/1) is an open, unmerged candidate Build Feature baseline. Its staged approvals, Core ledger, artifact/worktree boundaries, specification seed, proposal-ref acceptance, and narrow Engineering Memory are reference material. Its branch-local claims and ADRs are not canonical. This package neither ratifies nor authorizes its merge, and no Hermes Intelligence implementation begins until applicable Proposed ADRs are accepted and the preceding milestone gate closes with evidence.
 
@@ -33,6 +33,10 @@ This branch contains planning and documentation only. The package does not imple
 
 ## Compatibility note
 
-The canonical `origin/main` used for this planning worktree is documentation-only. Draft PR #1 remains separate. If that candidate baseline is accepted later, its final behavior and contracts must be reconciled with this package rather than treated as an implicit implementation of H1–H9.
+The canonical `origin/main` used for this planning worktree is documentation-only. Draft PR #1 remains separate. The Baseline Gate must resolve before H1: either required prerequisite contracts are accepted from the candidate or an approved replacement-foundation plan supplies the gaps. A returned, deferred, or rejected candidate therefore does not permanently block H1, and any retained behavior must be reconciled with this package rather than treated as an implicit implementation of H1–H9.
+
+## Reproducible documentation validation
+
+Run `python3 scripts/validate_architecture_docs.py --base origin/main` to validate UTF-8, Markdown links/anchors/fences/tables, HTML links/anchors, ADR index/status/IDs, H1–H9 dependency structure, reference-ledger/matrix/RS experiment completeness, stale claims, diff whitespace, and documentation-only change scope. The pinned [architecture-docs workflow](.github/workflows/docs-validation.yml) runs the same dependency-free gate for pull requests that change this package.
 
 

@@ -13,7 +13,7 @@ The product makes the delivery method explicit without requiring an external pro
 1. **Describe** the desired outcome in a `MissionCharter`.
 2. **Clarify** assumptions, open questions, exclusions, risks, and constraints.
 3. **Review and approve the specification** and its `OutcomeContract`.
-4. **Review and approve the delivery plan** proposed by the Brain Agent.
+4. **Review and decide the qualified delivery-plan candidate** compiled from the Brain Agent's `PlanProposal`, with its `PlanAssessment`, required independent reviews, risks, alternatives, and exact versions visible.
 5. **Execute phase by phase** under approved `PhasePlan` contracts.
 6. **Observe Kanban flow, WIP, budgets, and evidence** without managing low-level commands.
 7. **Resolve decisions and change requests** through their protected authority paths.

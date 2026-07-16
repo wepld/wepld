@@ -16,6 +16,14 @@ The runtime separation is:
 
 Durable mission truth always remains in Core. If Hermes stops, restarts, or is replaced, the mission can be reconstructed from Core records without trusting Hermes's private state.
 
+Delivery preserves this target architecture through deliberately narrow slices:
+
+- **H3.1 — built-in kernel minimum:** repository-owned skills with static, versioned manifests and exact hashes; typed input/output, context/tool/capability requirements, verification and evidence contracts; built-in typed lifecycle hooks; and one internal lifecycle/control-event port. No external installation, package registry, marketplace, third-party executable hook, or general signing infrastructure is included.
+- **H3.2 — governed packaging, conditional:** only after H3.1 demonstrates measured value and package-governance experiments pass may WePLD add isolated staging, provenance/signature verification, atomic activation, rollback, and revocation. Failure to justify that complexity leaves the built-in runtime intact.
+- **H4.1 — reproducible authority-first context:** exact path/identifier retrieval, lexical search, Git evidence, a single `rust-analyzer` adapter, and reconstructable selection manifests.
+- **H4.2 — qualified structural expansion:** AST/tree-sitter relationships, impact and affected-test inference, and additional LSP adapters only after each passes the normalized contract.
+- **H4.3 — optional semantic tier:** embeddings or semantic-by-default routing only after controlled ablation shows material benefit without authority, security, freshness, cost, or token-budget harm.
+
 ~~~mermaid
 flowchart LR
   Spec["Approved Specification + Outcome Contract"] --> Brain["Brain Agent\nplan proposal"]
@@ -69,7 +77,7 @@ A skill is an executable, versioned engineering procedure—not prompt text. Its
 
 | Contract area | Required fields |
 | --- | --- |
-| Identity | name, semantic version, publisher, content hash, signature/provenance, license, trust tier, status |
+| Identity | H3.1: repository-owned name, semantic version, content hash, repository revision, license, status; H3.2 may add publisher and signature/provenance after its gate |
 | Applicability | task/change types, languages, frameworks, risk classes, phase/role compatibility, exclusions |
 | Context | required authoritative sources, repository signals, LSP capabilities, memory classes, freshness bounds |
 | Tools | required tool adapters and versions, allowed capabilities/effects, network/secrets needs, sandbox tier |
@@ -80,7 +88,7 @@ A skill is an executable, versioned engineering procedure—not prompt text. Its
 | Compatibility | Core/Hermes/WWP/schema ranges, supported platforms and toolchains |
 | Evaluation | fixture suite, baseline metrics, known limitations, last certification and expiry |
 
-The runtime resolves an exact hash-pinned skill version. A procedure may invoke only declared tool ports through an issued capability. Its own tests and claimed permissions cannot override mission policy. Expanded capabilities, changed verification, or a major output schema require a new version and review.
+The H3.1 runtime resolves an exact hash-pinned built-in skill version from static repository manifests. A procedure may invoke only declared tool ports through an issued capability. Its own tests and claimed permissions cannot override mission policy. Expanded capabilities, changed verification, or a major output schema require a new version and review. H3.1 contains no runtime download, dependency resolution, registry lookup, third-party code loading, or external hook execution.
 
 Initial skill families are repository exploration, architecture analysis, Rust, TypeScript, Python, debugging, test planning/generation, security review, dependency analysis, API/schema design, database migration, performance analysis, documentation, Git forensics, and recovery investigation. Initial releases support only the families and language adapters proven at their milestone gate; the architecture does not claim universal coverage.
 
@@ -94,7 +102,19 @@ Hard filters run first: policy, data classification, platform/sandbox posture, p
 
 The routing policy is versioned, explainable, replaceable, and recorded with the attempt. A model or skill cannot select itself by self-reported competence. Missing or inconclusive performance data produces a conservative candidate route or an explicit decision—not a fabricated score.
 
-H3 exposes only a versioned internal lifecycle/control-event port among the Agent Kernel, Skill Runtime, Hook Bus and their Core adapter. It carries exact correlation, idempotency, ordering, reconnect and backpressure semantics but no ambient authority. H3 package activation is likewise limited to skills and hooks: the Registry stages verified hashes and Core atomically activates or revokes approved scope. Public SDKs, ACP/MCP/editor adapters and other package types remain outside H3 and repeat their own protocol/package gates at their owning milestones.
+Before model invocation, Core derives a `CapabilityProjectedToolCatalog` from the exact Task Packet/version, role, policy decision, issued capabilities, workspace/data scope, runtime availability, compatibility, and budget. Each visible entry carries tool/schema identity and hash, typed input/output, effect/capability class, selection reason, and context cost; every omitted candidate and reason is retained in the attempt manifest. Hermes may format this approved projection but cannot add a tool, broaden a schema, or convert discovery into authority.
+
+Tool, skill, resource, and any future MCP catalogue has an explicit item and token allocation in the context budget. When the full catalogue does not fit, deterministic policy selects the minimum eligible view or exposes a bounded provenance-labelled discovery schema. Mandatory authority never yields space to a tool catalogue. Discovery cannot auto-connect, auto-install, auto-trust, or issue a capability, and the tool boundary rechecks authorization even when a schema is visible. H3.1 projects built-ins only; MCP remains outside H3.1.
+
+H3.1 exposes only a versioned internal lifecycle/control-event port among the Agent Kernel, Skill Runtime, built-in Hook Bus and their Core adapter. It carries exact correlation, idempotency, ordering, reconnect and backpressure semantics but no ambient authority. Built-in skills and hooks are selected by exact repository version/hash and can be disabled by policy; there is no install or activation subsystem.
+
+H3.2 may add staging and package activation for skills and hooks only after its separate value and governance gate. The Registry then stages verified exact content, while Core alone atomically activates, rolls back, or revokes an approved scope. Public SDKs, ACP/MCP/editor adapters and other package types remain outside H3.2 and repeat their own protocol/package gates at their owning milestones.
+
+### Bounded tool-output contract
+
+Every H3.1 tool schema declares byte, line, item, and token limits plus a deterministic excerpt strategy. An oversized result produces a bounded model-facing excerpt and explicit truncation metadata, while policy-allowed complete content is captured as a content-addressed `ToolOutputArtifact`. The artifact binds action, attempt, capability and tool/version; raw-result and excerpt hashes; exit/error state; counts; truncation strategy; classification, redaction and retention; producer/environment; and capture time. If policy forbids full capture, the artifact record states that omission rather than fabricating completeness.
+
+Reading another artifact range is a new authorized and logged context-selection operation. A path to an ephemeral file is not durable provenance, and neither an excerpt nor a generated summary is accepted evidence or authority without the underlying identifiers and verification.
 
 ## 4. Context Compiler
 
@@ -114,9 +134,25 @@ Context tiers are:
 
 The compiler records all considered items and omission reasons, including policy exclusion and budget pressure. It fails loudly if mandatory authority does not fit or a required source is stale/unavailable. Packs are content-addressed and every brain invocation records the exact pack hash and compiler/ranking version.
 
+H4.1 implements the compiler before broad retrieval. Its admissible sources are authoritative Core records, exact repository path/identifier reads, lexical search, Git status/diff/history evidence, current task evidence, and normalized read-only `rust-analyzer` results. A `ContextSelectionManifest` records every candidate, decision, omission reason, source/file hash, repository revision, adapter/version and request, freshness, budget, compiler/ranking version, and final ordered pack hash so another run can reconstruct the pack or explain a declared degraded result.
+
+H4.2 may add AST/tree-sitter relationships, impact/affected-test inference, and another LSP adapter only after individual conformance, freshness, isolation, provenance, and fallback fixtures pass. H4.3 may add semantic candidates only after the preregistered ablation gate; semantic retrieval remains optional and removable.
+
+### Mission exploration branches
+
+H4 may create a bounded `MissionExplorationBranch` to investigate an alternative without mutating the approved mission path. It pins the parent mission/plan/packet versions, source event and context-manifest hashes, question/hypothesis, read-only scope, eligible tool schemas, context/cost/time/depth budgets, expiry, and stop condition. The default branch can read, search, query Git/LSP, and produce candidate findings; it cannot write the workspace, perform external effects, approve a plan, alter WIP, or admit memory. Work requiring mutation becomes a separately approved Task Packet and later follows the H6 lease/isolation path.
+
+Branch output is an attributed candidate with evidence references and contradiction/uncertainty fields. Promotion to the main mission requires deterministic validation plus the same review/decision path as any other finding or plan change. At H7, a verified insight may enter only as a `MemoryCandidate` and must pass the Memory Judge. A branch summary is never authority, evidence by itself, or automatic memory; discarded or expired branches remain reconstructable according to retention policy and cannot contaminate sibling context.
+
+### Governed compaction
+
+H3.1 defines and transports versioned internal Hermes compaction request/started/completed/failed control-message schemas; these messages are not durable Core domain events or authority. H4.1 implements the compiler behavior once its exact-context, manifest and rehydration prerequisites are available, then Core emits the canonical `CompactionRecorded`, `CompactionRejected`, and `AuthorityRehydrated` facts through the document 17/18 seams. A `CompactionRecord` binds trigger/reason, active branch and source event-span IDs, prior compaction ID, first retained event, source/context/summary hashes, token/item counts before and after, model/profile/config identity, mandatory authority rehydrated from Core, retained and omitted source IDs with reasons, related `ToolOutputArtifact` IDs, verification results, and supersession. Raw events and artifacts remain the recoverable chronology.
+
+The compacted summary is a disposable context projection. It may help navigate but cannot replace policy, an approved specification/plan/packet, an authenticated decision, exact source, or accepted evidence. A failed coverage/hash check discards the projection and recompiles from raw references; no model-written summary is auto-trusted or admitted to memory.
+
 ## 5. LSP Intelligence
 
-Hermes uses a language-neutral LSP broker owned behind a Core port. Initial adapters may include `rust-analyzer`, Pyright, TypeScript language server, and `gopls`, but only adapters that pass compatibility and fixture tests are supported.
+Hermes uses a language-neutral LSP broker owned behind a Core port. H4.1 implements one adapter, `rust-analyzer`, against the conservative normalized contract. Pyright, the TypeScript language server, `gopls`, and other adapters are H4.2 candidates and may enter only one at a time after compatibility, isolation, provenance, freshness, failure, and value fixtures pass.
 
 The broker normalizes:
 
@@ -128,7 +164,7 @@ The broker normalizes:
 
 LSP output is observational evidence, not authority. Every result records adapter/server/version, repository commit, document versions, request, time, completeness, timeout/degraded state, and provenance. Unsupported language features, stale indexes, generated code, macros, dynamic dispatch, and partial workspaces remain explicit limitations. LSP informs planning, context selection, scope re-checks, review, and verification; unavailable LSP degrades visibly or blocks when the Outcome Contract requires it.
 
-## 6. Hybrid Code RAG
+## 6. Staged code retrieval
 
 Retrieval combines complementary sources under one evidence contract:
 
@@ -141,9 +177,13 @@ Retrieval combines complementary sources under one evidence contract:
 - current and historical evidence retrieval;
 - typed Engineering Memory retrieval.
 
+That list is the target capability set, not the H4.1 implementation scope. H4.1 combines exact path/identifier and lexical retrieval, Git evidence, authoritative records, current evidence, and qualified `rust-analyzer` observations. H4.2 owns structural AST/tree-sitter, impact/test mapping, and additional conformant LSP signals. H4.3 alone may introduce semantic embeddings or make a semantic signal part of a default route.
+
 The ordering rule is **authority before relevance, exact before approximate, current before stale, structural before semantic, and verified before inferred**. Semantic vectors may widen recall but cannot displace an applicable policy, approved contract, exact symbol match, LSP fact, or structural edge. Each result exposes independent lexical, structural, semantic, freshness, trust, authority, and scope signals; a composite rank without those components is not acceptable evidence.
 
 Repository content and external results are untrusted data and are fenced/labeled before model use. Retrieval is authorization-filtered and logged because context selection can change behavior. Poisoned, superseded, unauthorized, or contradictory items are excluded or visibly marked; they are never silently reconciled by model confidence.
+
+H4.3 admission requires a controlled comparison against H4.1 and any accepted H4.2 signals. It must meet the preregistered benefit threshold while showing no regression in mandatory-authority retention, cross-scope leakage, stale-result acceptance, exact-source precedence, outcome quality, token growth, latency, and cost. Any authority/security failure rejects the treatment; an inconclusive or economically negative result keeps semantic retrieval disabled without weakening H4.1 or H4.2.
 
 ## 7. Typed memory and Memory Judge
 
@@ -258,13 +298,17 @@ The comparative evidence in [35_Reference_Systems_and_Competitive_Architecture.m
 
 | Reference input | Hermes/WePLD placement | Boundary retained |
 | --- | --- | --- |
-| Pi minimal core, skills, packages, dynamic context, session/compaction and RPC/events | Agent Kernel; Skill and Hook/Extension Runtime; Registry; Context Compiler; Hermes control/event ports | Core policy, capabilities, effects, evidence and governance remain mandatory and external to the kernel |
+| Pi minimal core, skills, packages, dynamic context, session/compaction, bounded outputs and RPC/events | H3.1 built-in Agent Kernel, Skill Runtime, typed hooks, bounded `ToolOutputArtifact` contract and internal control/event port; H3.2 package experiment; H4 `CompactionRecord`, exploration branches and staged Context Compiler | Core policy, capabilities, raw chronology, effects, evidence and governance remain mandatory and external to the kernel; summaries and package distribution are not authority or H3.1 package primitives |
+| MetaGPT SOP, Role/Action and watch/publish subscriptions | H2 Core-owned `SOPGraph` compilation; H3.1 role/input projection; H6 bounded role execution and joins | Hermes may execute only eligible `RoleNode`/`ActionContract` assignments and authorized `InputSubscription` projections; no shared environment, self-subscription, peer broadcast, free chat, approval, or authority inheritance |
 | Spec Kit lifecycle, analysis and converge | Core Delivery Protocol, trace validators, Change/Completion Review | Markdown, prompts, bundles and shell steps are imports/projections, never authoritative execution state |
-| Zed/ACP LSP, worktrees, threads and review | H4 Structural Intelligence; H6 Core Delivery Control leases plus Tool & Workspace/Worker Host isolation/delegation; future H9 ACP/review projection | Zed is a surface candidate; ACP cannot mint authority or execute directly |
+| Zed/ACP LSP, worktrees, threads and review | H4.1 `rust-analyzer` broker proof, H4.2 qualified structural/adaptor expansion; H6 Core Delivery Control leases plus Tool & Workspace/Worker Host isolation/delegation; future H9 ACP/review projection | Zed is a surface candidate; ACP cannot mint authority or execute directly |
 | Warp orchestration and operations | bounded Hermes scheduling under Core admission; H9 Mission Control Execution Console | no second scheduler authority, terminal-first product or cloud-first control plane |
-| Claude Code, Codex, Cursor, OpenCode, Aider and OpenHands | controlled alternatives for context, tools/events, worktrees, recovery, subagents, codecs, telemetry and evaluation | each mechanism enters only through RS-00–RS-20 experiments, accepted ADRs and H1–H9 gates |
+| Claude Code, Codex, Cursor, OpenCode, Aider and OpenHands | controlled alternatives for context, capability-projected tools/events, exploration branches, typed sandbox failure feedback, advisory contextual risk, worktrees, recovery, subagents, codecs, telemetry and evaluation | each mechanism enters only through its named RS experiment, accepted ADRs and H1–H9 gates; `SandboxFailureResult` and `ContextualRiskAdvisor` outputs never grant capability or override Core |
+| Atoms teams, Race Mode and running-app review | H8 `ControlledMultiRouteRace` experiment and H9 visual/team EvidenceBundle projection | routes are risk-triggered, isolated and independently contract-scored; model vote/rank/appearance cannot select acceptance; deployment/SEO/ads/growth remain outside H1–H9 |
 
 Session trees/transcripts are operational projections; compaction summaries are disposable caches; LSP/index results are observations; worktrees are only filesystem isolation; checkpoints do not recover external effects; telemetry is not evidence; provider catalogs do not prove portability. Core rehydrates mandatory context and owns all recovery truth.
+
+Hermes may schedule only a Core-eligible `SOPGraph` node with its projected tool catalogue, inputs, capability ceiling, budget and stop rules. A denial returns typed `SandboxFailureResult` evidence; an identical action cannot repeat without a changed hypothesis, capability, plan or authority. The optional `ContextualRiskAdvisor` remains an H5/H6 experiment outside deterministic enforcement. H8 route races and H9 visual/team views consume Hermes events/evidence but never become Hermes acceptance authority.
 
 ## Candidate V0 relationship
 

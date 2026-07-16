@@ -10,7 +10,7 @@ The canonical branch currently contains the architecture/master-plan package. No
 wepld/
   README.md
   docs/
-    01_Project_Vision.md … 34_Harness_Evaluation_Protocol.md
+    01_Project_Vision.md … 35_Reference_Systems_and_Competitive_Architecture.md
     diagrams/
     adr/                    # Proposed architecture decisions
 ~~~
@@ -21,7 +21,7 @@ Statements such as “implementation has not started” should therefore be read
 
 Draft PR #1 is open, Draft, unmerged, and unratified. It contains a candidate Rust Build Feature baseline with crates for contracts, ledger, artifacts, workspace, WWP, providers, runtime, specification, Hermes, and CLI, plus fixtures and branch-local v2/implementation documents. That layout is reference evidence, not the repository’s canonical structure and not authorization to merge.
 
-If the Build Feature Baseline Gate accepts the candidate, the accepted head and its reconciled documentation establish the starting implementation layout. If it is returned or replaced, this plan must not assume those crates exist.
+The Build Feature Baseline Gate records `Accepted`, `Returned`, `Deferred`, or `Rejected`, then becomes **Resolved** only when an H1 prerequisite path is explicit. If the candidate contracts are accepted, the accepted head and reconciled documentation establish the starting implementation layout. Otherwise, an approved replacement-foundation plan must cover every missing prerequisite and this plan must not assume the candidate crates exist. A non-accept disposition is not a permanent H1 blocker.
 
 ### 3. Future target after gated authorization
 
@@ -33,26 +33,26 @@ wepld/
     studio/                    # H9 presentation over Core APIs
     desktop-shell/             # packaging/lifecycle only, if separately selected
   crates/
-    contracts/                 # versioned domain, wire, evidence, and validation schemas
+    contracts/                 # domain, SOP/role/tool, context, evidence, wire schemas
     core/                      # composition root, commands, policy, durable transitions
     specification/             # H1 charter/spec/outcome/change domain
-    delivery/                  # H2 plans, phases, Kanban, WIP, task packets
+    delivery/                  # H2 qualification, SOPGraph design, plans and flow
     ledger/                    # transactional state + append-only audit facts
-    artifacts/                 # content-addressed evidence and context bodies
+    artifacts/                 # evidence/context plus bounded raw tool-output bodies
     workspace/                 # Git worktrees, snapshots, proposal refs, scope checks
     wwp/                       # replaceable worker protocol
     providers/                 # provider-neutral Brain Gateway adapters
     hermes/                    # first-party WWP runtime only
-    skills/                    # H3 manifests, procedures, routing, conformance
-    hooks/                     # H3 typed lifecycle hook dispatch
-    context/                   # H4 Context Compiler and provenance manifests
-    language-intelligence/     # H4 normalized LSP adapter boundary
-    retrieval/                 # H4 lexical/LSP/structural/semantic ranking
-    loops/                     # H5 bounded loop and escalation policy
-    supervision/               # H6 assignments, handoffs, bounded parallelism
+    skills/                    # H3.1 built-ins/tool catalogs; H3.2 packaging if gated
+    hooks/                     # H3.1 typed built-in lifecycle dispatch
+    context/                   # H4.1 packs, exploration branches and compaction records
+    language-intelligence/     # H4.1 rust-analyzer; H4.2 extra adapters/impact
+    retrieval/                 # H4.1 exact/lexical/Git; H4.2 structural; H4.3 semantic
+    loops/                     # H5 loops, typed sandbox failure and advisor experiment
+    supervision/               # H6 authorized role subscriptions and bounded parallelism
     memory/                    # H7 typed memory and Memory Judge
-    evaluation/                # H8 outcome-equivalence and ablation harness
-    projections/               # Timeline/Mission Control/read models, rebuildable
+    evaluation/                # pre-H1 spine; H8 equivalence/certification/route races
+    projections/               # H9 evidence-linked execution/team views, rebuildable
     studio-api/                # shared command/query/subscription semantics
   fixtures/
     contracts/
@@ -79,13 +79,16 @@ wepld/
 - Contracts and pure validation depend on no product implementation.
 - WePLD Core is the sole durable mission/specification/plan/phase/task/policy/approval/budget/completion authority.
 - Domain modules do not import UI, provider SDKs, Git implementations, databases, or OS adapters.
-- Brains return structured proposals; they do not execute or approve.
+- Brains return `PlanProposal` records; deterministic compilation produces candidates, `PlanAssessment` supplies risk-tiered qualification evidence, and only an authenticated Core-recorded `PlanDecision` can create an approved `DeliveryPlan`. A producer cannot approve or serve as the sole acceptance-critical reviewer, and model voting carries no authority.
 - Hermes and other workers depend on WWP and granted task/effect contracts, never on Core persistence internals.
-- Skill, hook, LSP, retrieval, memory, and subagent components cannot mint capabilities or mutate higher-authority artifacts.
+- `SOPGraph` and `AuthorizedRoleSubscriptionGraph` are typed Core projections: roles subscribe only to authorized artifact/event classes, cannot self-subscribe, and do not gain a free shared environment or peer-chat authority.
+- The Tool Schema Compiler exposes only a version-bound `CapabilityProjectedToolCatalog`. Calls still re-enter the Effect Firewall; `BoundedToolResult`, content-addressed `ToolOutputArtifact`, and typed `SandboxFailureResult` carry classification, truncation and provenance without granting a retry or new capability.
+- `MissionExplorationBranch` is non-authoritative until an explicit promotion decision; `CompactionRecord` preserves source ranges, omissions, mandatory pinned authority and rehydration. H7 Memory Judge policy governs any retained learning.
+- Skill, hook, LSP, retrieval, compaction, risk-advisor, memory, route-race, and subagent components cannot mint capabilities or mutate higher-authority artifacts. `ContextualRiskAdvisor` remains advisory/experimental, and `ControlledMultiRouteRace` remains an H8 isolated/read-only controlled treatment until accepted evidence says otherwise.
 - Studio, CLI, MCP, and APIs use the same Core command/query/subscription semantics; presentation code owns no workflow state.
 - Adapters depend inward on published ports and may not become cross-domain utility dumping grounds.
 - Large/untrusted bodies remain classified artifacts; ledger facts carry minimal references and provenance.
-- Test/evaluation fixtures are first-class, versioned artifacts and are not copied ad hoc into modules.
+- Test/evaluation fixtures are first-class, versioned artifacts and are not copied ad hoc into modules. The ADR-0024 evaluation spine is operational before H1/H2 and records exact cases, arms, manifests, runs, observations, deviations, and results for every H milestone; ADR-0025 H8 certification consumes that history.
 
 ## Ownership and review
 
@@ -95,17 +98,17 @@ wepld/
 | Specification/outcome/change semantics | product architecture | Core + quality + security |
 | Plans/phases/Kanban/WIP | delivery-method owner | product + Core + quality |
 | Policy/effect/sandbox boundaries | security | Security + Core + platform |
-| Hermes/WWP/skills/hooks/subagents | runtime owner | Core + security + evaluation |
-| Context/LSP/retrieval | intelligence owner | Core + security + evaluation |
+| Hermes/WWP/skills/hooks/tool projection/subagents | runtime owner | Core + security + evaluation |
+| Context/LSP/retrieval/exploration/compaction | intelligence owner | Core + security + evaluation |
 | Memory and Memory Judge | knowledge owner | product + security + quality |
-| Outcome equivalence/evaluation | evaluation owner | product + quality + security |
-| Product surfaces | product/UX | accessibility + Core contract owner |
+| Outcome equivalence/evaluation/route races | evaluation owner | product + quality + security |
+| Product surfaces and visual execution/team views | product/UX | accessibility + Core contract owner + quality |
 | Release/tooling | release manager | security + platform owner |
 
 ## ADR and documentation conventions
 
 Architecture Decision Records use `docs/adr/ADR-NNNN-kebab-slug.md` and include status, date, owner, review trigger, context, decision, alternatives/reason, consequences, validation, and migration impact. Implementation-only decisions may use the repository’s IADR convention after an implementation baseline exists.
 
-ADR-0015 through ADR-0024 in this planning package are **Proposed**. Their numbering avoids collision with Draft PR #1’s candidate ADR-0001 through ADR-0014; it does not ratify those unmerged ADRs. No dependent Hermes implementation begins until the relevant Proposed ADR is accepted and the preceding milestone gate closes.
+ADR-0015 through ADR-0025 in this planning package are **Proposed**. Their numbering avoids collision with Draft PR #1’s candidate ADR-0001 through ADR-0014; it does not ratify those unmerged ADRs. No dependent Hermes implementation begins until the relevant Proposed ADR is accepted and the preceding milestone gate closes.
 
 See also: [04_Component_Architecture.md](04_Component_Architecture.md), [22_Milestones.md](22_Milestones.md), [25_Development_Guidelines.md](25_Development_Guidelines.md), [26_Testing_Strategy.md](26_Testing_Strategy.md), and [32_Hermes_Engineering_Intelligence_Runtime.md](32_Hermes_Engineering_Intelligence_Runtime.md).

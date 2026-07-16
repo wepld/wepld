@@ -84,7 +84,7 @@
   <header>
     <div class="eyebrow">Target architecture · planning only · candidate V0 remains unmerged</div>
     <h1>Different brains. Same engineering truth.</h1>
-    <p>WePLD supplies the governed engineering method: the user defines the outcome, the Brain Agent proposes the plan, Hermes operates bounded engineering work, Core governs every transition and effect, and evidence decides acceptance.</p>
+    <p>WePLD supplies the governed engineering method: the user defines the outcome, the Brain Agent proposes a plan, deterministic qualification and an authenticated decision make it authoritative, Hermes operates bounded engineering work, Core governs every transition and effect, and evidence decides acceptance.</p>
   </header>
   <nav><div>
     <a href="#context">Business context</a><a href="#flow">Mission flow</a><a href="#pipeline">Engineering loop</a><a href="#architecture">System architecture</a><a href="#features">Capabilities</a><a href="#deployment">Deployment</a><a href="#roadmap">Roadmap</a>
@@ -124,7 +124,7 @@
           <text x="844" y="126" text-anchor="middle" class="label">Hermes + bounded workers</text><text x="844" y="149" text-anchor="middle" class="small">skills · context · loops</text><text x="844" y="166" text-anchor="middle" class="small">task packets · isolated effects</text>
           <rect x="458" y="231" width="264" height="55" rx="13" fill="#eef5f9" stroke="#80a0b8"/>
           <text x="590" y="254" text-anchor="middle" class="label">Evidence &amp; projections</text><text x="590" y="273" text-anchor="middle" class="small">tests · review · security · timeline · Mission Control</text>
-          <text x="196" y="123" class="small">describe</text><text x="444" y="123" class="small">approve spec + plan</text><text x="694" y="123" class="small">bounded packet</text><text x="765" y="244" class="small">evidence / decisions</text>
+          <text x="196" y="123" class="small">describe</text><text x="444" y="123" class="small">spec + PlanDecision</text><text x="694" y="123" class="small">bounded packet</text><text x="765" y="244" class="small">evidence / decisions</text>
         </svg>
       </div>
       <p class="note"><strong>Authority invariant:</strong> governance policy → approved specification → Outcome Contract → delivery plan → phase plan → task packet → tool action. A Brain proposes; Core authorizes; the effect boundary executes and probes; evidence verifies; the user accepts where required.</p>
@@ -141,7 +141,7 @@
           <g>
             <rect x="12" y="75" width="99" height="72" rx="12" fill="#e5f2fb"/><text x="62" y="105" text-anchor="middle" class="label">Describe</text><text x="62" y="124" text-anchor="middle" class="small">outcome</text>
             <rect x="180" y="75" width="103" height="72" rx="12" fill="#efe7fd"/><text x="232" y="105" text-anchor="middle" class="label">Specify</text><text x="232" y="124" text-anchor="middle" class="small">WHAT + evidence</text>
-            <rect x="352" y="75" width="103" height="72" rx="12" fill="#fff0df"/><text x="404" y="105" text-anchor="middle" class="label">Plan</text><text x="404" y="124" text-anchor="middle" class="small">phases + packets</text>
+            <rect x="352" y="75" width="103" height="72" rx="12" fill="#fff0df"/><text x="404" y="105" text-anchor="middle" class="label">Qualify</text><text x="404" y="124" text-anchor="middle" class="small">proposal + decision</text>
             <rect x="524" y="75" width="103" height="72" rx="12" fill="#e4f7eb"/><text x="576" y="105" text-anchor="middle" class="label">Execute</text><text x="576" y="124" text-anchor="middle" class="small">bounded loops</text>
             <rect x="696" y="75" width="103" height="72" rx="12" fill="#e5f2fb"/><text x="748" y="105" text-anchor="middle" class="label">Verify</text><text x="748" y="124" text-anchor="middle" class="small">gates + evidence</text>
             <rect x="868" y="75" width="103" height="72" rx="12" fill="#f5e8ff"/><text x="920" y="105" text-anchor="middle" class="label">Review</text><text x="920" y="124" text-anchor="middle" class="small">accept / return</text>
@@ -163,23 +163,23 @@
           <rect x="20" y="112" width="1050" height="145" rx="16" fill="#f2eaff" stroke="#805ad5" stroke-width="2"/>
           <text x="44" y="144" class="label">Local Core governance control plane</text>
           <g class="small"><rect x="43" y="164" width="160" height="66" rx="10" fill="#fff"/><text x="123" y="191" text-anchor="middle" class="label">Specification</text><text x="123" y="211" text-anchor="middle" class="small">charter · outcome · change</text>
-          <rect x="218" y="164" width="160" height="66" rx="10" fill="#fff"/><text x="298" y="191" text-anchor="middle" class="label">Delivery Control</text><text x="298" y="211" text-anchor="middle" class="small">phases · Kanban · WIP</text>
+          <rect x="218" y="164" width="160" height="66" rx="10" fill="#fff"/><text x="298" y="191" text-anchor="middle" class="label">Delivery Control</text><text x="298" y="211" text-anchor="middle" class="small">plan decision · SOP · WIP</text>
           <rect x="393" y="164" width="160" height="66" rx="10" fill="#fff"/><text x="473" y="191" text-anchor="middle" class="label">Policy &amp; Security</text><text x="473" y="211" text-anchor="middle" class="small">risk · approval · caps</text>
           <rect x="568" y="164" width="160" height="66" rx="10" fill="#fff"/><text x="648" y="191" text-anchor="middle" class="label">Quality</text><text x="648" y="211" text-anchor="middle" class="small">gates · findings</text>
           <rect x="743" y="164" width="140" height="66" rx="10" fill="#fff"/><text x="813" y="191" text-anchor="middle" class="label">Memory Judge</text><text x="813" y="211" text-anchor="middle" class="small">typed learning</text>
-          <rect x="898" y="164" width="145" height="66" rx="10" fill="#fff"/><text x="970" y="191" text-anchor="middle" class="label">Evaluation</text><text x="970" y="211" text-anchor="middle" class="small">equivalence · ablation</text></g>
+          <rect x="898" y="164" width="145" height="66" rx="10" fill="#fff"/><text x="970" y="191" text-anchor="middle" class="label">Evaluation</text><text x="970" y="211" text-anchor="middle" class="small">run spine · certification</text></g>
           <rect x="20" y="275" width="622" height="137" rx="16" fill="#ecf8ef" stroke="#38a169" stroke-width="2"/>
           <text x="44" y="307" class="label">Hermes engineering intelligence plane</text>
-          <rect x="43" y="329" width="175" height="56" rx="10" fill="#fff"/><text x="130" y="353" text-anchor="middle" class="label">Skills + Hooks</text><text x="130" y="371" text-anchor="middle" class="small">procedures · lifecycle</text>
-          <rect x="234" y="329" width="175" height="56" rx="10" fill="#fff"/><text x="321" y="353" text-anchor="middle" class="label">Context + Loops</text><text x="321" y="371" text-anchor="middle" class="small">LSP · RAG · guards</text>
-          <rect x="425" y="329" width="192" height="56" rx="10" fill="#fff"/><text x="521" y="353" text-anchor="middle" class="label">Subagents + Effect Firewall</text><text x="521" y="371" text-anchor="middle" class="small">bounded handoffs · evidence</text>
+          <rect x="43" y="329" width="175" height="56" rx="10" fill="#fff"/><text x="130" y="353" text-anchor="middle" class="label">Skills + Projected Tools</text><text x="130" y="371" text-anchor="middle" class="small">SOP · hooks · exact grants</text>
+          <rect x="234" y="329" width="175" height="56" rx="10" fill="#fff"/><text x="321" y="353" text-anchor="middle" class="label">Context + Loops</text><text x="321" y="371" text-anchor="middle" class="small">branches · compaction · denials</text>
+          <rect x="425" y="329" width="192" height="56" rx="10" fill="#fff"/><text x="521" y="353" text-anchor="middle" class="label">Roles + Effect Firewall</text><text x="521" y="371" text-anchor="middle" class="small">authorized subscriptions · artifacts</text>
           <rect x="663" y="275" width="407" height="137" rx="16" fill="#fff2e5" stroke="#ed8936" stroke-width="2"/>
           <text x="687" y="307" class="label">Reasoning and external adapters</text>
           <rect x="686" y="329" width="174" height="56" rx="10" fill="#fff"/><text x="773" y="353" text-anchor="middle" class="label">Brain Gateway</text><text x="773" y="371" text-anchor="middle" class="small">profiles + routing</text>
           <rect x="876" y="329" width="168" height="56" rx="10" fill="#fff"/><text x="960" y="353" text-anchor="middle" class="label">Integrations</text><text x="960" y="371" text-anchor="middle" class="small">channels + MCP</text>
           <rect x="20" y="430" width="1050" height="100" rx="16" fill="#f0f4f8" stroke="#7991a8" stroke-width="2"/>
           <text x="44" y="462" class="label">Data and observability plane</text>
-          <text x="44" y="486" class="small">Durable state + append-only ledger · content-addressed evidence/context · Git/worktrees · derived indexes · traces/metrics/logs</text>
+          <text x="44" y="486" class="small">Durable state + ledger · content-addressed evidence/context/tool output · Git/worktrees · indexes · traces/metrics/logs</text>
           <text x="44" y="508" class="small">The control plane is the sole mission/task writer. Large bodies remain artifacts; source history remains in Git.</text>
         </svg>
       </div>
@@ -190,11 +190,11 @@
       <p class="lede">A governed delivery method and one authority model, reinforced by Hermes Intelligence, evidence, typed memory, and controlled evaluation.</p>
       <div class="grid">
         <article class="card span-4"><div class="kicker blue">Specification</div><h3>Approved engineering truth</h3><p>Charter, requirements, exclusions, assumptions, risks, Outcome Contract, evidence bindings, versions, and controlled change.</p><span class="tag blue">WHAT is immutable when approved</span></article>
-        <article class="card span-4"><div class="kicker purple">Delivery</div><h3>Phases, Kanban, and task packets</h3><p>Brain-proposed plans become Core-validated phases, WIP, budgets, scopes, decisions, and evidence requirements.</p><span class="tag purple">Core owns flow truth</span></article>
-        <article class="card span-4"><div class="kicker green">Hermes</div><h3>Bounded engineering intelligence</h3><p>Skills, hooks, context, LSP/RAG, loops, subagents, and self-review operate within task/effect authority.</p><span class="tag green">No durable governance authority</span></article>
+        <article class="card span-4"><div class="kicker purple">Delivery</div><h3>Qualified plans, SOPs, and task packets</h3><p>A PlanProposal is compiled, assessed, independently reviewed by risk tier, and made authoritative only by an authenticated PlanDecision. Typed SOP and role graphs remain Core projections.</p><span class="tag purple">Model voting has no authority</span></article>
+        <article class="card span-4"><div class="kicker green">Hermes</div><h3>Bounded engineering intelligence</h3><p>Skills, projected tools, typed role subscriptions, loops, and self-review operate within exact task/effect authority—without self-subscription, free peer chat, or a shared writable environment.</p><span class="tag green">No shadow control plane</span></article>
         <article class="card span-4"><div class="kicker orange">Brains</div><h3>Replaceable reasoning</h3><p>Provider-neutral planning and building may differ in strategy, cost, time, context, retries, and escalation.</p><span class="tag orange">Same final acceptance bar</span></article>
-        <article class="card span-4"><div class="kicker teal">Memory</div><h3>Typed, judged learning</h3><p>Working, Mission, Engineering, Skill, Provider/Model Performance, and Governance Memory retain authority and provenance.</p><span class="tag blue">Not prompt history</span></article>
-        <article class="card span-4"><div class="kicker red">Effects + Evidence</div><h3>Non-bypassable acceptance</h3><p>Effects are classified and probed; deterministic gates and independent review—not model confidence—establish completion.</p><span class="tag red">Hard gates remain</span></article>
+        <article class="card span-4"><div class="kicker teal">Context + Memory</div><h3>Traceable exploration and compaction</h3><p>Mission Exploration Branches stay non-authoritative; Compaction Records preserve sources and omissions; the Memory Judge controls durable learning.</p><span class="tag blue">Rehydrate mandatory truth</span></article>
+        <article class="card span-4"><div class="kicker red">Effects + Evidence</div><h3>Projected, bounded, and reviewable</h3><p>Granted capabilities compile tool schemas; outputs become bounded results plus classified artifacts; sandbox denials are typed; every completion view resolves to evidence.</p><span class="tag red">Hard gates remain</span></article>
       </div>
     </section>
 
@@ -218,15 +218,15 @@
       <h2>Trust-first roadmap</h2>
       <p class="lede">Historical M0–M7 remains lineage. Current delivery uses a separately named baseline gate and H1–H9 so a polished shell cannot outrun runtime truth.</p>
       <div class="timeline">
-        <div class="step"><h3>Build Feature Baseline Gate</h3><p>Independently accept, return, defer, or reject Draft PR #1 as a narrow prerequisite. This plan neither ratifies nor authorizes its merge.</p></div>
-        <div class="step"><h3>H1–H2 — Governed truth and delivery control</h3><p>Approve specification/Outcome Contract, then validate and approve Brain-proposed phases, Kanban/WIP, task packets, and controlled change.</p></div>
-        <div class="step"><h3>H3–H4 — Hermes kernel and engineering context</h3><p>Prove executable skills, typed hooks, Context Compiler, limited LSP adapters, and authority-ranked hybrid retrieval.</p></div>
-        <div class="step"><h3>H5–H6 — Controlled loops and bounded subagents</h3><p>Detect non-progress, replan/escalate/stop under budgets, supervise structured handoffs, isolate writes, and independently review.</p></div>
-        <div class="step"><h3>H7–H8 — Typed memory and outcome convergence</h3><p>Judge evidence-derived learning and certify supported profiles against one unchanged Outcome Contract with controlled ablations.</p></div>
-        <div class="step"><h3>H9 — Product surfaces after runtime truth</h3><p>Mission Control, Spec/Plan Review, Kanban, Decisions, Risks, Evidence, Change Requests, and Completion Review over one Core workflow.</p></div>
+        <div class="step"><h3>Build Feature Baseline Gate</h3><p>Record Draft PR #1 as accepted, returned, deferred, or rejected, then resolve the gate through accepted prerequisite contracts or an approved replacement-foundation plan. No disposition ratifies or authorizes its merge, and non-acceptance cannot deadlock H1.</p></div>
+        <div class="step"><h3>Early spine + H1–H2</h3><p>Before H1/H2, establish exact-provenance runs and milestone baselines. Qualify PlanProposal → candidate → PlanAssessment → risk-tier review → PlanDecision; design typed SOP and authorized role-subscription graphs.</p></div>
+        <div class="step"><h3>H3.1/H3.2 + H4.1/H4.2/H4.3</h3><p>Prove built-in skills/hooks, capability-projected tools, bounded results and SOP execution before optional packaging. Prove exploration/compaction plus reproducible context before structural/semantic extensions.</p></div>
+        <div class="step"><h3>H5–H6 — Controlled loops and roles</h3><p>Use typed sandbox denials, test an advisory-only risk advisor, replan/escalate/stop under budgets, and supervise authorized role subscriptions, structured handoffs, isolated writes, and review.</p></div>
+        <div class="step"><h3>H7–H8 — Typed memory and outcome convergence</h3><p>Judge branch/compaction-derived learning. H8 consumes accumulated runs, then tests controlled cross-model, repeated/randomized, ablation, multi-route-race, independent-scoring, and certification evidence.</p></div>
+        <div class="step"><h3>H9 — Product surfaces after runtime truth</h3><p>Mission Control and Engineering-Team UX visualize execution, routes, artifacts and Evidence Bundles over one Core workflow; views never become authority or acceptance evidence themselves.</p></div>
       </div>
     </section>
   </main>
-  <footer><div>WePLD Governed Delivery &amp; Hermes Intelligence Plan · Planning artifact only. Refer to documents 21–34 and Proposed ADR-0015–ADR-0024 for gates, contracts, risks, and evaluation. No implementation or PR merge is authorized.</div></footer>
+  <footer><div>WePLD Governed Delivery &amp; Hermes Intelligence Plan · Draft PR #2 planning artifact only. Refer to documents 21–35 and Proposed ADR-0015–ADR-0025 for gates, contracts, risks, and evaluation. No implementation, ADR acceptance, or PR merge is authorized.</div></footer>
 </body>
 </html>

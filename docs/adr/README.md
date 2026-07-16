@@ -28,6 +28,9 @@ The standard sections are `Context`, `Decision`, `Reason`, `Benefits`, `Trade-of
 | [0021](ADR-0021-bounded-subagents-structured-handoffs.md) | Bounded subagents and structured handoffs | H6 |
 | [0022](ADR-0022-controlled-loop-escalation.md) | Controlled loop and escalation semantics | H5 |
 | [0023](ADR-0023-model-independent-outcome-equivalence.md) | Model-independent outcome equivalence | H8 |
-| [0024](ADR-0024-harness-evaluation-provider-certification.md) | Harness evaluation and provider certification | H8 |
+| [0024](ADR-0024-evaluation-spine-run-provenance.md) | Evaluation spine and exact run provenance | Before H1/H2 |
+| [0025](ADR-0025-model-profile-certification.md) | Controlled model/profile certification | H8 |
 
 Each ADR must be reviewed against canonical `main`, the final disposition of Draft PR #1, affected risks, threat models, contracts, and milestone evidence. No ADR authorizes implementation or a PR merge by itself.
+
+History note: the earlier unaccepted `ADR-0024-harness-evaluation-provider-certification.md` combined early evidence capture with H8 certification. This remediation replaces that Proposed record with independently reviewable ADR-0024 (evaluation spine before H1/H2) and ADR-0025 (model/profile certification at H8). No Accepted decision was superseded.

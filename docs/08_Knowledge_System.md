@@ -47,22 +47,22 @@ The Memory Judge is a governed Core/Knowledge service, not a model with unilater
 4. Detect contradiction, overlap, supersession, security exposure, and applicability boundaries.
 5. Score confidence and freshness, assign review/expiry dates, and request human/security review where policy requires it.
 6. Approve, reject, defer, quarantine, or supersede the candidate through a durable decision.
-7. Build full-text, metadata, structural, graph, and optional semantic indexes asynchronously.
+7. Build exact metadata, full-text, Git and typed-link indexes asynchronously for H4.1; add structural indexes only after H4.2 admission and semantic indexes only after H4.3 ablation/admission.
 
 Indexing is idempotent. Embedding or extraction failure cannot erase the source artifact, mission history, or decision. Successful mission work never silently becomes shared memory.
 
 ## Hybrid code retrieval
 
-Authorized retrieval combines complementary sources rather than treating semantic vectors as truth:
+Authorized retrieval combines complementary sources in admitted stages rather than treating optional signals or semantic vectors as truth:
 
 1. exact Core governance records and governing artifact versions;
 2. exact TaskPacket, current phase/task state, and evidence requirements;
 3. repository/path and lexical retrieval;
-4. LSP symbols, definitions, references, implementations, call hierarchy, diagnostics, and affected tests;
-5. structural AST/tree-sitter relationships;
+4. H4.1's single read-only `rust-analyzer` adapter for admitted symbols, definitions, references, implementations, call hierarchy, and diagnostics;
+5. H4.2 structural AST/tree-sitter relationships, affected-file/test mapping, and any additional LSP adapter only after independent conformance;
 6. Git history, ADRs, specifications, evidence, and typed relations;
 7. scoped verified Engineering, Skill, and performance memory;
-8. semantic similarity as a recall aid, always provenance-labelled.
+8. H4.3 semantic similarity as a recall aid, always provenance-labelled and disabled until its controlled ablation passes.
 
 Ranking accounts for authority, exactness, scope, task relevance, freshness, trust, and token cost. Semantic similarity cannot outrank exact policy, an approved artifact, structural evidence, or current diagnostics.
 
@@ -90,7 +90,7 @@ Embeddings, extracts, summaries, caches, and provider copies are derived data su
 
 ## V1 scope and evolution
 
-V1 uses SQLite metadata, a content-addressed local artifact store, full-text search, explicit typed links, repository/LSP indexes, and an optional local semantic index. It first proves Working, Mission, Governance, and narrowly scoped Engineering Memory. Cross-project inference, organization-wide memory, graph databases, cloud sync, and automatic shared-skill learning are deferred until evidence and policy justify them.
+V1 first uses SQLite metadata, a content-addressed local artifact store, exact/full-text/Git retrieval, explicit typed links, reproducible Context Pack manifests, and one read-only `rust-analyzer` adapter at H4.1. Structural/tree-sitter impact indexes and additional LSP adapters are conditional H4.2 additions. A local semantic index remains absent/disabled until H4.3 controlled ablation proves practical benefit without unacceptable authority, security, freshness, token, latency, or cost harm. Working, Mission, Governance, and narrowly scoped Engineering Memory are proved before cross-project inference, organization-wide memory, graph databases, cloud sync, or automatic shared-skill learning.
 
 Cross-device replication, when introduced, replicates governed events and hashed blobs. CRDTs may support collaborative document-like artifacts, never mission, approval, budget, phase, task, effect, or completion truth.
 

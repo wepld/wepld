@@ -15,6 +15,8 @@ Hermes supervises a fixed, extensible set of specialized subagent roles. Each re
 
 Communication is `Subagent → structured finding/artifact/action proposal → Hermes → Core record when durable`. There is no peer swarm channel. Read-only research may run in bounded parallel; writable work uses isolated worktrees and conflict-controlled or proven-disjoint scopes. Subagents cannot approve plans, effects, exceptions, gates, or completion.
 
+Each role receives inputs only through Core-validated `SOPGraph` `InputSubscription` edges derived from the approved assignment. Builders, reviewers, testers, security agents, and explorers receive typed upstream artifacts relevant to their objective and classification. A role cannot add subscriptions, observe a free shared environment, broadcast to peers, or establish free agent-to-agent chat. Findings return through typed `OutputContract` edges and retain provenance.
+
 Independent review excludes builder rationalization by default and uses separate attempts/context plus risk-proportionate profile independence.
 
 ## Reason
@@ -37,6 +39,6 @@ The architecture needs specialized judgment and selective parallelism without de
 
 ## Migration
 
-H6 evidence must prove bounded read-only parallelism; one-writer and conflict isolation; cancellation, timeout, and loss handling; structured findings; context separation; contradictory-review escalation; no peer side channel; and denial of subagent approval or completion attempts.
+H6 evidence must prove bounded read-only parallelism; one-writer and conflict isolation; cancellation, timeout, and loss handling; structured findings; context separation; deterministic authorized-subscription projection and revocation; denial of self-subscription, shared-environment observation, peer broadcast, and free chat; contradictory-review escalation; and denial of subagent approval or completion attempts. RS-21/RS-22 admission requires zero authority-bearing input leakage on adversarial fixtures.
 
 Draft PR #1's child-process worker protocol, attempt budgets, worktrees, and artifacts are candidate substrate. Its single V0 Hermes worker and tests do not establish a Subagent Supervisor or independent review chain, and this ADR does not authorize that expansion.

@@ -14,7 +14,7 @@ This preserves local privacy and recovery while allowing explicit external model
 | --- | --- | --- |
 | Product surfaces | Describe outcomes, review specifications/plans, show Kanban/evidence, and collect decisions | Authenticated commands and projections only |
 | Core control plane | Govern specifications, plans, phases, tasks, policy, approvals, capabilities, budgets, events, completion, and recovery | Sole durable workflow and authorization authority |
-| Brain Agent | Clarify, architect, analyze risk, propose DeliveryPlans/PhasePlans, and replan | Structured proposals only; never approval or effects |
+| Brain Agent | Clarify, architect, analyze risk, emit `PlanProposal`/`PhasePlan` proposals, and replan | Structured proposals only; never compilation, assessment, approval, or effects authority |
 | Hermes Engineering Intelligence Runtime | Compile context, route skills/models/subagents, run bounded loops, and supervise evidence production | Bounded operational state only; never governance truth |
 | Brain Gateway | Normalize and route replaceable brain and builder model calls | Emits invocation evidence through Core; no tools or domain authority |
 | Worker and Tool System | Host builders/subagents in isolation and execute mediated actions | Workers propose; tool boundaries execute only Core-authorized effects |
@@ -86,7 +86,7 @@ Each lower artifact cites the exact higher versions. A mismatch is an invalid pl
 1. A product surface records a `MissionCharter` from the user's described outcome.
 2. The Brain Agent proposes clarification questions and a versioned `EngineeringSpecification` defining WHAT success means, plus an `OutcomeContract` binding acceptance to verification and evidence.
 3. Core validates the proposal; an authorized user reviews and approves it. An approved version is immutable.
-4. The Brain Agent proposes a traceable `DeliveryPlan` and tailored phase graph. Core validates it; the required authority approves it.
+4. The Brain Agent emits a traceable `PlanProposal` and tailored phase graph. A deterministic Plan Compiler normalizes it into a candidate `DeliveryPlan`; structural and policy/risk-tier assessment plus required independent reviews produce an exact `PlanAssessment`; only an authenticated `PlanDecision` can approve that candidate. The producing Brain cannot approve or provide the only acceptance-critical review.
 5. Before a phase starts, an approved `PhasePlan` declares entry/exit conditions, WIP, budget, risks, skills, tools, writable/forbidden scope, tasks, evidence, and escalation conditions.
 6. Core issues bounded `TaskPackets`. Hermes compiles cited context and supervises builders/subagents. Tasks flow through Core-enforced Kanban states.
 7. Builders propose typed actions. Core applies policy, capability, budget, and approval checks; a tool boundary executes and records the actual result.

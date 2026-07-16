@@ -66,7 +66,10 @@ flowchart TB
 | `MissionCharter` | User or authenticated product surface | User / designated authority where required | Core; versions the desired outcome and envelope |
 | `EngineeringSpecification` | Brain Agent, incorporating user clarification | User / designated authority | Core; approved version is immutable |
 | `OutcomeContract` | Brain Agent with Quality/Security input | Same authority as its specification unless policy adds approvers | Core; binds acceptance criteria to verification and evidence |
-| `DeliveryPlan` | Brain Agent | User / designated authority under policy | Core; traces every phase to approved requirements |
+| `PlanProposal` | Brain Agent or authorized architect | None; proposal is never approval | Core; records exact proposal/context provenance for deterministic compilation |
+| candidate `DeliveryPlan` | Deterministic Plan Compiler from one exact `PlanProposal` | None until assessment and decision | Core; normalized candidate traces every phase to approved requirements |
+| `PlanAssessment` | Deterministic validators create the initial assessment; independent reviewers create separate immutable records; Core finalizes the Ready assessment | Evidence only; cannot approve | Core; binds exact candidate, policy/risk tier, review record IDs/versions/hashes, blockers, readiness, and independence |
+| `PlanDecision` / approved `DeliveryPlan` | Authorized plan-decision principal over one exact candidate/assessment/review set | User / designated authority under policy | Core; immutable authenticated decision, with model votes carrying no authority |
 | `PhasePlan` | Brain Agent or controlled replan | Designated authority under policy | Core; declares gates, WIP, budget, capabilities, scope, and evidence |
 | `TaskPacket` | Hermes derives and proposes it from an approved PhasePlan | Core validates and issues; no worker approval | Core; must fit one approved PhasePlan |
 | `ToolAction` | Builder, subagent, or Hermes runtime | Core policy/capability/approval decision | Core records intent; tool boundary executes |

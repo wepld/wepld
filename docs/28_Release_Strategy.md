@@ -28,7 +28,7 @@ An approved specification is never migrated by silent editing. Upgrades preserve
 ## Release readiness gates
 
 - approved scope and changelog with linked mission, ADR, risk review, and milestone evidence;
-- accepted Build Feature Baseline Gate and every required H1–H9 gate/ADR for included capability;
+- resolved Build Feature Baseline Gate—through retained accepted prerequisites or an approved replacement-foundation plan—and every required H1–H9 gate/ADR for included capability;
 - reproducible build, signing, SBOM/provenance, dependency/license/advisory review;
 - unit/property/contract/integration/E2E/evaluation/security/accessibility/performance evidence at required thresholds;
 - migration, downgrade, backup/restore, derived-index rebuild, and interrupted-upgrade scenarios;
