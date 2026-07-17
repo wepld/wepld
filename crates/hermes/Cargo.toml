@@ -1,0 +1,32 @@
+[package]
+name = "wepld-hermes"
+description = "Hermes — WePLD's flagship WWP worker runtime (skeleton). Stateless; owns execution, never persistence."
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "hermes"
+path = "src/main.rs"
+
+# BOUNDARY RULE (IMPL-02 #3): wwp + contracts ONLY. Any further dependency
+# here kills worker-runtime replaceability and must fail review.
+[dependencies]
+wepld-wwp = { path = "../wwp" }
+wepld-contracts = { path = "../contracts" }
+serde_json.workspace = true
+
+# DOCUMENTED SECURITY EXCEPTION to the boundary rule: capability-safe, no-follow
+# worktree writes require openat/O_NOFOLLOW syscalls that std does not expose.
+# rustix is a thin, audited syscall shim (already in the lock via tempfile); it
+# adds no WePLD-internal coupling and does not harm runtime replaceability.
+# Unix only — other platforms fail closed (see write_confined).
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1", features = ["fs"] }
+
+[dev-dependencies]
+wepld-runtime = { path = "../runtime" }
+wepld-providers = { path = "../providers" }
+wepld-artifacts = { path = "../artifacts" }
+wepld-specification = { path = "../specification" }
+tempfile = "3"
+rusqlite = { version = "0.40.1", features = ["bundled"] }

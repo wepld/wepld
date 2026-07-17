@@ -1,0 +1,14 @@
+[package]
+name = "wepld-workspace"
+description = "WePLD Git integration: isolated worktrees, hidden snapshot refs (ADR-0013), diffs, scope checks"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+thiserror = "2"
+# Race-safe, self-cleaning temporary directory for the snapshot index (created
+# with O_EXCL-style semantics; removed on drop, including on error paths).
+tempfile = "3"
+
+[dev-dependencies]
+tempfile = "3"

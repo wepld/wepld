@@ -1,0 +1,12 @@
+[package]
+name = "wepld-artifacts"
+description = "WePLD content-addressed artifact store: write-once bodies, hash-verified reads, tombstones (v2-07 §7)"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+sha2 = "0.11"
+thiserror = "2"
+
+[dev-dependencies]
+tempfile = "3"

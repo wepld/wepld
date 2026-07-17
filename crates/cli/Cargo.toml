@@ -1,0 +1,18 @@
+[package]
+name = "wepld-cli"
+description = "WePLD CLI — the founder's daily driver and the M0 demo surface"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "wepld"
+path = "src/main.rs"
+
+[dependencies]
+wepld-contracts = { path = "../contracts" }
+wepld-runtime = { path = "../runtime" }
+wepld-providers = { path = "../providers" }
+wepld-artifacts = { path = "../artifacts" }
+wepld-specification = { path = "../specification" }
+serde_json.workspace = true
+clap = { version = "4", features = ["derive"] }

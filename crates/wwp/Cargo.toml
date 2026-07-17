@@ -1,0 +1,11 @@
+[package]
+name = "wepld-wwp"
+description = "WePLD Worker Protocol: JSON-RPC 2.0 framing over stdio, host-side spawn/watchdog, worker-side client (v2-03, v2-07 §2)"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+wepld-contracts = { path = "../contracts" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror = "2"

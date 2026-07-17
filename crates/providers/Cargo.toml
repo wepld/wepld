@@ -1,0 +1,19 @@
+[package]
+name = "wepld-providers"
+description = "WePLD Provider Gateway (the architecture's Brain Gateway role): routing, schema validation, fixture record/replay (v2-03, IADR-0002/0007)"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+wepld-contracts = { path = "../contracts" }
+serde.workspace = true
+serde_json.workspace = true
+sha2 = "0.11"
+thiserror = "2"
+ureq = { version = "3.3.0", default-features = false, features = ["json"] }
+# Standards-compliant URL parsing so provider endpoints cannot be spoofed via
+# userinfo/host confusion (e.g. http://127.0.0.1@evil.example).
+url = "2"
+
+[dev-dependencies]
+tempfile = "3"
