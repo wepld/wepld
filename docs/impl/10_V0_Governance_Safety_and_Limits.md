@@ -93,6 +93,19 @@ DEV caps, enforced by `dev_tier_gate` before any worker runs:
   by an authenticated actor, recorded durably (repo, actor, tier, warning). No
   silent or default override exists.
 
+**The override is ledger-atomic (durable authorization).** Activation is not a
+mutable in-memory flag that could diverge from the record: the durable override
+fact is committed to the ledger **first**, and the in-memory authorization is set
+**only after** that commit succeeds. If the transaction fails, the live
+authorization state is left unchanged — there is no partial override and no
+"authorized but unrecorded" window. A fault seam (`allow_uncontained_repo_at(..,
+fail_ledger: true)`) proves it: a forced storage failure leaves the repository
+denied and writes no override fact. On `Core::open`, `restore_dev_override`
+reconstructs the latest recorded override from the ledger (only for an
+authenticated granting actor, with the same canonical-repository match), so an
+override survives a restart exactly as recorded — never broadened, never
+resurrected for an unauthenticated actor.
+
 ## 4. Provider adapter — local-loopback-only in this build
 
 The OpenAI-compatible adapter is **local-loopback-only**. `OpenAiCompatAdapter::new`
@@ -114,34 +127,69 @@ Model- and brief-produced text is **untrusted** and never becomes path or ref
 *syntax*. The central validation contracts (`wepld_contracts::validation`) are
 enforced at the Core boundary:
 
-- **Edit paths** — the builder worker validates every edit path into a
-  `WorkspaceRelativePath` (rejects absolute paths, drive/UNC prefixes, and every
-  `..` component by inspecting `std::path::Component`, so `release..notes.txt` is
-  fine while `a/../../x` is not) and writes **symlink-safe**: no existing parent
-  or final component may be a symlink, so a pre-existing link cannot redirect a
-  write outside the worktree. Workspace confinement is enforced by validated
-  paths and symlink-safe writes — not by string inspection.
+- **Edit paths — validated *and* written through a no-follow capability
+  boundary.** Every edit path is first parsed into a `WorkspaceRelativePath`
+  (rejects absolute paths, drive/UNC prefixes, and every `..` component by
+  inspecting `std::path::Component`, so `release..notes.txt` is fine while
+  `a/../../x` is not). The write itself is **handle-relative and no-follow**, not
+  a metadata check followed by a path open: the worktree root is opened once as a
+  directory capability, each component is opened `openat` with
+  `O_NOFOLLOW | O_DIRECTORY` (a symlink component fails with `ELOOP`/`ENOTDIR`),
+  missing directories are `mkdirat`'d beneath the held handle, and the final file
+  is opened `O_NOFOLLOW | O_CREAT | O_TRUNC` and `fstat`-checked to be a **regular
+  file** (FIFO, socket, device, or symlink target is refused). Because every open
+  is relative to a directory handle the worker already holds, a concurrent path
+  swap cannot redirect the final write out of the worktree — this is a real
+  capability boundary (`rustix` `openat`), not a check-then-path-open. It is
+  Unix-verified; non-Unix builds **fail closed** (the write is refused) rather
+  than fall back to an unverified path-based implementation.
 - **Identifiers are data** — slugs (`[a-z0-9]+(-[a-z0-9]+)*`), mission/task/
   attempt ids (`[A-Za-z0-9][A-Za-z0-9_-]*`), and base refs are validated before
   they seed a filesystem path or a Git ref. An invalid identifier is a
   deterministic *recorded command rejection*, never a panic or a later Git error.
 - **Plan output is validated semantically** — after deserializing a model plan,
-  the Core checks bounded task count, valid + unique task ids, non-empty titles,
-  and acceptance-criterion references *before* the plan is approved, stored,
-  materialized into task rows, or given a worktree.
+  the Core checks bounded task count, valid + unique task ids, non-empty **and
+  length-bounded** titles, bounded and **duplicate-free** `satisfies` lists that
+  resolve to real acceptance-criterion ids, that **every** acceptance criterion
+  is covered by at least one task, and that the **serialized plan size** is
+  bounded — all *before* the plan is approved, stored, materialized into task
+  rows, or given a worktree.
+- **Untrusted payloads are bounded before any effect** — model-produced
+  operational payloads are capped by deterministic limits in
+  `wepld_contracts::validation` (`MAX_EDITS_PER_STEP`, `MAX_BYTES_PER_EDIT`,
+  `MAX_TOTAL_EDIT_BYTES`, `MAX_PLAN_TASKS`, `MAX_TASK_TITLE_BYTES`,
+  `MAX_SATISFIES_PER_TASK`, `MAX_TOTAL_PLAN_BYTES`). An edit **batch is
+  prevalidated in full** — count, per-edit size, overflow-checked aggregate size,
+  and duplicate normalized paths — **before the first write**, so a batch that is
+  valid up to edit *k* and invalid at *k+1* writes **nothing** (no partial
+  application). A plan that violates any bound is a recorded rejection before
+  persistence.
 - **Git defense in depth** — `Workspace::create_worktree` independently refuses
   an unsafe `attempt_id` and proves the destination is a direct child of the
   worktrees root; base refs are resolved to a commit SHA with `--end-of-options`
   (so a value beginning with `-` can never become an option); and every
   generated ref is checked with `git check-ref-format`.
 
-## 6. `Deferred` is not `Rejected`
+## 6. Every completion decision has its own terminal outcome
 
-A recoverable acceptance is preserved as `RecipeOutcome::Deferred { mission_id,
-state, reason }` — the durable decision stands, acceptance is not final, no merge
-occurred, and a retry can still reach `Completed`. It is never flattened into
-`Rejected`. The CLI/demo surfaces this distinctly ("acceptance NOT final —
-retry to recover; no merge occurred").
+The three distinct results of a completion decision are three distinct typed
+outcomes — none is silently collapsed into another:
+
+- **`Deferred { mission_id, state, reason }`** — a recoverable acceptance: the
+  durable decision stands, acceptance is not final, no merge occurred, and a
+  retry can still reach `Completed`. Never flattened into `Rejected`. The
+  CLI/demo surfaces it distinctly ("acceptance NOT final — retry to recover; no
+  merge occurred").
+- **`Returned { mission_id, state, returned_by, reason }`** — an explicit human
+  **returned** the completion (`decide_completion(.., approve=false)`). This is a
+  first-class terminal outcome, **not** an acceptance and **not** a rejection: it
+  records `MissionReturned` (state `returned`) with the real reviewer, and it
+  creates **no** proposal ref and records **no** engineering-experience lesson. A
+  returned mission can never surface as `Completed` — the return path maps the
+  underlying command outcome (Accepted→`Returned`, Rejected→`Rejected`,
+  Deferred→`Deferred`) and never falls through to a completion report.
+- **`Rejected(reason)`** — the decision could not be recorded at all (e.g.
+  unauthenticated approver, wrong mission state). No durable state changed.
 
 ## 7. Fail-closed canonicalization
 

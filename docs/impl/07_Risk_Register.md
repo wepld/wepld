@@ -41,10 +41,19 @@ Owner for every row: the founder. Review: at every milestone tag. Likelihood/Imp
 
 | Risk | L | I | Trigger | Mitigation |
 | --- | --- | --- | --- | --- |
-| **Model edit path escapes the worktree** | M | H | a builder edit uses `..`, an absolute path, or a symlink | edit paths are validated `WorkspaceRelativePath` (Component-based, not substring) and written symlink-safe (no symlink parent/target); a pre-existing link cannot redirect a write outside the worktree ([[10_V0_Governance_Safety_and_Limits]] §5) |
+| **Model edit path escapes the worktree** | M | H | a builder edit uses `..`, an absolute path, a symlink, or a concurrent path swap | edit paths are validated `WorkspaceRelativePath` (Component-based, not substring) **and** written through a handle-relative, no-follow capability boundary (`openat` + `O_NOFOLLOW`/`O_DIRECTORY`, `mkdirat`, `fstat` regular-file check) — not a metadata check plus path open, so a concurrent swap cannot redirect the write; non-Unix fails closed ([[10_V0_Governance_Safety_and_Limits]] §5) |
 | **Untrusted id becomes path/ref syntax** | M | H | a slug/mission/task/base value contains separators, `..`, `@{`, or a leading `-` | central validation contracts reject them as deterministic recorded rejections before persistence; plan output is validated semantically; workspace independently refuses unsafe attempt ids and resolves base refs to a commit with `--end-of-options` |
 | **Recoverable acceptance mistaken for failure** | L | M | a proposal-ref conflict or interrupted acceptance | preserved as `RecipeOutcome::Deferred` (durable decision, not final, no merge) — never flattened to `Rejected`; the CLI surfaces the distinction |
 | **Silent canonicalization fallback** | L | M | a fixtures root or repo cannot be canonicalized | `set_fixtures_root` and `project_fingerprint` fail closed — a failed update never clears/weakens the prior authorization, and an unborn repo yields `NoRootCommit` |
+
+## V0 integrity & resource-safety risks (final remediation)
+
+| Risk | L | I | Trigger | Mitigation |
+| --- | --- | --- | --- | --- |
+| **DEV override authorized but unrecorded (or lost on restart)** | L | H | a storage failure during override activation, or a process restart after a grant | activation is **ledger-atomic**: the override fact commits first and in-memory authorization is set only after commit; a failed transaction leaves authorization unchanged (fault seam proves it); `restore_dev_override` reconstructs the latest recorded override at `Core::open` for the authenticated grantor only ([[10_V0_Governance_Safety_and_Limits]] §3) |
+| **A returned completion silently reported as completed** | L | H | a reviewer declines completion (`approve=false`) | the return path is a first-class `RecipeOutcome::Returned` recording `MissionReturned` — it never falls through to a completion report, creates no proposal ref, and records no lesson; Accepted→Returned, Rejected→Rejected, Deferred→Deferred ([[10_V0_Governance_Safety_and_Limits]] §6) |
+| **Resource exhaustion via oversized model payload** | M | M | a model emits a flood of edits, an enormous file, or a huge plan | deterministic caps (`MAX_EDITS_PER_STEP`, `MAX_BYTES_PER_EDIT`, `MAX_TOTAL_EDIT_BYTES`, `MAX_PLAN_TASKS`, `MAX_TASK_TITLE_BYTES`, `MAX_SATISFIES_PER_TASK`, `MAX_TOTAL_PLAN_BYTES`) reject the payload at the boundary; an edit batch is prevalidated in full before the first write (no partial application); a plan is bounded before persistence ([[10_V0_Governance_Safety_and_Limits]] §5) |
+| **Partial edit application on a rejected batch** | L | M | edit *k* is valid, edit *k+1* escapes or exceeds a bound | the whole batch is prevalidated (count, per-edit + overflow-checked aggregate bytes, duplicate normalized paths) **before any write**, so a batch that fails validation writes nothing |
 
 ## Standing unknowns (tracked, not blocked on)
 
