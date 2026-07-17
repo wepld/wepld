@@ -15,6 +15,14 @@ wepld-wwp = { path = "../wwp" }
 wepld-contracts = { path = "../contracts" }
 serde_json.workspace = true
 
+# DOCUMENTED SECURITY EXCEPTION to the boundary rule: capability-safe, no-follow
+# worktree writes require openat/O_NOFOLLOW syscalls that std does not expose.
+# rustix is a thin, audited syscall shim (already in the lock via tempfile); it
+# adds no WePLD-internal coupling and does not harm runtime replaceability.
+# Unix only — other platforms fail closed (see write_confined).
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1", features = ["fs"] }
+
 [dev-dependencies]
 wepld-runtime = { path = "../runtime" }
 wepld-providers = { path = "../providers" }
