@@ -113,6 +113,17 @@ pub fn run(worker_cmd: Vec<String>) -> Result<(), Box<dyn Error>> {
             println!("  ③ acceptance NOT final ({state}) — {reason}");
             println!("     The decision is recorded; retry to recover. No merge occurred.");
         }
+        // An explicit return is its own terminal outcome — not an acceptance,
+        // not a rejection. No proposal ref was created; no lesson was recorded.
+        RecipeOutcome::Returned {
+            state,
+            returned_by,
+            reason,
+            ..
+        } => {
+            println!("  ③ completion RETURNED by {returned_by} ({state}) — {reason}");
+            println!("     Not accepted: no proposal ref, no lesson. The mission is terminal.");
+        }
         RecipeOutcome::Rejected(reason) => println!("  Could not complete: {reason}"),
         _ => {}
     }

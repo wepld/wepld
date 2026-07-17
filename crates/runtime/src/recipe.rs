@@ -165,6 +165,15 @@ pub enum RecipeOutcome {
     /// The feature reached a terminal reported state (accepted, or executed but
     /// not accepted).
     Completed(Box<BuildFeatureReport>),
+    /// An explicit human **returned** the completion (a distinct terminal
+    /// outcome — not an acceptance, not a rejection). Records `MissionReturned`;
+    /// creates no proposal ref and records no lesson.
+    Returned {
+        mission_id: String,
+        state: String,
+        returned_by: String,
+        reason: String,
+    },
     /// The explicit decision is **durable** but acceptance is **not final**:
     /// recovery or conflict resolution is required (a proposal-ref conflict or an
     /// interrupted acceptance). This is NOT a rejection — no merge occurred, the
@@ -287,7 +296,29 @@ impl Core {
                 other => return Ok(RecipeOutcome::Rejected(format!("{other:?}"))),
             }
         } else {
-            self.return_mission(mission_id, approver, "returned by reviewer")?;
+            // A return is its OWN terminal outcome — never silently Completed.
+            let reason = "returned by reviewer";
+            return match self.return_mission(mission_id, approver, reason)? {
+                CommandOutcome::Accepted { detail } => Ok(RecipeOutcome::Returned {
+                    mission_id: mission_id.to_owned(),
+                    state: detail["state"].as_str().unwrap_or("returned").to_owned(),
+                    returned_by: approver.to_owned(),
+                    reason: reason.to_owned(),
+                }),
+                CommandOutcome::Rejected { reason } => Ok(RecipeOutcome::Rejected(reason)),
+                CommandOutcome::Deferred { reason } => {
+                    let state = self
+                        .mission_row(mission_id)?
+                        .map(|(_, s)| s)
+                        .unwrap_or_default();
+                    Ok(RecipeOutcome::Deferred {
+                        mission_id: mission_id.to_owned(),
+                        state,
+                        reason,
+                    })
+                }
+                other => Ok(RecipeOutcome::Rejected(format!("{other:?}"))),
+            };
         }
         self.completed_report(mission_id, lessons_learned)
     }
