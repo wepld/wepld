@@ -20,6 +20,25 @@ pub const MAX_REF_LEN: usize = 200;
 /// Max worker edit-path length.
 pub const MAX_EDIT_PATH_LEN: usize = 1024;
 
+// ── Resource bounds on untrusted model-produced payloads ───────────────────
+// Conservative, deterministic caps so an oversized or flooding model output is
+// rejected at the boundary before any write or persistence (final remediation).
+
+/// Max edits applied in one builder step.
+pub const MAX_EDITS_PER_STEP: usize = 200;
+/// Max bytes of content in a single edit (1 MiB).
+pub const MAX_BYTES_PER_EDIT: usize = 1 << 20;
+/// Max aggregate bytes across all edits in one step (8 MiB).
+pub const MAX_TOTAL_EDIT_BYTES: usize = 8 << 20;
+/// Max tasks in a single plan.
+pub const MAX_PLAN_TASKS: usize = 64;
+/// Max bytes of a task title.
+pub const MAX_TASK_TITLE_BYTES: usize = 200;
+/// Max acceptance-criterion references per task.
+pub const MAX_SATISFIES_PER_TASK: usize = 32;
+/// Max bytes of a serialized plan document (64 KiB).
+pub const MAX_TOTAL_PLAN_BYTES: usize = 64 << 10;
+
 /// A deterministic validation failure — safe to record as a command rejection.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ValidationError {

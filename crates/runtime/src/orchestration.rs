@@ -10,18 +10,20 @@ use crate::{Core, PhaseOutcome, RuntimeError};
 use wepld_contracts::command::CommandOutcome;
 use wepld_contracts::ledger::{ActorType, AggregateType};
 use wepld_contracts::mission::{MissionBrief, PlanDoc};
-use wepld_contracts::validation::validate_identifier;
+use wepld_contracts::validation::{
+    validate_identifier, MAX_PLAN_TASKS, MAX_SATISFIES_PER_TASK, MAX_TASK_TITLE_BYTES,
+    MAX_TOTAL_PLAN_BYTES,
+};
 use wepld_contracts::vocabulary::EventType;
 use wepld_ledger::NewEntry;
 use wepld_workspace::Workspace;
 
-/// Upper bound on tasks in a single plan (a model plan is untrusted input).
-const MAX_PLAN_TASKS: usize = 64;
-
-/// Semantic validation of a (model-produced) plan at the Core boundary: bounded
-/// task count, every task id valid + unique, non-empty titles, and every
-/// `satisfies` reference resolving to a real acceptance-criterion id. Enforced
-/// before a plan is stored, approved, materialized into task rows, or executed.
+/// Semantic + resource validation of a (model-produced) plan at the Core
+/// boundary: bounded task count and serialized size, every task id valid +
+/// unique, bounded non-empty titles, bounded and duplicate-free `satisfies`
+/// resolving to real acceptance-criterion ids, and **every acceptance criterion
+/// covered by at least one task**. Enforced before a plan is stored, approved,
+/// materialized into task rows, or executed.
 fn validate_plan(plan: &PlanDoc, ac_ids: &[String]) -> Result<(), String> {
     if plan.tasks.is_empty() {
         return Err("plan contains no tasks".to_owned());
@@ -32,24 +34,60 @@ fn validate_plan(plan: &PlanDoc, ac_ids: &[String]) -> Result<(), String> {
             plan.tasks.len()
         ));
     }
-    let mut seen = std::collections::HashSet::new();
+    // Reject an oversized serialized plan before any persistence.
+    let serialized = serde_json::to_vec(plan).map_err(|e| e.to_string())?;
+    if serialized.len() > MAX_TOTAL_PLAN_BYTES {
+        return Err(format!(
+            "serialized plan too large ({} > {MAX_TOTAL_PLAN_BYTES} bytes)",
+            serialized.len()
+        ));
+    }
+    let mut seen_ids = std::collections::HashSet::new();
+    let mut covered: std::collections::HashSet<&str> = std::collections::HashSet::new();
     for t in &plan.tasks {
         if let Err(e) = validate_identifier("task id", &t.id) {
             return Err(format!("invalid task id: {e}"));
         }
-        if !seen.insert(t.id.as_str()) {
+        if !seen_ids.insert(t.id.as_str()) {
             return Err(format!("duplicate task id: {}", t.id));
         }
         if t.title.trim().is_empty() {
             return Err(format!("task {} has an empty title", t.id));
         }
+        if t.title.len() > MAX_TASK_TITLE_BYTES {
+            return Err(format!(
+                "task {} title too long ({} > {MAX_TASK_TITLE_BYTES} bytes)",
+                t.id,
+                t.title.len()
+            ));
+        }
+        if t.satisfies.len() > MAX_SATISFIES_PER_TASK {
+            return Err(format!(
+                "task {} has too many satisfies ({} > {MAX_SATISFIES_PER_TASK})",
+                t.id,
+                t.satisfies.len()
+            ));
+        }
+        let mut seen_ac = std::collections::HashSet::new();
         for ac in &t.satisfies {
+            if !seen_ac.insert(ac.as_str()) {
+                return Err(format!("task {} has a duplicate satisfies {ac:?}", t.id));
+            }
             if !ac_ids.iter().any(|a| a == ac) {
                 return Err(format!(
                     "task {} references unknown acceptance criterion {ac:?}",
                     t.id
                 ));
             }
+            covered.insert(ac.as_str());
+        }
+    }
+    // Coverage: every acceptance criterion must be satisfied by some task.
+    for ac in ac_ids {
+        if !covered.contains(ac.as_str()) {
+            return Err(format!(
+                "acceptance criterion {ac:?} is not covered by any task"
+            ));
         }
     }
     Ok(())
