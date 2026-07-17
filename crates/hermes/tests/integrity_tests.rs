@@ -64,6 +64,14 @@ fn spec() -> SpecificationDocument {
 }
 
 fn write_cassettes(store: &Path, repo: &str) {
+    write_cassettes_with_edits(
+        store,
+        repo,
+        serde_json::json!({ "edits": [ { "path": "src/main.rs", "content": EDITED } ] }),
+    );
+}
+
+fn write_cassettes_with_edits(store: &Path, repo: &str, build_output: serde_json::Value) {
     let doc = spec();
     let cassette = store.join("cassettes/r.jsonl");
     let specify_key = wepld_providers::cassette_key(
@@ -103,13 +111,8 @@ fn write_cassettes(store: &Path, repo: &str) {
         "builder_step.v1",
         "fixture-model",
     );
-    wepld_providers::write_cassette_entry(
-        &cassette,
-        &build_key,
-        &serde_json::json!({ "edits": [ { "path": "src/main.rs", "content": EDITED } ] }),
-        "fixture-model",
-    )
-    .unwrap();
+    wepld_providers::write_cassette_entry(&cassette, &build_key, &build_output, "fixture-model")
+        .unwrap();
 }
 
 /// Drive a mission to `completion_proposed` via the staged recipe API.
@@ -510,6 +513,110 @@ fn an_oversized_serialized_plan_is_rejected_before_persistence() {
     });
     let (core, outcome) = plan_with(store.path(), workdir.path(), &["AC1"], plan);
     assert_plan_rejected(&core, &outcome, "plan too large");
+}
+
+// ── Contract B: a failed edit attempt is contained, never promoted ─────────
+
+/// A builder step whose SECOND edit fails at runtime (its target is a
+/// pre-existing directory — deterministic, no timing race) after the first
+/// edit was written. Proves the full failed-attempt containment lifecycle:
+/// the phase is durably Failed, no snapshot fact exists, the mission never
+/// reaches completion, no proposal ref or lesson can result, the failed
+/// worktree is destroyed, and the failed task is never offered for rerun.
+#[test]
+fn a_mid_batch_runtime_failure_cannot_be_promoted_snapshotted_or_reused() {
+    let workdir = tempfile::tempdir().unwrap();
+    let store = tempfile::tempdir().unwrap();
+    let repo = fixture_repo(workdir.path());
+    let repo_str = repo.to_string_lossy().into_owned();
+    // First edit valid; second edit targets "src" — a directory that exists in
+    // the worktree — so prevalidation passes and execution fails on edit 2.
+    write_cassettes_with_edits(
+        store.path(),
+        &repo_str,
+        serde_json::json!({ "edits": [
+            { "path": "src/main.rs", "content": EDITED },
+            { "path": "src", "content": "cannot-write-a-directory" }
+        ] }),
+    );
+
+    let mut core = Core::open(store.path()).unwrap();
+    core.set_worker_cmd(vec![hermes_bin()]);
+    core.set_fixtures_root(Path::new(&repo_str)).unwrap();
+    assert!(matches!(
+        core.start_build_feature(REQUEST, SLUG, &repo_str, "main", "principal_local")
+            .unwrap(),
+        RecipeOutcome::NeedsPlanApproval { .. }
+    ));
+    let outcome = core
+        .approve_plan_and_execute(MID, "principal_local")
+        .unwrap();
+    match outcome {
+        RecipeOutcome::Rejected(reason) => {
+            assert!(reason.contains("did not complete"), "{reason}")
+        }
+        other => panic!(
+            "a failed build must reject, got {:?}",
+            std::mem::discriminant(&other)
+        ),
+    }
+
+    // Durably failed: attempt and task both record the failure.
+    let task = &core.tasks(MID).unwrap()[0];
+    assert_eq!(task.state, "failed");
+    let attempt_id = format!("att_{}_build", task.task_id);
+    assert_eq!(core.attempt_state(&attempt_id).unwrap().unwrap(), "failed");
+
+    // No promotion basis exists: promotion runs through a recorded snapshot
+    // fact, and none was appended for the failed phase.
+    let entries = core.all_entries().unwrap();
+    assert!(!entries
+        .iter()
+        .any(|e| e.entry_type == EventType::WorkspaceSnapshotRecorded));
+    assert!(!entries
+        .iter()
+        .any(|e| e.entry_type == EventType::CompletionProposed));
+    assert!(!entries
+        .iter()
+        .any(|e| e.entry_type == EventType::GateEvaluated));
+
+    // Completion cannot be accepted and no proposal ref can appear.
+    assert!(matches!(
+        core.accept_mission(MID, "principal_local").unwrap(),
+        CommandOutcome::Rejected { .. }
+    ));
+    assert!(
+        !proposal_ref_exists(&repo),
+        "a failed edit attempt must never produce a proposal ref"
+    );
+
+    // No Engineering Memory lesson from a failed attempt.
+    assert!(core.record_engineering_experience(MID).unwrap().is_none());
+    assert!(!entries
+        .iter()
+        .any(|e| e.entry_type == EventType::InsightRecorded));
+
+    // The failed attempt worktree was destroyed (git worktree remove --force),
+    // so its partial contents cannot be reused as a retry basis.
+    assert!(
+        !store.path().join("worktrees").join(&attempt_id).exists(),
+        "the failed worktree must be destroyed, not left for reuse"
+    );
+
+    // And the failed task is never offered again: a rerun finds nothing ready,
+    // so V0 retry means a fresh mission from the base commit — never the
+    // failed worktree.
+    assert!(matches!(
+        core.run_mission(MID).unwrap(),
+        CommandOutcome::Rejected { .. }
+    ));
+
+    // The base branch and primary worktree remain untouched throughout.
+    assert_eq!(
+        std::fs::read_to_string(repo.join("src/main.rs")).unwrap(),
+        "fn main() {}\n"
+    );
+    assert!(core.verify().unwrap().is_valid());
 }
 
 #[test]
