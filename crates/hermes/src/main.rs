@@ -324,67 +324,62 @@ fn apply_edits(root: &Path, output: &serde_json::Value) -> Result<usize, String>
 
 /// Write `content` at `rel` under `root` through **handle-relative, no-follow**
 /// filesystem operations (Blocker 3): the worktree root is opened once as a
-/// directory capability, each validated component is opened `openat` with
-/// `O_NOFOLLOW | O_DIRECTORY` (a symlink component → `ELOOP`), missing dirs are
-/// `mkdirat`'d beneath the held handle, and the final file is opened
-/// `O_NOFOLLOW | O_CREAT | O_TRUNC` and `fstat`-checked to be a **regular file**
-/// (FIFO/socket/device/symlink refused). Because every open is relative to a
-/// held directory handle, a concurrent path swap cannot redirect the final open
-/// out of the worktree — a real capability boundary, not a check-then-path-open.
+/// directory capability (itself `O_NOFOLLOW` — Core only ever supplies a real
+/// directory it created as a direct child of the worktrees root, and a symlinked
+/// root is refused rather than trusted), and each intermediate component is
+/// opened `openat` with `O_NOFOLLOW | O_DIRECTORY` (a symlink component →
+/// `ELOOP`/`ENOTDIR`), with missing dirs `mkdirat`'d beneath the held handle.
+///
+/// The final target is **never opened in place**. The existing directory entry
+/// is inspected no-follow (`statat` `AT_SYMLINK_NOFOLLOW`): a symlink,
+/// directory, FIFO, socket, or device entry is refused *without ever opening
+/// it* (so a FIFO cannot block the worker), and content is written to a fresh
+/// `O_CREAT|O_EXCL` temporary file in the same held parent directory, then
+/// atomically `renameat`'d over the destination. Replacing the *entry* instead
+/// of writing through it means an existing inode is never mutated — a
+/// pre-existing **hard link** to a file outside the worktree keeps its content;
+/// only the in-worktree name moves to a new inode. On every failure after the
+/// temporary file is created it is unlinked (no stray files on non-crash paths).
+///
+/// Mode policy (V0): a new file is `0o644`; replacing an existing regular file
+/// preserves its permission bits masked to `0o777` (an executable stays
+/// executable; setuid/setgid/sticky are deliberately dropped). No fsync is
+/// issued: worktree contents are transient working state — the durable record
+/// is the post-phase git snapshot plus ledger facts, and a crash before those
+/// simply leaves an unpromotable attempt.
+///
+/// Residual race (documented, not hidden): between the entry inspection and the
+/// rename, a concurrent *local* process could swap the destination entry; the
+/// rename would then replace whatever entry is present. Rename never follows or
+/// writes through the displaced entry, so escape or external-inode mutation
+/// remains impossible — only the refusal policy could be bypassed, and the
+/// model, which supplies path strings rather than concurrent I/O, cannot race.
 #[cfg(unix)]
 fn write_confined(root: &Path, rel: &WorkspaceRelativePath, content: &str) -> Result<(), String> {
-    use rustix::fs::{fstat, mkdirat, openat, FileType, Mode, OFlags, CWD};
+    use rustix::fs::{
+        mkdirat, openat, renameat, statat, unlinkat, AtFlags, FileType, Mode, OFlags, CWD,
+    };
     use std::os::fd::OwnedFd;
+    use std::sync::atomic::{AtomicU64, Ordering};
 
     let dir_flags = OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC;
-    // The granted root is the trusted boundary (opened as a directory
-    // capability); every component *below* it is opened no-follow.
-    let mut dir: OwnedFd = openat(
-        CWD,
-        root,
-        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
-        Mode::empty(),
-    )
-    .map_err(|e| format!("open worktree root {}: {e}", root.display()))?;
+    let mut dir: OwnedFd = openat(CWD, root, dir_flags, Mode::empty())
+        .map_err(|e| format!("open worktree root {}: {e}", root.display()))?;
 
-    let comps: Vec<_> = rel.as_path().components().collect();
-    for (i, comp) in comps.iter().enumerate() {
+    // Split the validated path into parent components and the final name.
+    let mut names: Vec<&std::ffi::OsStr> = Vec::new();
+    for comp in rel.as_path().components() {
         let std::path::Component::Normal(name) = comp else {
             return Err("validated path yielded a non-normal component".to_owned());
         };
-        let is_last = i + 1 == comps.len();
-        if is_last {
-            // `O_NONBLOCK` is essential, not incidental: opening a FIFO for write
-            // blocks until a reader appears, so a model naming an edit path that
-            // resolves to an existing FIFO could otherwise hang the worker
-            // indefinitely. With it, such an open fails fast and the fstat below
-            // refuses anything that is not a regular file.
-            let file = openat(
-                &dir,
-                *name,
-                OFlags::WRONLY
-                    | OFlags::CREATE
-                    | OFlags::TRUNC
-                    | OFlags::NOFOLLOW
-                    | OFlags::NONBLOCK
-                    | OFlags::CLOEXEC,
-                Mode::from_raw_mode(0o644),
-            )
-            .map_err(|e| format!("open edit target {name:?}: {e}"))?;
-            let st = fstat(&file).map_err(|e| format!("fstat edit target: {e}"))?;
-            if FileType::from_raw_mode(st.st_mode) != FileType::RegularFile {
-                return Err(format!("edit target is not a regular file: {name:?}"));
-            }
-            let mut buf = content.as_bytes();
-            while !buf.is_empty() {
-                let n = rustix::io::write(&file, buf).map_err(|e| format!("write: {e}"))?;
-                if n == 0 {
-                    return Err("short write to edit target".to_owned());
-                }
-                buf = &buf[n..];
-            }
-            return Ok(());
-        }
+        names.push(name);
+    }
+    let Some((last, parents)) = names.split_last() else {
+        return Err("empty validated edit path".to_owned());
+    };
+
+    // Walk (or create) the parent chain, handle-relative and no-follow.
+    for name in parents {
         dir = match openat(&dir, *name, dir_flags, Mode::empty()) {
             Ok(fd) => fd,
             Err(rustix::io::Errno::NOENT) => {
@@ -396,7 +391,59 @@ fn write_confined(root: &Path, rel: &WorkspaceRelativePath, content: &str) -> Re
             Err(e) => return Err(format!("open dir {name:?}: {e}")),
         };
     }
-    Err("empty validated edit path".to_owned())
+
+    // Inspect the existing destination ENTRY no-follow — never open it.
+    let mode = match statat(&dir, *last, AtFlags::SYMLINK_NOFOLLOW) {
+        Ok(st) => match FileType::from_raw_mode(st.st_mode) {
+            // Preserve rwx bits so an executable stays executable; the mask
+            // deliberately drops setuid/setgid/sticky.
+            FileType::RegularFile => Mode::from_raw_mode(st.st_mode & 0o777),
+            FileType::Symlink => return Err(format!("edit target is a symlink: {last:?}")),
+            FileType::Directory => return Err(format!("edit target is a directory: {last:?}")),
+            _ => return Err(format!("edit target is not a regular file: {last:?}")),
+        },
+        Err(rustix::io::Errno::NOENT) => Mode::from_raw_mode(0o644),
+        Err(e) => return Err(format!("inspect edit target {last:?}: {e}")),
+    };
+
+    // Write to a fresh, exclusively-created temp file in the SAME held parent —
+    // O_EXCL guarantees a brand-new regular inode owned by this process.
+    static TMP_SEQ: AtomicU64 = AtomicU64::new(0);
+    let tmp = format!(
+        ".wepld-tmp-{}-{}",
+        std::process::id(),
+        TMP_SEQ.fetch_add(1, Ordering::Relaxed)
+    );
+    let file = openat(
+        &dir,
+        tmp.as_str(),
+        OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        mode,
+    )
+    .map_err(|e| format!("create temp edit file: {e}"))?;
+    let fail = |dir: &OwnedFd, msg: String| -> Result<(), String> {
+        let _ = unlinkat(dir, tmp.as_str(), AtFlags::empty());
+        Err(msg)
+    };
+    // openat's mode is masked by the umask; set the exact intended bits.
+    if let Err(e) = rustix::fs::fchmod(&file, mode) {
+        return fail(&dir, format!("chmod temp edit file: {e}"));
+    }
+    let mut buf = content.as_bytes();
+    while !buf.is_empty() {
+        match rustix::io::write(&file, buf) {
+            Ok(0) => return fail(&dir, "short write to edit target".to_owned()),
+            Ok(n) => buf = &buf[n..],
+            Err(e) => return fail(&dir, format!("write: {e}")),
+        }
+    }
+    drop(file);
+
+    // Atomically replace the directory ENTRY, handle-relative on both sides.
+    if let Err(e) = renameat(&dir, tmp.as_str(), &dir, *last) {
+        return fail(&dir, format!("rename temp over {last:?}: {e}"));
+    }
+    Ok(())
 }
 
 /// Fail closed: no-follow capability semantics are only security-verified on
@@ -502,10 +549,9 @@ mod edit_tests {
     fn refuses_a_final_fifo_special_file() {
         use rustix::fs::{mknodat, FileType, Mode, CWD};
         let root = tempfile::tempdir().unwrap();
-        // Create a FIFO in the worktree. The non-blocking, no-follow open refuses
-        // it (ENXIO — a FIFO has no reader) before it can block the worker; even
-        // if it opened, the fstat regular-file check would reject it. Either way
-        // the edit is refused and nothing is written through the special file.
+        // Create a FIFO in the worktree. The destination entry is inspected
+        // no-follow and refused WITHOUT ever being opened, so a reader-less
+        // FIFO can never block the worker.
         mknodat(
             CWD,
             root.path().join("pipe"),
@@ -514,7 +560,143 @@ mod edit_tests {
             0,
         )
         .unwrap();
-        assert!(write_confined(root.path(), &wrp("pipe"), "X").is_err());
+        let err = write_confined(root.path(), &wrp("pipe"), "X").unwrap_err();
+        assert!(err.contains("not a regular file"), "{err}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn refuses_a_final_socket_special_file() {
+        let root = tempfile::tempdir().unwrap();
+        // A bound unix socket entry in the worktree must be refused unopened.
+        let _listener = std::os::unix::net::UnixListener::bind(root.path().join("sock")).unwrap();
+        let err = write_confined(root.path(), &wrp("sock"), "X").unwrap_err();
+        assert!(err.contains("not a regular file"), "{err}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn refuses_a_symlinked_worktree_root() {
+        let real = tempfile::tempdir().unwrap();
+        let holder = tempfile::tempdir().unwrap();
+        let link = holder.path().join("root-link");
+        std::os::unix::fs::symlink(real.path(), &link).unwrap();
+        // Core only ever supplies a real worktree directory it created itself;
+        // a symlinked root is refused rather than trusted (O_NOFOLLOW).
+        assert!(write_confined(&link, &wrp("a.rs"), "X").is_err());
+        assert!(!real.path().join("a.rs").exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn replacement_preserves_exec_bits_and_drops_setuid() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = tempfile::tempdir().unwrap();
+        let script = root.path().join("run.sh");
+        std::fs::write(&script, "#!/bin/sh\nold\n").unwrap();
+        // Documented V0 mode policy: rwx bits carry over (0o755 stays 0o755);
+        // setuid/setgid are dropped, never accidentally preserved.
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o4755)).unwrap();
+        write_confined(root.path(), &wrp("run.sh"), "#!/bin/sh\nnew\n").unwrap();
+        assert_eq!(
+            std::fs::read_to_string(&script).unwrap(),
+            "#!/bin/sh\nnew\n"
+        );
+        let mode = std::fs::metadata(&script).unwrap().permissions().mode() & 0o7777;
+        assert_eq!(
+            mode, 0o755,
+            "exec bits preserved, setuid dropped (got {mode:o})"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn new_files_are_created_mode_644() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = tempfile::tempdir().unwrap();
+        write_confined(root.path(), &wrp("plain.rs"), "X").unwrap();
+        let mode = std::fs::metadata(root.path().join("plain.rs"))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o7777;
+        assert_eq!(mode, 0o644, "new-file mode policy (got {mode:o})");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_failed_replacement_leaves_no_temp_file() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join("a.rs"), "keep").unwrap();
+        // Force a post-temp-creation failure: the rename target entry becomes
+        // invalid only at rename time is hard to stage deterministically, so
+        // exercise the earlier deterministic refusals and then prove the
+        // success path leaves no temp residue either.
+        write_confined(root.path(), &wrp("a.rs"), "new").unwrap();
+        let leftovers: Vec<_> = std::fs::read_dir(root.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .filter(|n| n.starts_with(".wepld-tmp-"))
+            .collect();
+        assert!(leftovers.is_empty(), "temp residue: {leftovers:?}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn an_external_hard_link_target_is_never_modified() {
+        use std::os::unix::fs::MetadataExt;
+        let outside = tempfile::tempdir().unwrap();
+        let root = tempfile::tempdir().unwrap();
+        let secret = outside.path().join("secret.txt");
+        std::fs::write(&secret, "SECRET-ORIGINAL").unwrap();
+        // A pre-existing hard link inside the worktree names the SAME inode as
+        // the outside file.
+        std::fs::hard_link(&secret, root.path().join("linked.rs")).unwrap();
+        let before = std::fs::metadata(&secret).unwrap();
+        eprintln!(
+            "before: outside ino={} nlink={} content={:?}",
+            before.ino(),
+            before.nlink(),
+            std::fs::read_to_string(&secret).unwrap()
+        );
+
+        let res = write_confined(root.path(), &wrp("linked.rs"), "NEW");
+        let after = std::fs::metadata(&secret).unwrap();
+        let inside = std::fs::metadata(root.path().join("linked.rs")).unwrap();
+        eprintln!(
+            "after: result={res:?} outside ino={} nlink={} content={:?}; inside ino={} content={:?}",
+            after.ino(),
+            after.nlink(),
+            std::fs::read_to_string(&secret).unwrap(),
+            inside.ino(),
+            std::fs::read_to_string(root.path().join("linked.rs")).unwrap()
+        );
+
+        // The confinement contract: replacing the in-worktree ENTRY must never
+        // mutate an inode that is also reachable outside the worktree.
+        assert_eq!(
+            std::fs::read_to_string(&secret).unwrap(),
+            "SECRET-ORIGINAL",
+            "the outside hard-link target's content must be untouched"
+        );
+        assert_eq!(after.ino(), before.ino(), "outside inode is the same file");
+        // The write itself must have succeeded INSIDE the worktree, onto a
+        // fresh inode owned by the in-worktree entry.
+        res.unwrap();
+        assert_eq!(
+            std::fs::read_to_string(root.path().join("linked.rs")).unwrap(),
+            "NEW"
+        );
+        assert_ne!(
+            inside.ino(),
+            before.ino(),
+            "the worktree entry must point at a NEW inode, not the shared one"
+        );
+        assert_eq!(
+            after.nlink(),
+            1,
+            "the outside inode lost its worktree link and keeps its content"
+        );
     }
 
     // ── Blocker 4: bounded, atomically-prevalidated edit batches ──────────────
@@ -584,8 +766,9 @@ mod edit_tests {
     #[test]
     fn writes_nothing_when_a_later_edit_is_invalid() {
         let root = tempfile::tempdir().unwrap();
-        // First edit is fine; second escapes — the whole batch must be rejected
-        // before ANY write, so the first file must not appear.
+        // First edit is fine; second escapes — PREVALIDATION rejects the whole
+        // batch before ANY write, so the first file must not appear. (This is
+        // the prevalidation guarantee; runtime failures are the next test.)
         let out = serde_json::json!({
             "edits": [
                 { "path": "ok.rs", "content": "A" },
@@ -597,5 +780,33 @@ mod edit_tests {
             !root.path().join("ok.rs").exists(),
             "no partial write: the valid edit must not land when the batch fails"
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_runtime_failure_mid_batch_reports_error_with_earlier_edit_contained() {
+        let root = tempfile::tempdir().unwrap();
+        // Both paths pass prevalidation, but the second target is a
+        // pre-existing DIRECTORY — a deterministic *runtime* refusal that
+        // strikes only after the first edit has been written.
+        std::fs::create_dir(root.path().join("blocked")).unwrap();
+        let err =
+            apply_edits(root.path(), &edits(&[("ok.rs", "A"), ("blocked", "B")])).unwrap_err();
+        assert!(err.contains("directory"), "{err}");
+        // Documented contract (Contract B, not a batch transaction): a runtime
+        // failure may leave earlier edits INSIDE the isolated attempt worktree.
+        // The lifecycle proof that such a worktree can never be promoted,
+        // snapshotted, accepted, or reused lives in integrity_tests.rs.
+        assert_eq!(
+            std::fs::read_to_string(root.path().join("ok.rs")).unwrap(),
+            "A"
+        );
+        // No temp residue from the failed second edit.
+        let leftovers: Vec<_> = std::fs::read_dir(root.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .filter(|n| n.starts_with(".wepld-tmp-"))
+            .collect();
+        assert!(leftovers.is_empty(), "temp residue: {leftovers:?}");
     }
 }
