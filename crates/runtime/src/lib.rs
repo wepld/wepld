@@ -161,14 +161,18 @@ impl Core {
                 Ok(())
             })?;
         }
-        Ok(Self {
+        let mut core = Self {
             store,
             cas,
             gateway,
             worker_cmd: vec!["hermes".to_owned()],
             root: dir.to_path_buf(),
             dev: DevTier::default(),
-        })
+        };
+        // Durable authorization: restore any recorded DEV override from the
+        // ledger so it survives a restart (Blocker 1).
+        core.restore_dev_override()?;
+        Ok(core)
     }
 
     /// Point the Core at a specific WWP worker binary (tests and the CLI,
@@ -193,9 +197,24 @@ impl Core {
 
     /// Grant an explicit, actor-attributed override permitting one uncontained
     /// (non-fixture) repository under the DEV tier — the `--i-understand-dev-tier`
-    /// escape hatch. Recorded durably (repo, actor, tier, warning). Refuses an
-    /// unauthenticated actor; there is no silent or default override.
+    /// escape hatch. **Ledger-atomic (Blocker 1):** the durable override fact is
+    /// committed *first*; the in-memory authorization is activated *only after*
+    /// commit succeeds. A failed transaction leaves the live authorization
+    /// state unchanged (no partial override). This is **durable authorization**:
+    /// a recorded override is reconstructed at `Core::open` (see
+    /// `restore_dev_override`).
     pub fn allow_uncontained_repo(&mut self, repo: &str, actor: &str) -> Result<(), RuntimeError> {
+        self.allow_uncontained_repo_at(repo, actor, false)
+    }
+
+    /// Fault seam proving activation is ledger-atomic: `fail_ledger` forces the
+    /// durable write to roll back. Production always uses `false`.
+    pub fn allow_uncontained_repo_at(
+        &mut self,
+        repo: &str,
+        actor: &str,
+        fail_ledger: bool,
+    ) -> Result<(), RuntimeError> {
         if !is_authenticated_principal(actor) {
             return Err(RuntimeError::Unauthenticated(actor.to_owned()));
         }
@@ -204,8 +223,10 @@ impl Core {
         let canon = canonical_scope_path(Path::new(repo))
             .ok_or_else(|| RuntimeError::UnresolvablePath(repo.to_owned()))?;
         let repo_disp = canon.to_string_lossy().into_owned();
-        self.dev.allow_uncontained = Some((canon, actor.to_owned()));
         let tier = serde_json::to_value(SandboxTier::Dev)?;
+        let actor_s = actor.to_owned();
+        // 1. Record the durable override fact FIRST. On any failure it rolls
+        //    back (no partial fact) and we return before touching authorization.
         self.store_mut().transact(|tx| {
             tx.append(&NewEntry {
                 entry_type: EventType::SandboxTierDetected,
@@ -213,19 +234,43 @@ impl Core {
                 aggregate_type: AggregateType::System,
                 aggregate_id: "system".to_owned(),
                 actor_type: ActorType::Human,
-                actor_id: actor.to_owned(),
+                actor_id: actor_s.clone(),
                 correlation_id: "system".to_owned(),
                 causation_ref: None,
                 payload: serde_json::json!({
                     "tier": tier,
                     "override": "allow_uncontained_repo",
                     "repo": repo_disp,
-                    "granted_by": actor,
+                    "granted_by": actor_s,
                     "warning": DEV_TIER_WARNING,
                 }),
             })?;
+            if fail_ledger {
+                // Simulated storage failure after the append → whole tx rolls back.
+                return Err(LedgerError::IdGeneration);
+            }
             Ok(())
         })?;
+        // 2. Activate the in-memory authorization ONLY after the commit.
+        self.dev.allow_uncontained = Some((canon, actor_s));
+        Ok(())
+    }
+
+    /// Reconstruct the latest recorded DEV override from durable ledger state
+    /// (Blocker 1 restart semantics): only an authenticated actor's recorded
+    /// `allow_uncontained_repo` fact is restored, and exact canonical-repository
+    /// matching still applies. Read-only; appends nothing.
+    fn restore_dev_override(&mut self) -> Result<(), RuntimeError> {
+        if let Some(e) = self.store.all_entries()?.into_iter().rev().find(|e| {
+            e.entry_type == EventType::SandboxTierDetected
+                && e.payload_json["override"] == "allow_uncontained_repo"
+        }) {
+            if let Some(repo) = e.payload_json["repo"].as_str() {
+                if is_authenticated_principal(&e.actor_id) {
+                    self.dev.allow_uncontained = Some((PathBuf::from(repo), e.actor_id.clone()));
+                }
+            }
+        }
         Ok(())
     }
 
