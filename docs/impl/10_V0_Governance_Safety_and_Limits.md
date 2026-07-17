@@ -133,14 +133,23 @@ enforced at the Core boundary:
   inspecting `std::path::Component`, so `release..notes.txt` is fine while
   `a/../../x` is not). The write itself is **handle-relative and no-follow**, not
   a metadata check followed by a path open: the worktree root is opened once as a
-  directory capability, each component is opened `openat` with
-  `O_NOFOLLOW | O_DIRECTORY` (a symlink component fails with `ELOOP`/`ENOTDIR`),
-  missing directories are `mkdirat`'d beneath the held handle, and the final file
-  is opened `O_NOFOLLOW | O_CREAT | O_TRUNC` and `fstat`-checked to be a **regular
-  file** (FIFO, socket, device, or symlink target is refused). Because every open
-  is relative to a directory handle the worker already holds, a concurrent path
-  swap cannot redirect the final write out of the worktree — this is a real
-  capability boundary (`rustix` `openat`), not a check-then-path-open. It is
+  directory capability (itself `O_NOFOLLOW` — Core only supplies a real
+  directory it created; a symlinked root is refused), and each intermediate
+  component is opened `openat` with `O_NOFOLLOW | O_DIRECTORY` (a symlink
+  component fails with `ELOOP`/`ENOTDIR`), with missing directories `mkdirat`'d
+  beneath the held handle. The final target is **never opened in place**: the
+  existing directory entry is inspected no-follow and a symlink, directory,
+  FIFO, socket, or device entry is refused *without ever being opened* (a
+  reader-less FIFO cannot block the worker); content goes to a fresh
+  `O_CREAT|O_EXCL` temporary file in the same held parent and is atomically
+  `renameat`'d over the destination. **Replacement is per-file atomic and
+  replaces the directory entry, never the inode** — a pre-existing **hard
+  link** to a file outside the worktree keeps its content and merely loses the
+  in-worktree name (proven by test with inode/link-count evidence). Mode
+  policy: new files are `0o644`; replacing a regular file preserves its `0o777`
+  permission bits (an executable stays executable) and deliberately drops
+  setuid/setgid/sticky. No fsync is issued — worktree contents are transient;
+  the durable record is the post-phase git snapshot plus ledger facts. It is
   Unix-verified; non-Unix builds **fail closed** (the write is refused) rather
   than fall back to an unverified path-based implementation.
 - **Identifiers are data** — slugs (`[a-z0-9]+(-[a-z0-9]+)*`), mission/task/
@@ -158,12 +167,31 @@ enforced at the Core boundary:
   operational payloads are capped by deterministic limits in
   `wepld_contracts::validation` (`MAX_EDITS_PER_STEP`, `MAX_BYTES_PER_EDIT`,
   `MAX_TOTAL_EDIT_BYTES`, `MAX_PLAN_TASKS`, `MAX_TASK_TITLE_BYTES`,
-  `MAX_SATISFIES_PER_TASK`, `MAX_TOTAL_PLAN_BYTES`). An edit **batch is
-  prevalidated in full** — count, per-edit size, overflow-checked aggregate size,
-  and duplicate normalized paths — **before the first write**, so a batch that is
-  valid up to edit *k* and invalid at *k+1* writes **nothing** (no partial
-  application). A plan that violates any bound is a recorded rejection before
-  persistence.
+  `MAX_SATISFIES_PER_TASK`, `MAX_TOTAL_PLAN_BYTES`). A plan that violates any
+  bound is a recorded rejection before persistence.
+
+  **Edit-batch failure contract — stated precisely.** Three distinct
+  guarantees, none overstated:
+  1. *Atomic prevalidation:* the whole batch is checked — count, per-edit
+     size, overflow-checked aggregate size, path validity, duplicate
+     normalized paths — **before the first write**. A batch that fails
+     prevalidation writes nothing.
+  2. *Per-file atomic replacement:* each individual edit lands via
+     temp-file + atomic rename; a destination is never observed half-written,
+     and a failed single edit leaves no temporary residue.
+  3. *Failed-attempt containment, not a batch transaction (Contract B):* a
+     **runtime** failure at edit *k+1* (e.g. the target turns out to be a
+     directory or special file) may leave edits 1…*k* written — but only
+     inside the **isolated attempt worktree**. The phase is then durably
+     `Failed`: no `WorkspaceSnapshotRecorded` fact is appended (snapshots are
+     taken strictly after a successful phase), no gate runs, the mission never
+     reaches `completion_proposed`, no proposal ref or Engineering Memory
+     lesson can result, the failed worktree is destroyed
+     (`git worktree remove --force`), and the failed task is never offered for
+     rerun — a V0 retry is a fresh mission from the base commit. Crash
+     limitation: a crash before cleanup can orphan a worktree directory on
+     disk; it is inert (promotion requires a snapshot fact that was never
+     recorded) but is not garbage-collected in V0.
 - **Git defense in depth** — `Workspace::create_worktree` independently refuses
   an unsafe `attempt_id` and proves the destination is a direct child of the
   worktrees root; base refs are resolved to a commit SHA with `--end-of-options`
