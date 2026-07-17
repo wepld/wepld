@@ -100,6 +100,7 @@ Traceability is continuous:
 - **No direct database access from UI, models, skills, hooks, or plugins:** adapters cannot couple to mutable internals.
 - **No god agent:** Brain Agent, Hermes, builder, reviewer, security, policy, Core, and tool boundary have separate authority.
 - **No self-approval:** proposal and authorization are different commands and principals.
+- **No advisory authority:** the [Engineering Committee](36_Engineering_Committee.md) is a bounded, advisory multi-model deliberation surface; its reports and votes carry no approval, capability, or plan-mutation authority, and its only durable-change path is the normal PlanProposal→PlanDecision pipeline.
 - **No distributed services before collaboration demand:** network failures are not a first-release feature.
 
-See also: [05_Worker_Architecture.md](05_Worker_Architecture.md), [14_Security_Architecture.md](14_Security_Architecture.md), [18_API_Architecture.md](18_API_Architecture.md), [24_Repository_Structure.md](24_Repository_Structure.md), and [32_Hermes_Engineering_Intelligence_Runtime.md](32_Hermes_Engineering_Intelligence_Runtime.md).
+See also: [05_Worker_Architecture.md](05_Worker_Architecture.md), [14_Security_Architecture.md](14_Security_Architecture.md), [18_API_Architecture.md](18_API_Architecture.md), [24_Repository_Structure.md](24_Repository_Structure.md), [32_Hermes_Engineering_Intelligence_Runtime.md](32_Hermes_Engineering_Intelligence_Runtime.md), and [36_Engineering_Committee.md](36_Engineering_Committee.md).

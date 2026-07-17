@@ -109,6 +109,6 @@ wepld/
 
 Architecture Decision Records use `docs/adr/ADR-NNNN-kebab-slug.md` and include status, date, owner, review trigger, context, decision, alternatives/reason, consequences, validation, and migration impact. Implementation-only decisions may use the repository’s IADR convention after an implementation baseline exists.
 
-ADR-0015 through ADR-0025 in this planning package are **Proposed**. Their numbering avoids collision with Draft PR #1’s candidate ADR-0001 through ADR-0014; it does not ratify those unmerged ADRs. No dependent Hermes implementation begins until the relevant Proposed ADR is accepted and the preceding milestone gate closes.
+ADR-0015 through ADR-0026 in this planning package are **Proposed**. Their numbering avoids collision with Draft PR #1’s candidate ADR-0001 through ADR-0014; it does not ratify those unmerged ADRs. No dependent Hermes implementation begins until the relevant Proposed ADR is accepted and the preceding milestone gate closes.
 
 See also: [04_Component_Architecture.md](04_Component_Architecture.md), [22_Milestones.md](22_Milestones.md), [25_Development_Guidelines.md](25_Development_Guidelines.md), [26_Testing_Strategy.md](26_Testing_Strategy.md), and [32_Hermes_Engineering_Intelligence_Runtime.md](32_Hermes_Engineering_Intelligence_Runtime.md).

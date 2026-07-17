@@ -30,6 +30,7 @@ The standard sections are `Context`, `Decision`, `Reason`, `Benefits`, `Trade-of
 | [0023](ADR-0023-model-independent-outcome-equivalence.md) | Model-independent outcome equivalence | H8 |
 | [0024](ADR-0024-evaluation-spine-run-provenance.md) | Evaluation spine and exact run provenance | Before H1/H2 |
 | [0025](ADR-0025-model-profile-certification.md) | Controlled model/profile certification | H8 |
+| [0026](ADR-0026-engineering-committee.md) | Governed Engineering Committee deliberation | H6 |
 
 Each ADR must be reviewed against canonical `main`, the final disposition of Draft PR #1, affected risks, threat models, contracts, and milestone evidence. No ADR authorizes implementation or a PR merge by itself.
 

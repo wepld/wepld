@@ -21,7 +21,7 @@ Canonical `main` contains the architecture/master-plan package; no implementatio
 - preserves its useful candidate contracts without claiming they are merged;
 - requires an independent **Build Feature Baseline Gate** to become **Resolved**, with either candidate prerequisite contracts accepted or an approved replacement-foundation plan covering every missing prerequisite; a returned, deferred, or rejected PR #1 is not a permanent H1 blocker;
 - requires Proposed ADR-0024 and the Early Evaluation Spine before H1/H2, then requires every H milestone to emit exact-provenance baseline/regression evidence;
-- requires the relevant Proposed ADR-0015 through ADR-0025 to be accepted and the preceding H gate to close before dependent implementation.
+- requires the relevant Proposed ADR-0015 through ADR-0026 to be accepted and the preceding H gate to close before dependent implementation.
 
 ## Authority hierarchy
 
@@ -190,6 +190,7 @@ All are **Proposed**, not Accepted:
 9. [ADR-0023 — model-independent outcome equivalence](adr/ADR-0023-model-independent-outcome-equivalence.md)
 10. [ADR-0024 — evaluation spine and exact run provenance](adr/ADR-0024-evaluation-spine-run-provenance.md)
 11. [ADR-0025 — model/profile certification from accumulated evidence](adr/ADR-0025-model-profile-certification.md)
+12. [ADR-0026 — governed Engineering Committee deliberation](adr/ADR-0026-engineering-committee.md)
 
 Numbering avoids collision with the candidate branch’s ADR-0001–ADR-0014 and does not ratify those unmerged records.
 
@@ -206,8 +207,10 @@ Documents 01–20 retain product, system, component, security, data/event/API, r
 - [33 — Model-Independent Outcome Convergence](33_Model_Independent_Outcome_Convergence.md)
 - [34 — Harness Evaluation Protocol](34_Harness_Evaluation_Protocol.md)
 - [35 — Reference Systems and Competitive Architecture](35_Reference_Systems_and_Competitive_Architecture.md)
+- [36 — Engineering Committee](36_Engineering_Committee.md)
+- [37 — Committee Evaluation Protocol](37_Committee_Evaluation_Protocol.md)
 
-Document 35 supplies the evidence boundary for reference-informed decisions: Spec Kit informs the typed Delivery Protocol; Pi informs composable Hermes primitives, exploration, compaction, and bounded output; Zed/ACP informs future editor interoperability; Warp informs bounded execution operations; MetaGPT informs typed SOP compilation and authorized role subscriptions; OpenCode informs capability-projected tool schemas; Cursor informs exploration, typed denial feedback, and an advisory risk experiment; Atoms informs controlled multi-route and evidence-linked team/visual UX experiments; Claude Code, Codex, Aider and OpenHands supply additional controlled treatments. Shared environments/chat, product classifiers, fastest-wins/model-vote/appearance selection, and visual artifacts do not become Core authority, security boundaries, or acceptance evidence by analogy. RS-00–RS-30, Core authority, license/provenance review and the H1–H9 gates decide admission.
+Documents 36–37 define the advisory Engineering Committee: governed multi-model deliberation that sits outside the authority chain, preserves dissent, carries hard budgets and durable failure dispositions, changes plans only through the normal PlanProposal→PlanDecision pipeline, and earns admission solely through the falsifiable EC-A1–EC-A8 experiments — Committee agreement is not engineering truth. Document 35 supplies the evidence boundary for reference-informed decisions: Spec Kit informs the typed Delivery Protocol; Pi informs composable Hermes primitives, exploration, compaction, and bounded output; Zed/ACP informs future editor interoperability; Warp informs bounded execution operations; MetaGPT informs typed SOP compilation and authorized role subscriptions; OpenCode informs capability-projected tool schemas; Cursor informs exploration, typed denial feedback, and an advisory risk experiment; Atoms informs controlled multi-route and evidence-linked team/visual UX experiments; Claude Code, Codex, Aider and OpenHands supply additional controlled treatments. Shared environments/chat, product classifiers, fastest-wins/model-vote/appearance selection, and visual artifacts do not become Core authority, security boundaries, or acceptance evidence by analogy. RS-00–RS-30, Core authority, license/provenance review and the H1–H9 gates decide admission.
 
 ## Architecture-gate conclusion
 
