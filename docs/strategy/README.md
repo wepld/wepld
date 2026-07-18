@@ -7,7 +7,7 @@ exists in the Draft PR #1 vertical slice. This package authorizes no
 implementation, accepts no ADR, marks no PR Ready, and changes no runtime
 behavior. It is stacked, locally, on the corrected Engineering Committee
 architecture head (Draft PR #3) so it can reference documents 31–37 and
-ADR-0015–ADR-0026 as they currently stand — all still **Proposed**.
+ADR-0015–ADR-0026 as they currently stand — ADR-0015, ADR-0016, ADR-0020, and ADR-0024 Accepted as architecture only, the rest **Proposed**.
 
 ## Product definition
 

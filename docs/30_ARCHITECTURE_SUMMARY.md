@@ -21,7 +21,7 @@ Canonical `main` contains the architecture/master-plan package; no implementatio
 - preserves its useful candidate contracts without claiming they are merged;
 - requires an independent **Build Feature Baseline Gate** to become **Resolved**, with either candidate prerequisite contracts accepted or an approved replacement-foundation plan covering every missing prerequisite; a returned, deferred, or rejected PR #1 is not a permanent H1 blocker;
 - requires Proposed ADR-0024 and the Early Evaluation Spine before H1/H2, then requires every H milestone to emit exact-provenance baseline/regression evidence;
-- requires the relevant Proposed ADR-0015 through ADR-0026 to be accepted and the preceding H gate to close before dependent implementation.
+- requires the relevant ADR among ADR-0015 through ADR-0026 to be accepted and the preceding H gate to close before dependent implementation.
 
 ## Authority hierarchy
 
@@ -177,7 +177,7 @@ No milestone authorizes the next merely by finishing code. Each needs accepted n
 
 ## Proposed ADR package
 
-All are **Proposed**, not Accepted:
+ADR-0015, ADR-0016, ADR-0020, and ADR-0024 are **Accepted** (architecture only); the rest are **Proposed**:
 
 1. [ADR-0015 — governed specification contract](adr/ADR-0015-governed-specification-contract.md)
 2. [ADR-0016 — Brain-plan/builder-execution separation](adr/ADR-0016-brain-plan-builder-execution-separation.md)

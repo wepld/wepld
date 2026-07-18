@@ -1,6 +1,6 @@
 # ADR-0024 — Establish the evaluation spine and exact run provenance
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-07-16
 **Owner:** Architecture Review Board
 **Review:** Before H1 or H2 implementation authorization
@@ -47,3 +47,28 @@ Early common contracts make later causal comparison possible, prevent retrospect
 Before H1 or H2 authorization, architecture review must approve the minimum schemas, lifecycle rules, append-only/supersession behavior, provenance requirements, baseline procedure, export format, and access/retention controls. Validation must prove schema round-trip, referential integrity, immutable raw-run retention, deterministic manifest hashing, explicit missing/unknown fields, and faithful recording of failed, unsafe, and deviating runs.
 
 Existing Draft PR #1 traces or fixtures may become candidate `EvaluationCase` inputs only after independent provenance and contract review. They are not accepted baselines, controlled runs, or certification evidence by virtue of this ADR.
+
+## Acceptance disposition (2026-07-18)
+
+Accepted as written by founder and Mastermind, with the following
+implementation-scope note. The core architecture above is unchanged.
+Acceptance does not authorize construction of the spine yet; H8
+certification and broad research-platform features remain excluded.
+
+Minimum V0 Evaluation Spine, once separately authorized: `EvaluationProtocol`
+identity and version; `EvaluationCase`; `TreatmentArm`; `RunManifest`;
+`EvaluationRun`; `MetricObservation`; `ProtocolDeviation`;
+`EvaluationResult`; frozen fixture/corpus identity; toolchain and
+environment identity; provider/profile identity evidence; execution budget;
+terminal disposition; assessed result; rejection and rollback criteria; and
+EV-S1 through EV-S5 preregistration when the implementation slice is later
+authorized. Storage is append-only in the Core store; no evaluation service
+or dashboard is included.
+
+Classification of Draft PR #1 assets: the fixture repository and cassettes
+are candidate fixtures pending independent provenance review and version
+binding; golden traces are comparator evidence; current test outputs are not
+yet Evaluation Spine run records.
+
+Evaluation evidence cannot authorize implementation and cannot approve
+completion; the spine records evidence, it never decides.
