@@ -34,12 +34,21 @@ independent Consulting assessment where policy requires → authenticated
 Sessions are finite: one frozen, hashed `CommitteePack`; per-member hashed
 projections under explicit data-egress policy; an independent first opinion
 round; bounded challenge rounds; Chair synthesis that preserves verbatim
-minority reports; and exactly one durable disposition (`ReportReady`,
+minority reports — as canonical, access-controlled `MinorityReport` artifacts
+whose raw content is untrusted data and reaches any downstream surface only
+through audience/purpose-scoped `MinorityReportProjection`s, never by
+automatic insertion into ContextPacks, memory, Skills, or provider
+projections; and exactly one durable disposition (`ReportReady`,
 `QuorumNotMet`, `MoreEvidenceRequired`, `MemberFailure`, `BudgetExhausted`,
 `DeadlineExceeded`, `PolicyBlocked`, `Cancelled`, `NonConvergent`). Members
 bind provider, model/profile, deployment, perspective, invocation identity,
 context scope, skills, capability boundary, egress policy, cost limit,
-timeout, provenance, and evaluation status. Consumer chat subscriptions are
+timeout, provenance, and evaluation status. Model identity carries an explicit
+`ModelIdentityEvidence` assurance tier (requested identity is not served
+identity; provider-reported identity is evidence, not verification; unverified
+identity is recorded as `ProviderReported`/`Unknown` rather than claimed
+detectable), and diversity lineage is typed `LineageEvidence` where `Unknown`
+is never counted as diverse. Consumer chat subscriptions are
 not programmatic access: WePLD uses supported APIs, local runtimes, enterprise
 gateways, or official integrations only, and must not capture browser cookies,
 automate consumer chat sessions, or circumvent provider usage restrictions.
@@ -78,11 +87,15 @@ and provider-neutrality invariants.
 ## Migration
 
 No implementation is authorized by this record. Gate evidence: acceptance of
-this ADR after independent review; EC-A1–EC-A3 results per document 37 with no
-rejection criterion fired (earliest gate H6, after bounded-subagent and
-structured-handoff foundations under ADR-0021); Critical Review Board and
-automatic triggers additionally require EC-A5–EC-A8 evidence and policy
-admission. Compatibility with Draft PR #1 is preserved: nothing here modifies
+this ADR after independent review; terminal, assessed EC-A1, EC-A2, EC-A3,
+EC-A5, and EC-A6 results per document 37 with no rejection criterion fired —
+the V0 gate evaluates every structural component V0 ships (independence,
+bounded cross-review, Wisdom synthesis, deterministic evidence) — (earliest
+gate H6, after bounded-subagent and structured-handoff foundations under
+ADR-0021); EC-A7 and EC-A8 must additionally complete before diversity-based
+automatic routing, cross-provider advantage claims, or Deep Committee /
+Critical Review Board admission wherever diverse membership is part of the
+product claim, and automatic triggers require policy admission. Compatibility with Draft PR #1 is preserved: nothing here modifies
 the Build Feature slice, its governance, or its security boundaries; the
 Committee reads evidence those systems produce and adds none of its own
 authority over them.

@@ -395,11 +395,58 @@ def validate_committee(texts: dict[Path, str]) -> None:
             error(f"{label}: missing durable failure disposition: {disposition}")
 
     eval_label = "docs/37_Committee_Evaluation_Protocol.md"
+    evaluation_flat = " ".join(evaluation.replace("**", "").split())
     for arm in [f"EC-A{number}" for number in range(1, 9)]:
         if arm not in evaluation:
             error(f"{eval_label}: missing compared configuration: {arm}")
     if "## Rejection criteria" not in evaluation:
         error(f"{eval_label}: missing rejection criteria for the Committee feature")
+
+    # The V0 admission gate must evaluate every structural component V0 ships:
+    # independence (EC-A2), bounded cross-review (EC-A3), Wisdom synthesis
+    # (EC-A5), and deterministic evidence (EC-A6).
+    if "## Admission rule" not in evaluation:
+        error(f"{eval_label}: missing admission rule section")
+    else:
+        admission = evaluation.split("## Admission rule", 1)[1]
+        for required_arm in ("EC-A1", "EC-A2", "EC-A3", "EC-A5", "EC-A6"):
+            if required_arm not in admission:
+                error(
+                    f"{eval_label}: V0 admission gate omits {required_arm} "
+                    "(the gate must evaluate every component included in V0)"
+                )
+    # EC-A3 / EC-A5 / EC-A6 must have distinct, stated purposes.
+    for purpose, description in (
+        ("bounded cross-review adds value", "EC-A3 distinct purpose (cross-review value)"),
+        ("without suppressing disagreement", "EC-A5 distinct purpose (synthesis without suppression)"),
+        ("deterministic evidence materially improves", "EC-A6 distinct purpose (evidence contribution)"),
+    ):
+        if purpose not in evaluation_flat:
+            error(f"{eval_label}: missing {description}")
+    if "Budget normalization" not in evaluation:
+        error(f"{eval_label}: missing budget-normalization rule for cross-arm comparison")
+
+    # Minority dissent: canonical artifact vs downstream projection boundary.
+    for needle, description in {
+        "MinorityReportProjection": "canonical MinorityReport not separated from projections",
+        "never automatically inserted into Mastermind": "missing downstream raw-dissent boundary",
+    }.items():
+        if needle not in committee_flat:
+            error(f"{label}: {description} (required text absent): {needle}")
+
+    # Model identity: requested vs provider-reported vs verified, stated honestly.
+    for needle, description in {
+        "ModelIdentityEvidence": "missing model identity evidence contract",
+        "RequestedOnly": "missing requested-only identity assurance state",
+        "DriftDetected": "missing drift-detected identity assurance state",
+        "Provider-reported identity is evidence, not independent verification":
+            "provider-reported identity not distinguished from verification",
+        "records `Unknown` or `ProviderReported`": "unverifiable identity not represented honestly",
+        "LineageEvidence": "missing typed lineage evidence",
+        "must not be treated automatically as diverse": "unknown lineage not excluded from diversity",
+    }.items():
+        if needle not in committee_flat:
+            error(f"{label}: {description} (required text absent): {needle[:60]}")
 
     combined = "\n".join(texts.values())
     forbidden = {
@@ -414,6 +461,14 @@ def validate_committee(texts: dict[Path, str]) -> None:
         r"automat\w*\s+(?:a|the)\s+consumer\s+chat\s+session":
             "consumer-subscription workaround",
         r"unlimited\s+(?:challenge\s+|deliberation\s+)?rounds": "unbounded deliberation",
+        r"substitution\s+is\s+(?:always\s+)?detectable":
+            "unconditional silent-substitution detectability claim",
+        r"provider-reported\s+(?:model\s+)?identity\s+is\s+(?:a\s+)?verified":
+            "provider-reported identity described as verified identity",
+        r"unknown\s+lineage\s+is\s+(?:counted|treated)\s+as":
+            "unknown lineage treated as diversity",
+        r"(?:is|are)\s+automatically\s+(?:inserted|included|injected)\s+in(?:to)?\b":
+            "raw dissent or content auto-injected downstream",
     }
     for pattern, description in forbidden.items():
         match = re.search(pattern, combined, re.I)

@@ -105,9 +105,15 @@ invocation identity, and evidence trail.
 
 **Diversity reporting.** Core reports low diversity when members share
 provider, model family, training lineage, context strategy, or reasoning
-profile. The diversity score is advisory: it flags correlated-failure risk and
-must not be read as proof of independence, and high diversity must not be read
-as proof of correctness.
+profile. Every lineage attribute used in the score is a typed
+`LineageEvidence { value, source, status }` record with status `Known`,
+`ProviderClaimed`, `IndependentlyDocumented`, `Inferred`, or `Unknown`. WePLD
+must not invent model lineage: `Unknown` lineage is shown as unknown, and
+**unknown must not be treated automatically as diverse** — an unknown-lineage
+member widens the score's stated uncertainty instead of raising the score. The
+diversity score is advisory: it flags correlated-failure risk and must not be
+read as proof of independence, and high diversity must not be read as proof of
+correctness.
 
 ## 5. Provider and runtime model
 
@@ -123,9 +129,48 @@ The Committee is provider-neutral by construction. Supported member sources:
 - future provider plugins under [15 — Plugin System](15_Plugin_System.md);
 - mixed local and remote deployments in one session.
 
-Adapters normalize transport only. They must not normalize away provenance:
-the reported model identity, adapter version, and configuration hash are
-recorded per response, so silent model substitution is detectable (§11).
+Adapters normalize transport only. They must not normalize away provenance.
+
+**Model identity assurance.** Every member response records a
+`ModelIdentityEvidence` artifact:
+
+```text
+ModelIdentityEvidence {
+    requested_model
+    provider_reported_model
+    provider_reported_version
+    provider_fingerprint
+    adapter_version
+    endpoint_identity
+    deployment_identity
+    attestation_ref
+    observed_metadata
+    assurance
+    uncertainty
+}
+```
+
+with `assurance` one of: `Verified`, `CryptographicallyAttested`,
+`ProviderReported`, `RequestedOnly`, `Unknown`, `DriftDetected`, `Mismatch`.
+
+Honest semantics, stated as limits rather than guarantees:
+
+- **Requested identity is not proof of served identity.**
+- **Provider-reported identity is evidence, not independent verification.**
+- A stable fingerprint or a cryptographic attestation may provide stronger
+  assurance where the provider or runtime supports one; most do not today.
+- When identity cannot be verified, the session records `Unknown` or
+  `ProviderReported` — WePLD does **not** claim that silent model substitution
+  can always be detected; it records exactly which assurance it has.
+- A `DriftDetected` or `Mismatch` result affects Committee validity, member
+  evaluation, diversity calculation, and certification eligibility according
+  to policy.
+- High-risk policy may prohibit members whose identity assurance is below a
+  required tier.
+- Local runtimes also record a model/profile digest or equivalent provenance —
+  "local" does not automatically mean verified.
+- The adapter version and configuration hash identify the **adapter
+  invocation**, not necessarily the underlying model weights.
 
 ## 6. Subscription and credential boundary
 
@@ -232,9 +277,66 @@ invent consensus. The synthesis must preserve: areas of agreement; material
 disagreements; minority reports; unsupported claims; missing evidence; member
 failures; conflicts of interest; confidence; recommended next actions; and
 recommendations that would require authorization. **Minority reports are
-preserved verbatim** as `MinorityReport` artifacts attached to the report; the
-Chair may annotate them but never rewrite or drop them. The Chair is not final
-authority.
+preserved verbatim** as canonical `MinorityReport` artifacts referenced by the
+report; the Chair may annotate them but never rewrite, erase, or falsely
+represent them. The Chair is not final authority.
+
+#### Canonical MinorityReport and projections
+
+Verbatim preservation is an **immutability guarantee about the canonical
+artifact, not an inclusion guarantee about every downstream surface**:
+
+```text
+MinorityReport {
+    report_id
+    session_id
+    member_id
+    source_opinion_ref
+    raw_artifact_ref
+    content_hash
+    classification
+    provenance
+    created_at
+}
+
+MinorityReportProjection {
+    projection_id
+    minority_report_id
+    audience
+    purpose
+    redactions
+    allowed_content
+    projection_hash
+    policy_version
+    created_by
+    created_at
+}
+```
+
+- The canonical `MinorityReport` preserves the member's original dissent
+  without Chair rewriting, stored as an access-controlled, classified
+  artifact under the member's pack classification (secrets, credentials,
+  personal data, source code, and regulated data follow the original artifact
+  classification).
+- The `CommitteeReport` **references** the canonical artifact and may include
+  an authorized, safely rendered projection or bounded quotation — never the
+  raw artifact by default.
+- Raw member dissent remains **untrusted data**. It cannot become Core
+  instructions, system prompts, policy, capability, acceptance criteria, plan
+  authority, or tool instructions.
+- Raw dissent is never automatically inserted into Mastermind `ContextPack`s,
+  Consulting `ContextPack`s, future `CommitteePack`s, Engineering Memory,
+  `MemoryCandidate`s, `SkillCandidate`s, DeepLearn inputs, or external
+  provider projections. **Every downstream use requires a new
+  audience/purpose-specific `MinorityReportProjection`** created under the
+  then-current classification and egress policy.
+- Safe rendering must prevent active markup, tool-call interpretation, prompt
+  role confusion, and instruction-boundary escape.
+- Retention and deletion rules apply to canonical artifacts and derived
+  projections alike, without rewriting historical decision references.
+- If policy prohibits showing the raw artifact to a user or provider, the
+  system **reports that restricted dissent exists** and preserves its
+  reference — restricted dissent is never silently dropped.
 
 ### Stage 6 — Committee disposition
 
@@ -316,7 +418,7 @@ predecessor.
 | process crash | on restart, Core resumes from durable stage state; frozen artifacts are never regenerated; unfrozen work is discarded and the stage re-runs idempotently |
 | duplicate delivery | artifact identity + hashes make delivery idempotent; duplicates are no-ops |
 | uncertain provider result | recorded as uncertain, treated as no response; never guessed into an opinion |
-| provider model silently changed | per-response provenance (§5) detects reported-identity drift; the affected opinions are flagged and the diversity/validity assessment re-runs |
+| provider model silently changed | bounded, honest handling (§5): `ModelIdentityEvidence` records the assurance actually available; a `DriftDetected`/`Mismatch` result flags the affected opinions and re-runs the diversity/validity assessment per policy, while `ProviderReported`/`Unknown` assurance is recorded as exactly that — substitution below the available assurance tier is **not** claimed detectable |
 | context projection mismatch | projection hash mismatch invalidates the member's round; recorded, never patched silently |
 | budget exhaustion | durable `BudgetExhausted`; no silent continuation |
 | session reopening | closed sessions are never reopened; a follow-up is a **new** session that references the prior one (supersession, exact history) |
@@ -336,11 +438,12 @@ evidence**. Extends [14 — Security Architecture](14_Security_Architecture.md):
 | prompt injection through repository content | pack data is typed untrusted (§7 Stage 2); instructions come only from Core framing; findings citing injected "instructions" remain data |
 | malicious member output | schema validation, evidence-linkage checks, and prohibited-claim lists; output grants nothing |
 | collusion / correlated failure | independence-by-construction first round; diversity reporting; evaluation protocol measures imitation |
-| model/provider impersonation | recorded provider, adapter version, reported model identity per response |
-| hidden model substitution | provenance drift detection (§10); flagged, not silently accepted |
+| model/provider impersonation | per-response `ModelIdentityEvidence` with an explicit assurance tier (§5); high-risk policy may require a minimum tier |
+| hidden model substitution | bounded assurance, honestly stated (§5): fingerprint/attestation where supported, `DriftDetected`/`Mismatch` consequences per policy, and recorded `ProviderReported`/`Unknown` otherwise — never an unconditional detectability claim |
 | credential leakage | credentials never enter model-visible content (§6); Effect Firewall + Secret Manager boundary |
 | context over-sharing | per-member projections with recorded redactions and hashes (§8) |
-| minority-report suppression | `MinorityReport` is verbatim-preserved and validator-checked; a report without dissent handling is invalid |
+| minority-report suppression | the canonical `MinorityReport` is verbatim-preserved and validator-checked; a report without dissent handling is invalid, and policy-restricted dissent is reported as existing rather than dropped (§7 Stage 5) |
+| dissent-content injection downstream | raw minority content is untrusted data and is never automatically inserted into ContextPacks, memory, Skill, DeepLearn, or provider surfaces; each downstream use requires an audience/purpose-scoped `MinorityReportProjection` with safe rendering (§7 Stage 5) |
 | fabricated citations / evidence references | every finding must reference pack hashes; unresolvable references are flagged as unsupported claims |
 | cost-amplification loops | hard ceilings; `BudgetExhausted` is terminal (§9) |
 | denial of service | member timeouts, session deadline, maximum artifacts/findings |
@@ -391,7 +494,10 @@ they influenced.
 | `EvidenceClarificationRequest` | the single bounded per-member evidence request (§7 Stage 4) |
 | `CommitteeFinding` | one structurally validated, evidence-linked finding |
 | `CommitteeReport` | the Chair's synthesis (§7 Stage 5); advisory only |
-| `MinorityReport` | verbatim preserved dissent attached to the report |
+| `MinorityReport` | canonical, verbatim-preserved dissent: access-controlled, classified, immutable; referenced by the report (§7 Stage 5) |
+| `MinorityReportProjection` | an audience/purpose-scoped, policy-versioned, safely rendered projection of a `MinorityReport` — the only form dissent takes downstream |
+| `ModelIdentityEvidence` | per-response identity record with an explicit assurance tier (§5); never an unconditional substitution-detection claim |
+| `LineageEvidence` | a typed lineage attribute with source and status (§4); `Unknown` is shown as unknown and never counted toward diversity |
 | `CommitteeDisposition` | the single terminal state of a session (§7 Stage 6) |
 | `CommitteeCostRecord` | actual cost per member/round/session |
 | `CommitteeUsageRecord` | tokens, calls, context sizes, durations |

@@ -96,7 +96,7 @@ Every governed artifact additionally declares purpose, authority/trust class, re
 | Context Pack / Retrieval Item | minimal task context and per-item provenance/trust/ranking | derived, reproducible input; cannot override governance |
 | Loop Iteration / Hook Invocation | hypothesis/action/result/confidence and typed lifecycle hook | bounded operational evidence, selectively durable |
 | Evaluation fixture / cohort / allocation | reusable input corpus, cohort selection and randomized or deterministic allocation | supporting data referenced by governed EvaluationCase, TreatmentArm and RunManifest versions |
-| Committee Session / Report | governed multi-model deliberation state, opinions, dissent, dispositions, budgets ([36_Engineering_Committee.md](36_Engineering_Committee.md) §13) | advisory only; outside the governing hierarchy; plan change requires the normal PlanProposal→PlanDecision path |
+| Committee Session / Report | governed multi-model deliberation state, opinions, canonical dissent plus scoped projections, identity/lineage evidence, dispositions, budgets ([36_Engineering_Committee.md](36_Engineering_Committee.md) §13) | advisory only; outside the governing hierarchy; plan change requires the normal PlanProposal→PlanDecision path |
 | Event | immutable typed domain fact recorded by Core | ledger source for projections and audit |
 
 ## Phase, Kanban, and WIP model
