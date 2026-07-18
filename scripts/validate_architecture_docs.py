@@ -228,7 +228,7 @@ def validate_adrs(texts: dict[Path, str]) -> None:
     for number, count in Counter(numbers).items():
         if count > 1:
             error(f"duplicate ADR number: {number}")
-    expected = {f"{number:04d}" for number in range(15, 26)}
+    expected = {f"{number:04d}" for number in range(15, 27)}
     if set(numbers) != expected:
         error(f"ADR set mismatch: expected {sorted(expected)}, found {numbers}")
     index = required_text(texts, DOCS / "adr" / "README.md")
@@ -358,11 +358,132 @@ def validate_reference_study(texts: dict[Path, str]) -> None:
             error(f"docs/{name}: must name the complete RS-00–RS-30 register")
 
 
+def validate_committee(texts: dict[Path, str]) -> None:
+    committee = required_text(texts, DOCS / "36_Engineering_Committee.md")
+    evaluation = required_text(texts, DOCS / "37_Committee_Evaluation_Protocol.md")
+    label = "docs/36_Engineering_Committee.md"
+    # Docs hard-wrap prose, so multi-word requirements are matched on a
+    # whitespace-normalized view (markdown emphasis stripped).
+    committee_flat = " ".join(committee.replace("**", "").split())
+
+    required_sentinels = {
+        "Committee agreement is not engineering truth.": "missing Committee authority boundary",
+        "The Committee is advisory": "missing advisory-standing statement",
+        "outside the authority chain": "missing authority-chain exclusion",
+        "before seeing any other member's opinion": "missing independent first round",
+        "Minority reports are preserved verbatim": "missing minority-report preservation",
+        "maximum challenge rounds": "missing finite round limit",
+        "hard cost ceiling": "missing hard budget limit",
+        "data-egress policy": "missing data-egress policy",
+        (
+            "must not capture browser cookies, automate consumer chat sessions, "
+            "or circumvent provider usage restrictions"
+        ): "missing consumer-subscription boundary",
+        "37_Committee_Evaluation_Protocol.md": "missing Committee evaluation protocol link",
+    }
+    for needle, description in required_sentinels.items():
+        if needle not in committee_flat:
+            error(f"{label}: {description} (required text absent): {needle[:60]}")
+
+    dispositions = (
+        "ReportReady", "QuorumNotMet", "MoreEvidenceRequired", "MemberFailure",
+        "BudgetExhausted", "DeadlineExceeded", "PolicyBlocked", "Cancelled",
+        "NonConvergent",
+    )
+    for disposition in dispositions:
+        if disposition not in committee:
+            error(f"{label}: missing durable failure disposition: {disposition}")
+
+    eval_label = "docs/37_Committee_Evaluation_Protocol.md"
+    evaluation_flat = " ".join(evaluation.replace("**", "").split())
+    for arm in [f"EC-A{number}" for number in range(1, 9)]:
+        if arm not in evaluation:
+            error(f"{eval_label}: missing compared configuration: {arm}")
+    if "## Rejection criteria" not in evaluation:
+        error(f"{eval_label}: missing rejection criteria for the Committee feature")
+
+    # The V0 admission gate must evaluate every structural component V0 ships:
+    # independence (EC-A2), bounded cross-review (EC-A3), Wisdom synthesis
+    # (EC-A5), and deterministic evidence (EC-A6).
+    if "## Admission rule" not in evaluation:
+        error(f"{eval_label}: missing admission rule section")
+    else:
+        admission = evaluation.split("## Admission rule", 1)[1]
+        for required_arm in ("EC-A1", "EC-A2", "EC-A3", "EC-A5", "EC-A6"):
+            if required_arm not in admission:
+                error(
+                    f"{eval_label}: V0 admission gate omits {required_arm} "
+                    "(the gate must evaluate every component included in V0)"
+                )
+    # EC-A3 / EC-A5 / EC-A6 must have distinct, stated purposes.
+    for purpose, description in (
+        ("bounded cross-review adds value", "EC-A3 distinct purpose (cross-review value)"),
+        ("without suppressing disagreement", "EC-A5 distinct purpose (synthesis without suppression)"),
+        ("deterministic evidence materially improves", "EC-A6 distinct purpose (evidence contribution)"),
+    ):
+        if purpose not in evaluation_flat:
+            error(f"{eval_label}: missing {description}")
+    if "Budget normalization" not in evaluation:
+        error(f"{eval_label}: missing budget-normalization rule for cross-arm comparison")
+
+    # Minority dissent: canonical artifact vs downstream projection boundary.
+    for needle, description in {
+        "MinorityReportProjection": "canonical MinorityReport not separated from projections",
+        "never automatically inserted into Mastermind": "missing downstream raw-dissent boundary",
+    }.items():
+        if needle not in committee_flat:
+            error(f"{label}: {description} (required text absent): {needle}")
+
+    # Model identity: requested vs provider-reported vs verified, stated honestly.
+    for needle, description in {
+        "ModelIdentityEvidence": "missing model identity evidence contract",
+        "RequestedOnly": "missing requested-only identity assurance state",
+        "DriftDetected": "missing drift-detected identity assurance state",
+        "Provider-reported identity is evidence, not independent verification":
+            "provider-reported identity not distinguished from verification",
+        "records `Unknown` or `ProviderReported`": "unverifiable identity not represented honestly",
+        "LineageEvidence": "missing typed lineage evidence",
+        "must not be treated automatically as diverse": "unknown lineage not excluded from diversity",
+    }.items():
+        if needle not in committee_flat:
+            error(f"{label}: {description} (required text absent): {needle[:60]}")
+
+    combined = "\n".join(texts.values())
+    forbidden = {
+        r"(?:majority|committee)\s+vote\s+(?:approves|accepts|authorizes|merges|"
+        r"can\s+approve|may\s+approve)": "model voting treated as approval",
+        r"committee\s+(?:directly\s+|automatically\s+|silently\s+)?"
+        r"(?:updates|edits|mutates|rewrites|modifies)\s+the\s+"
+        r"(?:approved\s+)?(?:delivery\s?plan|plan\b|specification|outcome\s+contract)":
+            "automatic plan mutation by the Committee",
+        r"(?:capture|reuse|harvest)\s+(?:browser|session)\s+cookies\s+to":
+            "consumer-subscription workaround",
+        r"automat\w*\s+(?:a|the)\s+consumer\s+chat\s+session":
+            "consumer-subscription workaround",
+        r"unlimited\s+(?:challenge\s+|deliberation\s+)?rounds": "unbounded deliberation",
+        r"substitution\s+is\s+(?:always\s+)?detectable":
+            "unconditional silent-substitution detectability claim",
+        r"provider-reported\s+(?:model\s+)?identity\s+is\s+(?:a\s+)?verified":
+            "provider-reported identity described as verified identity",
+        r"unknown\s+lineage\s+is\s+(?:counted|treated)\s+as":
+            "unknown lineage treated as diversity",
+        r"(?:is|are)\s+automatically\s+(?:inserted|included|injected)\s+in(?:to)?\b":
+            "raw dissent or content auto-injected downstream",
+    }
+    for pattern, description in forbidden.items():
+        match = re.search(pattern, combined, re.I)
+        if match:
+            error(f"forbidden Committee claim ({description}): {match.group(0)!r}")
+
+
 def validate_stale_claims(texts: dict[Path, str]) -> None:
     combined = "\n".join(texts.values())
     stale = {
         "Proposed ADR-0015–ADR-0024": "stale ADR range",
         "ADR-0015 through ADR-0024": "stale ADR range",
+        "Proposed ADR-0015–ADR-0025": "stale ADR range after ADR-0026",
+        "ADR-0015 through ADR-0025": "stale ADR range after ADR-0026",
+        "ADR-0015–ADR-0025": "stale ADR range after ADR-0026",
         "RS-00–RS-20": "stale experiment range",
         "RS-00–RS-26": "stale experiment range",
         "Build Feature Baseline Gate accepted": "acceptance-only H1 gate",
@@ -425,6 +546,7 @@ def main() -> int:
     validate_adrs(texts)
     validate_roadmap(texts)
     validate_reference_study(texts)
+    validate_committee(texts)
     validate_stale_claims(texts)
     validate_changed_scope(args.base)
 

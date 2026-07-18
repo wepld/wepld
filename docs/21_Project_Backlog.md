@@ -12,8 +12,8 @@ No Hermes Intelligence implementation may begin until the Proposed ADRs applicab
 
 | Epic | Outcome | Acceptance criteria | Dependencies |
 | --- | --- | --- | --- |
-| Architecture package review | one coherent governed-delivery architecture | documents 01–35 and diagrams use the same authority, artifact, lifecycle, and milestone vocabulary; open decisions have owners | this package |
-| Proposed ADR disposition | implementation-authorizing decisions are explicit | Proposed ADR-0015 through ADR-0025 are reviewed; each is accepted, revised, rejected, or deferred before dependent work | architecture package |
+| Architecture package review | one coherent governed-delivery architecture | documents 01–37 and diagrams use the same authority, artifact, lifecycle, and milestone vocabulary; open decisions have owners | this package |
+| Proposed ADR disposition | implementation-authorizing decisions are explicit | Proposed ADR-0015 through ADR-0026 are reviewed; each is accepted, revised, rejected, or deferred before dependent work | architecture package |
 | Build Feature Baseline Gate | H1 prerequisite supply is resolved without requiring candidate acceptance | PR #1 is reviewed at its final head; disposition is accepted/returned/deferred/rejected; gate becomes **Resolved** only when required candidate contracts are accepted or an approved replacement-foundation plan covers every missing prerequisite | PR #1, independent review |
 | Contract-extension or replacement-foundation plan | additive, breaking, and missing foundations are known before code | candidate contracts are classified as retained, extended, superseded, temporary, or absent; migration/coexistence rules are named; non-acceptance cannot permanently block H1 | baseline resolution, ADR review |
 | Early Evaluation Spine | every milestone produces comparable, reproducible evidence | versioned `EvaluationCase`, `EvaluationRun`, `TreatmentArm`, `RunManifest`, `MetricObservation`, `ProtocolDeviation`, and `EvaluationResult`; exact fixture/repository/contract/config/tool/environment/seed provenance; baseline/regression comparison | ADR-0024, [34_Harness_Evaluation_Protocol.md](34_Harness_Evaluation_Protocol.md) |
@@ -103,6 +103,7 @@ No Hermes Intelligence implementation may begin until the Proposed ADRs applicab
 | Parallelism controls | read parallelism improves insight without write conflict | bounded read-only exploration; isolated and conflict-controlled writable work; Core-enforced WIP | H2 Kanban |
 | Independent review chain | implementation is not its own only judge | builder→deterministic validation→reviewer→test/quality→security where applicable→completion proposal | evidence contracts |
 | Role subscription enforcement | specialist coordination is typed and least-knowledge | builder/reviewer/test/security/explorer receive only authorized SOPGraph subscriptions; peer broadcast and self-subscription are rejected and evidenced | RS-21/RS-22 |
+| Engineering Committee (advisory) | governed multi-model deliberation with zero authority | user-triggered three-member V0 per [36_Engineering_Committee.md](36_Engineering_Committee.md); independent first round, one challenge round, verbatim minority reports, durable dispositions, hard budgets; admission only through [37_Committee_Evaluation_Protocol.md](37_Committee_Evaluation_Protocol.md) with terminal EC-A1, EC-A2, EC-A3, EC-A5 and EC-A6 evidence and no rejection criterion fired | ADR-0026, ADR-0021, ADR-0024 |
 
 ## H7 — Typed Memory Intelligence
 
@@ -151,7 +152,7 @@ These ADRs remain **Proposed** until separately accepted. Acceptance authorizes 
 - H3: [ADR-0018 — Hermes Skill Runtime and Hook Bus](adr/ADR-0018-hermes-skill-runtime-hook-bus.md)
 - H4: [ADR-0019 — Context Compiler, LSP, and hybrid retrieval](adr/ADR-0019-context-compiler-lsp-hybrid-retrieval.md)
 - H5: [ADR-0022 — controlled loop and escalation](adr/ADR-0022-controlled-loop-escalation.md)
-- H6: [ADR-0021 — bounded subagents and structured handoffs](adr/ADR-0021-bounded-subagents-structured-handoffs.md)
+- H6: [ADR-0021 — bounded subagents and structured handoffs](adr/ADR-0021-bounded-subagents-structured-handoffs.md) and [ADR-0026 — governed Engineering Committee deliberation](adr/ADR-0026-engineering-committee.md)
 - H7: [ADR-0020 — typed memory and Memory Judge](adr/ADR-0020-typed-memory-memory-judge.md)
 - H8: [ADR-0023 — model-independent outcome equivalence](adr/ADR-0023-model-independent-outcome-equivalence.md) and [ADR-0025 — model/profile certification](adr/ADR-0025-model-profile-certification.md); H8 consumes ADR-0024 run history
 
