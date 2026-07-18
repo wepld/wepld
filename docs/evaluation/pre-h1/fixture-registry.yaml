@@ -1,0 +1,244 @@
+# Pre-H1 Provisional Fixture Registry (Package A).
+# Documentation/data only. The registry is provisional until independent
+# provenance approval; no item becomes officially qualified by this authoring
+# commit. All source hashes are SHA-256 over file bytes at the frozen PR #1
+# head d5ef318468b6c35df3c14c1c5f72beb1191baf29 unless stated otherwise.
+registry_schema_version: 1
+registry_status: Provisional pending independent provenance approval
+frozen_baseline_commit: d5ef318468b6c35df3c14c1c5f72beb1191baf29
+entries:
+  - fixture_id: fx-notes-cli
+    version: 1
+    type: fixture-repository
+    repository_source_commit: d5ef318468b6c35df3c14c1c5f72beb1191baf29
+    source_path: fixtures/repos/notes-cli
+    content_hash: >-
+      per-file sha256:
+      README.md=4f694e4441f142f27486cb357fcb2651f511ee04dac67bb093ff200718fd7b62,
+      src/main.rs=8f969ada4796e8dbf7e3bc0d03ee6ed71d8277927294cc1501331a18184f539f;
+      tree rule: sha256 over sorted (relative-path, file-bytes) pairs at the
+      source commit, computed and recorded at independent registry approval
+    origin: authored-in-repo
+    author_class: wepld-project-builder
+    creation_method: hand-authored
+    synthetic: true
+    network_required: false
+    privacy_classification: none
+    secret_classification: none
+    third_party_content: false
+    license: Apache-2.0
+    qualification: QualifiedWithRemediation
+    consumer_cases: [PH1-C01, PH1-C04, PH1-C05, PH1-C07, PH1-C08, PH1-C09, PH1-C10, PH1-C11, PH1-C12]
+    mutability: immutable-at-commit
+    regeneration_policy: none-static
+    supersession: none
+    reviewer: PendingIndependentApproval
+    decision: Pending
+    notes: instantiated per run via git init; instantiation SHAs/timestamps are excluded from frozen identity
+  - fixture_id: fx-mission-add-version-flag
+    version: 1
+    type: mission-brief
+    repository_source_commit: d5ef318468b6c35df3c14c1c5f72beb1191baf29
+    source_path: fixtures/missions/add-version-flag.json
+    content_hash: 0e6dd8acaacb1c8b5c05b9368448d0b54d1185eb1c3ca19d6adfe6ba1b25cdf5
+    origin: authored-in-repo
+    author_class: wepld-project-builder
+    creation_method: hand-authored
+    synthetic: true
+    network_required: false
+    privacy_classification: none
+    secret_classification: none
+    third_party_content: false
+    license: Apache-2.0
+    qualification: QualifiedWithRemediation
+    consumer_cases: [PH1-C01]
+    mutability: immutable-at-commit
+    regeneration_policy: none-static
+    supersession: none
+    reviewer: PendingIndependentApproval
+    decision: Pending
+    notes: canonical demo mission input; repo path field is normalized at instantiation
+  - fixture_id: cmp-golden-build-feature
+    version: 1
+    type: golden-trace-comparator
+    repository_source_commit: d5ef318468b6c35df3c14c1c5f72beb1191baf29
+    source_path: fixtures/golden/build-feature.trace
+    content_hash: 7c58f056fd08a418ff140b4aca578223c24c5996f4ce153e1b1c2d60f4f687ec
+    origin: generated-from-baseline-runs-then-ratified
+    author_class: wepld-project-builder
+    creation_method: development-regression-capture
+    synthetic: true
+    network_required: false
+    privacy_classification: none
+    secret_classification: none
+    third_party_content: false
+    license: Apache-2.0
+    qualification: ComparatorOnly
+    consumer_cases: [PH1-C01]
+    mutability: byte-immutable-historical
+    regeneration_policy: never-regenerated; post-reconciliation goldens are new files with supersession links
+    supersession: none
+    reviewer: PendingIndependentApproval
+    decision: Pending
+    notes: historical event vocabulary; measures deterministic replay agreement only; not preregistered truth
+  - fixture_id: cmp-golden-m0-first-mission
+    version: 1
+    type: golden-trace-comparator
+    repository_source_commit: d5ef318468b6c35df3c14c1c5f72beb1191baf29
+    source_path: fixtures/golden/m0-first-mission.trace
+    content_hash: 25794ca11de65ec2dedbed7183fda49f44abf6dc963bcefdc53335ef68753c8a
+    origin: generated-from-baseline-runs-then-ratified
+    author_class: wepld-project-builder
+    creation_method: development-regression-capture
+    synthetic: true
+    network_required: false
+    privacy_classification: none
+    secret_classification: none
+    third_party_content: false
+    license: Apache-2.0
+    qualification: ComparatorOnly
+    consumer_cases: [PH1-C01, PH1-C11]
+    mutability: byte-immutable-historical
+    regeneration_policy: never-regenerated; post-reconciliation goldens are new files with supersession links
+    supersession: none
+    reviewer: PendingIndependentApproval
+    decision: Pending
+    notes: historical event vocabulary; replay-agreement comparator only
+  - fixture_id: cmp-golden-spec-to-mission
+    version: 1
+    type: golden-trace-comparator
+    repository_source_commit: d5ef318468b6c35df3c14c1c5f72beb1191baf29
+    source_path: fixtures/golden/spec-to-mission.trace
+    content_hash: b7154bd1f2961b5cac653b81981bd3de767a32e279d3cec4d9a4b8a6932a7f6b
+    origin: generated-from-baseline-runs-then-ratified
+    author_class: wepld-project-builder
+    creation_method: development-regression-capture
+    synthetic: true
+    network_required: false
+    privacy_classification: none
+    secret_classification: none
+    third_party_content: false
+    license: Apache-2.0
+    qualification: ComparatorOnly
+    consumer_cases: [PH1-C01, PH1-C02]
+    mutability: byte-immutable-historical
+    regeneration_policy: never-regenerated; post-reconciliation goldens are new files with supersession links
+    supersession: none
+    reviewer: PendingIndependentApproval
+    decision: Pending
+    notes: historical event vocabulary; replay-agreement comparator only
+  - fixture_id: env-rust-toolchain
+    version: 1
+    type: environment-identity
+    repository_source_commit: d5ef318468b6c35df3c14c1c5f72beb1191baf29
+    source_path: rust-toolchain.toml
+    content_hash: a6a0bbd29ffaa8182dc22d1d9149709f1091e47df40ed96eb8a78a711c66a4ce
+    origin: authored-in-repo
+    author_class: wepld-project-builder
+    creation_method: standard-tooling-pin
+    synthetic: true
+    network_required: false
+    privacy_classification: none
+    secret_classification: none
+    third_party_content: false
+    license: Apache-2.0
+    qualification: Qualified
+    consumer_cases: [PH1-C01, PH1-C02, PH1-C03, PH1-C04, PH1-C05, PH1-C06, PH1-C07, PH1-C08, PH1-C09, PH1-C10, PH1-C11, PH1-C12]
+    mutability: immutable-at-commit
+    regeneration_policy: none-static
+    supersession: none
+    reviewer: PendingIndependentApproval
+    decision: Pending
+    notes: environment-identity input; Qualified classification remains subject to independent registry approval
+  - fixture_id: env-cargo-lock
+    version: 1
+    type: environment-identity
+    repository_source_commit: d5ef318468b6c35df3c14c1c5f72beb1191baf29
+    source_path: Cargo.lock
+    content_hash: 93e5e9bbc2664a0f48cf061e99ab5fc62b507c7c894f445aac8f54155c99ae8f
+    origin: generated-in-repo
+    author_class: wepld-project-builder
+    creation_method: cargo-lockfile-generation
+    synthetic: true
+    network_required: false
+    privacy_classification: none
+    secret_classification: none
+    third_party_content: false
+    license: Apache-2.0
+    qualification: Qualified
+    consumer_cases: [PH1-C01, PH1-C02, PH1-C03, PH1-C04, PH1-C05, PH1-C06, PH1-C07, PH1-C08, PH1-C09, PH1-C10, PH1-C11, PH1-C12]
+    mutability: immutable-at-commit
+    regeneration_policy: none-static
+    supersession: none
+    reviewer: PendingIndependentApproval
+    decision: Pending
+    notes: dependency-identity input for --locked builds; Qualified classification remains subject to independent registry approval
+  - fixture_id: cc-corpus-spec-flow
+    version: 1
+    type: cassette-corpus
+    repository_source_commit: planned
+    source_path: planned (per cassette-corpus-specification.md)
+    content_hash: to-be-computed-at-generation-and-registry-approval
+    origin: to-be-generated-from-normalized-packs
+    author_class: wepld-project-builder
+    creation_method: deterministic-normalized-generation
+    synthetic: true
+    network_required: false
+    privacy_classification: none
+    secret_classification: none
+    third_party_content: false
+    license: Apache-2.0
+    qualification: Provisional
+    consumer_cases: [PH1-C01, PH1-C02, PH1-C03, PH1-C06]
+    mutability: immutable-after-qualification
+    regeneration_policy: new-version-with-supersession-link
+    supersession: none
+    reviewer: PendingIndependentApproval
+    decision: Pending
+    notes: planned path-independent specification/plan cassette corpus; not yet generated
+  - fixture_id: cc-corpus-build-edits
+    version: 1
+    type: cassette-corpus
+    repository_source_commit: planned
+    source_path: planned (per cassette-corpus-specification.md)
+    content_hash: to-be-computed-at-generation-and-registry-approval
+    origin: to-be-generated-from-normalized-packs
+    author_class: wepld-project-builder
+    creation_method: deterministic-normalized-generation
+    synthetic: true
+    network_required: false
+    privacy_classification: none
+    secret_classification: none
+    third_party_content: false
+    license: Apache-2.0
+    qualification: Provisional
+    consumer_cases: [PH1-C01, PH1-C04, PH1-C05, PH1-C07, PH1-C08, PH1-C09, PH1-C10, PH1-C11, PH1-C12]
+    mutability: immutable-after-qualification
+    regeneration_policy: new-version-with-supersession-link
+    supersession: none
+    reviewer: PendingIndependentApproval
+    decision: Pending
+    notes: planned path-independent builder-edit cassette corpus; not yet generated
+  - fixture_id: ts-runtime-cassettes
+    version: 1
+    type: ephemeral-test-cassettes
+    repository_source_commit: d5ef318468b6c35df3c14c1c5f72beb1191baf29
+    source_path: generated-at-test-runtime (no committed path)
+    content_hash: not-applicable-ephemeral
+    origin: generated-per-run-by-tests
+    author_class: wepld-project-builder
+    creation_method: runtime-generation
+    synthetic: true
+    network_required: false
+    privacy_classification: none
+    secret_classification: none
+    third_party_content: false
+    license: Apache-2.0
+    qualification: TestSupportOnly
+    consumer_cases: []
+    mutability: ephemeral
+    regeneration_policy: regenerated-every-test-run
+    supersession: superseded-for-evaluation-by cc-corpus-spec-flow and cc-corpus-build-edits once qualified
+    reviewer: PendingIndependentApproval
+    decision: Pending
+    notes: keys embed per-run temporary paths; never frozen evaluation inputs

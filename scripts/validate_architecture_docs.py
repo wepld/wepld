@@ -892,6 +892,139 @@ def validate_strategy(texts: dict[Path, str]) -> None:
             error(f"forbidden strategy claim ({description}): {match.group(0)!r}")
 
 
+def validate_pre_h1_package(texts: dict[Path, str]) -> None:
+    package = DOCS / "evaluation" / "pre-h1"
+    if not package.exists():
+        return
+    label = "docs/evaluation/pre-h1"
+
+    # Root licensing artifacts.
+    license_path = ROOT / "LICENSE"
+    notice_path = ROOT / "NOTICE"
+    license_text = read_utf8(license_path) if license_path.exists() else ""
+    if not license_path.exists():
+        error("missing root LICENSE file")
+    else:
+        for needle in (
+            "Apache License",
+            "Version 2.0, January 2004",
+            "http://www.apache.org/licenses/",
+            "9. Accepting Warranty or Additional Liability.",
+            'Licensed under the Apache License, Version 2.0 (the "License");',
+        ):
+            if needle not in license_text:
+                error(f"LICENSE: does not contain the unmodified Apache-2.0 text ({needle!r} absent)")
+        if len(license_text) < 9000:
+            error("LICENSE: too short to be the complete Apache-2.0 license text")
+    if not notice_path.exists():
+        error("missing root NOTICE file")
+    elif "Copyright 2026 Abdulaziz M. Alshehri" not in read_utf8(notice_path):
+        error("NOTICE: missing the recorded copyright line")
+    licensing = required_text(texts, DOCS / "governance" / "LICENSING.md")
+    if "`Apache-2.0`" not in licensing:
+        error("docs/governance/LICENSING.md: missing canonical SPDX identifier `Apache-2.0`")
+
+    # Required package files.
+    required_files = (
+        "README.md", "WEPLD-NATIVE-V0-BASELINE-1.md", "fixture-registry.yaml",
+        "cassette-corpus-specification.md", "event-vocabulary-map.md",
+        "assessor-policy.md", "cache-and-environment-procedure.md",
+    )
+    for name in required_files:
+        if not (package / name).exists():
+            error(f"{label}: missing required file {name}")
+
+    protocol_path = package / "WEPLD-NATIVE-V0-BASELINE-1.md"
+    protocol = texts.get(protocol_path.resolve(), "")
+    protocol_flat = " ".join(protocol.replace("*", "").split())
+    for needle, description in {
+        "WEPLD-NATIVE-V0-BASELINE/1": "missing protocol id/version",
+        "Proposed for independent provenance approval": "missing protocol status",
+        "No official EvaluationRun has occurred": "missing no-official-run statement",
+        "ARM-RECON/1 is declared but not executable": "ARM-RECON not marked non-executable",
+        "EvaluationRunDisposition": "missing run-disposition family",
+        "EvaluationResultDisposition": "missing result-disposition family",
+        "product failures do not invalidate a correctly executed run":
+            "run validity not separated from product failure",
+        "kind: FixtureAdapter": "missing ExecutionSourceIdentity for the fixture adapter",
+        "status: NotApplicable": "ModelIdentityEvidence not marked NotApplicable for ARM-BASE",
+        "d5ef318468b6c35df3c14c1c5f72beb1191baf29": "missing exact frozen PR #1 SHA",
+        "probes and reconciliation determine the durable outcome":
+            "Case PH1-C09 uncertain-effect semantics missing",
+        "no uncertain-effect probe path is used":
+            "Case PH1-C10 deterministic-refusal semantics missing",
+        "known baseline nonconformance": "Case PH1-C12 nonconformance framing missing",
+        "cannot authorize implementation": "missing evidence-cannot-authorize clause",
+    }.items():
+        if needle.lower() not in protocol_flat.lower():
+            error(f"{label}/WEPLD-NATIVE-V0-BASELINE-1.md: {description}")
+    readme_flat = " ".join(
+        texts.get((package / "README.md").resolve(), "").replace("*", "").split()
+    )
+    if "remains unauthorized" not in readme_flat or "Package B" not in readme_flat:
+        error(f"{label}/README.md: Package B not stated as unauthorized")
+
+    # Registry structure.
+    registry_path = package / "fixture-registry.yaml"
+    registry = read_utf8(registry_path) if registry_path.exists() else ""
+    if "registry_schema_version:" not in registry:
+        error(f"{label}/fixture-registry.yaml: missing registry_schema_version")
+    allowed_states = {
+        "Provisional", "Qualified", "QualifiedWithRemediation",
+        "ComparatorOnly", "TestSupportOnly", "Rejected",
+    }
+    required_keys = (
+        "version:", "type:", "repository_source_commit:", "source_path:",
+        "content_hash", "origin:", "author_class:", "creation_method:",
+        "synthetic:", "network_required:", "privacy_classification:",
+        "secret_classification:", "third_party_content:", "license:",
+        "qualification:", "consumer_cases:", "mutability:",
+        "regeneration_policy:", "supersession:", "reviewer:", "decision:",
+    )
+    blocks = re.split(r"(?=^  - fixture_id:)", registry, flags=re.M)[1:]
+    if not blocks:
+        error(f"{label}/fixture-registry.yaml: no fixture entries found")
+    for block in blocks:
+        fixture_id = re.search(r"fixture_id:\s*(\S+)", block)
+        name = fixture_id.group(1) if fixture_id else "(unknown)"
+        for key in required_keys:
+            if key not in block:
+                error(f"{label}/fixture-registry.yaml: entry {name} missing {key.rstrip(':')}")
+        state = re.search(r"^\s{4}qualification:\s*(\S+)", block, re.M)
+        state_value = state.group(1) if state else "(missing)"
+        if state_value not in allowed_states:
+            error(f"{label}/fixture-registry.yaml: entry {name} has invalid qualification {state_value}")
+        if state_value == "Qualified" and not name.startswith("env-"):
+            error(
+                f"{label}/fixture-registry.yaml: entry {name} marked Qualified — only "
+                f"environment-identity (env-*) entries may carry Qualified in Package A"
+            )
+        entry_type = re.search(r"^\s{4}type:\s*(\S+)", block, re.M)
+        if entry_type and entry_type.group(1) == "golden-trace-comparator" and state_value != "ComparatorOnly":
+            error(f"{label}/fixture-registry.yaml: golden entry {name} must be ComparatorOnly")
+        license_value = re.search(r"^\s{4}license:\s*(\S+)", block, re.M)
+        if not license_value or license_value.group(1) != "Apache-2.0":
+            error(f"{label}/fixture-registry.yaml: entry {name} lacks an explicit Apache-2.0 license")
+
+    combined = "\n".join(texts.values()) + "\n" + registry + "\n" + license_text
+    for pattern, description in {
+        r"(?<![Nn]o )official EvaluationRun has (?:occurred|been executed)":
+            "protocol claims the official run occurred",
+        r"product failures?\s+(?:invalidates?\b|(?:is|are)\s+(?:an\s+)?invalid)":
+            "product failure described as an invalid run",
+        r"fixture[- ]adapter is a verified model":
+            "fixture adapter described as a verified model",
+        r"ARM-RECON/1 is (?:now )?executable": "ARM-RECON marked executable",
+        r"goldens?\s+(?:are|is|as)\s+ground truth": "golden described as ground truth",
+        r"candidate-only compliant": "baseline described as candidate-only compliant",
+        r"EvaluationResult\s+(?:can|may)\s+(?:authorize|approve)":
+            "EvaluationResult described as authorizing",
+    }.items():
+        match = re.search(pattern, combined)
+        if match:
+            error(f"forbidden pre-H1 claim ({description}): {match.group(0)!r}")
+
+
 def validate_stale_claims(texts: dict[Path, str]) -> None:
     combined = "\n".join(texts.values())
     stale = {
@@ -934,7 +1067,7 @@ def validate_changed_scope(base: str) -> None:
             error(f"git {' '.join(args)} failed:\n{os.fsdecode(result.stdout)}{os.fsdecode(result.stderr)}")
             continue
         names.update(os.fsdecode(item) for item in result.stdout.split(b"\0") if item)
-    allowed_exact = {"README.md", ".github/workflows/docs-validation.yml", "scripts/validate_architecture_docs.py"}
+    allowed_exact = {"README.md", "LICENSE", "NOTICE", ".github/workflows/docs-validation.yml", "scripts/validate_architecture_docs.py"}
     forbidden = [name for name in names if name not in allowed_exact and not name.startswith("docs/")]
     if forbidden:
         error(f"production/non-documentation paths changed: {sorted(forbidden)}")
@@ -964,6 +1097,7 @@ def main() -> int:
     validate_reference_study(texts)
     validate_committee(texts)
     validate_strategy(texts)
+    validate_pre_h1_package(texts)
     validate_stale_claims(texts)
     validate_changed_scope(args.base)
 

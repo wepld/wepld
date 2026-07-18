@@ -40,4 +40,8 @@ The canonical `origin/main` used for this planning worktree is documentation-onl
 
 Run `python3 scripts/validate_architecture_docs.py --base origin/main` to validate UTF-8, Markdown links/anchors/fences/tables, HTML links/anchors, ADR index/status/IDs, H1–H9 dependency structure, reference-ledger/matrix/RS experiment completeness, stale claims, diff whitespace, and documentation-only change scope. The pinned [architecture-docs workflow](.github/workflows/docs-validation.yml) runs the same dependency-free gate for pull requests that change this package.
 
+## License
 
+WePLD is licensed under the Apache License, Version 2.0 (SPDX: `Apache-2.0`).
+See [LICENSE](LICENSE) and
+[docs/governance/LICENSING.md](docs/governance/LICENSING.md).
