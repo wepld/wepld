@@ -61,17 +61,17 @@ milestones already permit.
 | Provider settings | 5 | profiles, assurance tiers, budgets |
 | Cost dashboard | 5 | budgets, spend, exhaustion states |
 | Policy Studio | 5 | author policy; simulation before activation |
-| Architecture view | 5–6 | Constitution rules + drift findings |
-| Agent Hive view | 6 | roles, leases, budgets — status, not chat voyeurism |
-| Committee Room | 6 | sessions, dispositions, dissent (projected per PR #3) |
-| Verification Lab surface | 6 | gaps, coverage, inspector results |
-| Truth Graph explorer + Ask Why | 6 | evidence-linked answers |
-| Project DNA explorer | 6 | identity + conventions |
-| Repository + symbol maps | 6 | knowledge navigation |
-| Test explorer | 6 | integrate runners' results |
-| Security findings | 6 | SARIF-normalized |
-| Skill + memory inspectors | 6 | provenance, judgments, candidates |
-| Controlled terminal | 6 | capability-scoped, recorded, never ambient |
+| Architecture view | 5–6b | Constitution rules + drift findings |
+| Agent Hive view | 6b | roles, leases, budgets — status, not chat voyeurism |
+| Committee Room | 6b | sessions, dispositions, dissent (projected per PR #3) |
+| Verification Lab surface | 6b | gaps, coverage, inspector results |
+| Truth Graph explorer + Ask Why | 6b | evidence-linked answers |
+| Project DNA explorer | 6b | identity + conventions |
+| Repository + symbol maps | 6b | knowledge navigation |
+| Test explorer | 6b | integrate runners' results |
+| Security findings | 6b | SARIF-normalized |
+| Skill + memory inspectors | 6b | provenance, judgments, candidates |
+| Controlled terminal | 6b | capability-scoped, recorded, never ambient |
 | Technical-debt view | 7 | ledger + economics |
 | Migration viewer | 7 | Migration Lab projection |
 | Dependency viewer | 7 | supply-chain guardian projection |
@@ -95,7 +95,7 @@ Autonomy is **earned, scoped, expiring, and reversible** — never a switch.
 | 3 | Execute after every approval | the V0 posture |
 | 4 | Execute admitted low-risk tasks | per task-class admission, evidence-based |
 | 5 | Run bounded approved phases | phase-scoped, budgeted, interruptible |
-| 6 | Governed programme autonomy | Stage 9; policy-admitted, never universal |
+| 6b | Governed programme autonomy | Stage 9; policy-admitted, never universal |
 
 Rules: promotion requires evidence (accepted-task history, correction rates)
 per capability and risk class — evidence is produced independently of the

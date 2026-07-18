@@ -157,7 +157,7 @@ Authorized: false.
 ### CAP-COMMITTEE-001 — Engineering Committee
 
 Category: Advisory deliberation system. As specified by PR #3 (docs 36–37,
-ADR-0026) — adopted without redesign. Stage 6; gated by the doc-37 admission
+ADR-0026) — adopted without redesign. Stage 6a (experimental evaluation) and Stage 6b (product admission); gated by the doc-37 admission
 rule. Rejection path: doc-37 rejection criteria. Status: Planned. Authorized:
 false.
 
@@ -212,7 +212,7 @@ sprawl. Security: poisoning defense, license analysis, revocation, no
 self-promotion. Evaluation: EV-S9 (certified Skill vs none), canary use.
 Rejection path: a Skill that does not generalize beyond its fixtures is not
 promoted; the global tier does not open before certification foundations.
-Build/buy: Build. Stage: 6/9. Status: Planned. Authorized: false.
+Build/buy: Build. Stage: 6b/9. Status: Planned. Authorized: false.
 
 ### CAP-STUDIO-001 — Studio Mission Control
 
@@ -221,7 +221,7 @@ evidence, recovery — projections only. Problem solved: chat-window opacity.
 Evaluation: EV-S16 decision-burden and surface-utility studies. Rejection
 path: any surface less useful than an existing integration is dropped
 (the doc's own criterion). Build/buy: Build (custom application; not
-WordPress). Stage: 5. Status: Planned. Authorized: false.
+WordPress). Stage: requirements at 5; product surfaces at 8 behind the canonical H9 gate. Status: Planned. Authorized: false.
 
 ### CAP-PTL-001 — Production Truth Loop
 

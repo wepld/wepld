@@ -150,7 +150,7 @@ Returned/Deferred outcomes); PR #2 documents the target contracts.
 | Capability manifests | Hermes runtime service | 2 | P0 | Foundation; projected tool catalogs |
 | Tool Router | Hermes runtime service | 2 | P0 | Foundation; behind capability manifests |
 | Hook Bus | Hermes runtime service | 3 | P1 | Later; ADR-0018 |
-| Subagent Supervisor | Hermes runtime service | 6 | P1 | Later; ADR-0021 bounded subagents |
+| Subagent Supervisor | Hermes runtime service | 6b | P1 | Later; ADR-0021 bounded subagents |
 | Provider health monitoring | Recovery/operations system | 2 | P1 | Near-term |
 | Local / remote / enterprise / hybrid runtimes | Deployment mode | 2–8 | P0–P2 | Local first; remote under policy; enterprise Stage 8 |
 | OpenAI-compatible adapters | Integration | 2 | P0 | Foundation; loopback seed exists (PR #1); hosted deferred to verified-TLS build |
@@ -159,7 +159,7 @@ Returned/Deferred outcomes); PR #2 documents the target contracts.
 | Gemini-compatible adapters | Integration | 2 | P2 | Later |
 | Local model adapters | Integration | 2 | P0 | Foundation; local-only mode depends on them |
 | Human worker adapters | Integration | 8 | P2 | Later; humans as governed workers via TaskPackets |
-| External coding-agent adapters | Integration | 6+ | C/R | Conditional research: external agents as governed workers behind the Engineering Worker Protocol; admitted per profile only after evaluation |
+| External coding-agent adapters | Integration | 6a+ | C/R | Conditional research: external agents as governed workers behind the Engineering Worker Protocol; admitted per profile only after evaluation |
 
 ## Group 3 — Agent Hive roles
 
@@ -183,8 +183,8 @@ Category for every row below: **Agent role** (inherited; IDs `G03-<kebab-role>`)
 | Security Agent | 4 | P1 | threat-driven review; findings, not authority |
 | Evidence Agent | — | X | **Replaced**: primary evidence must come from the deterministic Evidence Producer and Core stores; a narrative role would invite fabricated evidence. Advisory report-drafting only, folded into Consulting |
 | Recovery Agent | 4 | P1 | drives Recovery Room probes under approval; never silent repair |
-| DeepLearn Agent | 6 | P1 | distills verified experience into Memory/Skill candidates; cannot promote them |
-| Justified domain specialists | 6+ | C | Conditional: admitted per Domain Pack evidence, not by default |
+| DeepLearn Agent | 6b | P1 | distills verified experience into Memory/Skill candidates; cannot promote them |
+| Justified domain specialists | 6b+ | C | Conditional: admitted per Domain Pack evidence, not by default |
 | Human engineers and contractors | 8 | P2 | governed workers with TaskPackets, leases, and evidence duties — same rules as AI workers |
 
 ## Group 4 — Engineering Committee
@@ -198,8 +198,9 @@ challenge rounds; Wisdom synthesis; canonical `MinorityReport` +
 dispositions; presets; performance records; user-triggered V0; no model-voting
 authority; no direct plan mutation; `PlanChangeProposal` through normal
 qualification. Nothing in this portfolio redesigns or weakens those
-boundaries; the Committee stays an **advisory deliberation system** at Stage
-6, priority P1, gated by the document-37 admission rule (terminal EC-A1,
+boundaries; the Committee stays an **advisory deliberation system** across Stage 6a
+(experimental evaluation) and Stage 6b (product admission), priority P1,
+gated by the document-37 admission rule (terminal EC-A1,
 EC-A2, EC-A3, EC-A5, EC-A6; EC-A7/EC-A8 before any diversity-based claims or
 routing).
 
@@ -247,7 +248,7 @@ the **Change Passport** is one proof-carrying change record.
 | Architecture impact | Context/knowledge system | 3 | P1 | Near-term |
 | Exclusion records | Evidence/assurance system | 3 | P1 | Near-term; what was deliberately left out, and why |
 | Context hashes + freshness | Evidence/assurance system | 3 | P0 | Foundation |
-| Poisoning detection | Research experiment | 6 | R | Research; heuristics must beat false-positive costs before admission |
+| Poisoning detection | Research experiment | (target 6b) | R | Research; heuristics must beat false-positive costs before admission |
 | Language-neutral LSP Broker | Execution infrastructure | 3 | P0 | Foundation; wraps rust-analyzer first |
 | AST/symbol intelligence | Context/knowledge system | 3 | P1 | Near-term |
 | Structural analysis | Context/knowledge system | 3 | P1 | Near-term |
@@ -257,23 +258,23 @@ the **Change Passport** is one proof-carrying change record.
 
 | Capability | Category | Stage | Pri | Disposition / notes |
 | --- | --- | --- | --- | --- |
-| Governed Engineering Memory | Context/knowledge system | 6 | P1 | Advisory only; slice seed exists (PR #1, repo-scoped lessons) |
-| MemoryCandidates | Typed artifact | 6 | P1 | The only admission path into memory |
-| Memory Judge | Core authority service | 6 | P1 | ADR-0020; decides admission/retrieval eligibility |
-| Freshness + expiry | Context/knowledge system | 6 | P1 | Near-term |
-| Contradiction handling | Context/knowledge system | 6 | P1 | Near-term |
-| Private project memory | Context/knowledge system | 6 | P1 | Default scope |
+| Governed Engineering Memory | Context/knowledge system | 6b | P1 | Advisory only; slice seed exists (PR #1, repo-scoped lessons) |
+| MemoryCandidates | Typed artifact | 6b | P1 | The only admission path into memory |
+| Memory Judge | Core authority service | 6b | P1 | ADR-0020; decides admission/retrieval eligibility |
+| Freshness + expiry | Context/knowledge system | 6b | P1 | Near-term |
+| Contradiction handling | Context/knowledge system | 6b | P1 | Near-term |
+| Private project memory | Context/knowledge system | 6b | P1 | Default scope |
 | Organization memory | Enterprise capability | 8 | P2 | Later; opt-in |
 | Built-in Skill Kernel | Hermes runtime service | 3 | P0 | Foundation; ADR-0018 |
-| Project Skills | Skill | 6 | P1 | Later |
+| Project Skills | Skill | 6b | P1 | Later |
 | Organization Skills | Skill | 8 | P2 | Later |
 | Certified global SkillHouse | Commercial service | 9 | P3 | Ecosystem; registry mechanics stay in SkillHouse (Group 7); only after certification foundations |
-| SkillPackage / versioning / signing / compatibility / provenance | Typed artifact | 6 | P1 | Later; bundled parent `G07-skill-package` |
-| Skill evaluation / canary / promotion / suspension / revocation / rollback | Evidence/assurance system | 6 | P1 | Later; no automatic self-promotion, ever |
-| LearningEpisodes | Typed artifact | 6 | P1 | Later |
-| DeepLearn SkillCandidates | Typed artifact | 6 | P1 | Later; candidates only |
-| Poisoning defense | Evidence/assurance system | 6 | P1 | Later; required before any sharing tier |
-| License analysis (skills) | Deterministic inspector | 6 | P1 | Later |
+| SkillPackage / versioning / signing / compatibility / provenance | Typed artifact | 6b | P1 | Later; bundled parent `G07-skill-package` |
+| Skill evaluation / canary / promotion / suspension / revocation / rollback | Evidence/assurance system | 6b | P1 | Later; no automatic self-promotion, ever |
+| LearningEpisodes | Typed artifact | 6b | P1 | Later |
+| DeepLearn SkillCandidates | Typed artifact | 6b | P1 | Later; candidates only |
+| Poisoning defense | Evidence/assurance system | 6b | P1 | Later; required before any sharing tier |
+| License analysis (skills) | Deterministic inspector | 6b | P1 | Later |
 | Opt-in global contribution | Enterprise capability | 9 | P3 | Ecosystem; **opt-in only, never default** |
 
 ## Group 8 — Letta / MemGPT
@@ -368,7 +369,7 @@ data-egress policy; local use obeys sandbox and Effect Firewall rules.
 | Plan comparison (A/B) | AGILLE delivery service | 5 | P1 | Later; same evidence, same constraints |
 | Expected-effect / cost / schedule estimates | AGILLE delivery service | 5 | P2 | Later; estimates labeled as estimates |
 | Reversibility / rollback / dependency simulation | AGILLE delivery service | 5 | P2 | Later |
-| Committee trigger recommendation | Advisory deliberation system | 6 | C | Conditional on Committee admission + policy |
+| Committee trigger recommendation | Advisory deliberation system | 6b | C | Conditional on Committee admission + policy |
 | Decision Inbox | Studio surface | 5 | P1 | A surface over the Core decision queue, not an engine |
 | Material-decision filtering | Core authority service | 5 | P1 | Near-term; what deserves human attention |
 | HumanAttentionBudget | Typed artifact | 5 | P1 | A policy artifact, not an engine: the Policy Engine evaluates it, the Budget Controller records consumption, the Decision Inbox performs presentation, bundling and permitted deferral, and Core records every decision, suppression and deferral. Invariant categories that **cannot be suppressed** or made optional: security authorization; irreversible effects; financial commitments; data-egress approval; plan approval; completion approval; policy exceptions; capability escalation; production release authorization |
@@ -434,11 +435,11 @@ P1.
 
 | Capability | Category | Stage | Pri | Disposition / notes |
 | --- | --- | --- | --- | --- |
-| Benchmark Arena | Evidence/assurance system | 6 | P1 | The ADR-0024 spine, productized |
-| Model and Agent Trust Registry | Evidence/assurance system | 6 | P1 | Certification states (ADR-0025) + Committee reputation (consolidated home) |
-| Task-family / role-specific / language / environment / risk-tier evaluation | Evidence/assurance system | 6 | P1 | Later |
-| Model/profile fingerprinting | Evidence/assurance system | 6 | P1 | PR #3 `ModelIdentityEvidence` is the contract |
-| Committee reputation / minority-finding value / unsupported claims / defect detection / false positives / plan churn / cost / latency / human corrections / fallback performance | Evidence/assurance system | 6 | P1 | Doc-37 metric families feeding the registry |
+| Benchmark Arena | Evidence/assurance system | 6a/6b | P1 | The ADR-0024 spine: experimental use in Stage 6a, product admission in Stage 6b — separate gates |
+| Model and Agent Trust Registry | Evidence/assurance system | 6a/6b | P1 | Certification states (ADR-0025) + Committee reputation (consolidated home) |
+| Task-family / role-specific / language / environment / risk-tier evaluation | Evidence/assurance system | 6a/6b | P1 | Later; experimental in 6a, product use in 6b |
+| Model/profile fingerprinting | Evidence/assurance system | 6a/6b | P1 | PR #3 `ModelIdentityEvidence` is the contract |
+| Committee reputation / minority-finding value / unsupported claims / defect detection / false positives / plan churn / cost / latency / human corrections / fallback performance | Evidence/assurance system | 6a/6b | P1 | Doc-37 metric families feeding the registry |
 | Universal best-model claims | — | X | **Rejected permanently**; only scoped, evidence-bound claims exist |
 
 ## Group 21 — Team, enterprise and programme mode

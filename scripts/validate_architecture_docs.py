@@ -601,6 +601,176 @@ def validate_strategy(texts: dict[Path, str]) -> None:
                 "closure and its evaluation evidence"
             )
 
+    # Stage 3 / Stage 7 security-acceptance gates must name their protections
+    # in the gate itself, not only in the general threat register.
+    def stage_flat_section(number: str) -> str:
+        match = re.search(
+            rf"(^## Stage {number} — .*?)(?=^## Stage|^## V0|\Z)", roadmap, re.M | re.S
+        )
+        return " ".join(match.group(1).replace("*", "").split()) if match else ""
+
+    stage3 = stage_flat_section("3")
+    for needle, description in {
+        "imported-rule injection": "imported-rule injection resistance",
+        "untrusted candidates": "repository instruction files as untrusted candidates",
+        "ConstitutionRuleCandidate": "Constitution-candidate tampering detection",
+        "context-poisoning": "context-poisoning resistance",
+        "cross-project and cross-tenant": "cross-project/cross-tenant isolation",
+        "projection-hash verification": "projection-hash verification",
+        "candidate provenance and review": "candidate provenance/review requirement",
+        "no imported candidate became policy": "no-automatic-policy proof",
+    }.items():
+        if needle not in stage3:
+            error(f"docs/strategy roadmap: Stage 3 security acceptance omits {description}")
+
+    stage7 = stage_flat_section("7")
+    for needle, description in {
+        "policy-authorized release decisions": "authenticated/policy-authorized release decisions",
+        "proposal separated from release authorization": "proposal/authorization separation",
+        "destructive-migration detection": "destructive-migration detection",
+        "applied-migration history": "applied-migration history verification",
+        "backup/restore readiness": "backup/restore readiness before destructive effects",
+        "rollback evidence bound to the exact release candidate": "candidate-bound rollback evidence",
+        "supply-chain integrity": "supply-chain integrity",
+        "telemetry redaction": "telemetry redaction",
+        "incident-role capability leasing": "incident-role capability leasing/expiry",
+        "least-privilege incident access": "least-privilege incident access",
+        "excluded from operational logs": "secrets/provider data excluded from operational logs",
+        "uncertain production-effect reconciliation": "uncertain-effect reconciliation",
+    }.items():
+        if needle not in stage7:
+            error(f"docs/strategy roadmap: Stage 7 security acceptance omits {description}")
+
+    # Stage 6b must not bulk-authorize its systems; each needs its own record.
+    for needle, description in {
+        "Closing or authorizing Stage 6b does not automatically authorize":
+            "missing Stage 6b independent-disposition rule",
+        "separate disposition record": "missing separate-disposition requirement",
+    }.items():
+        if needle not in roadmap_flat:
+            error(f"docs/strategy roadmap: {description}")
+    if "Closing or authorizing Stage 6b does not automatically authorize" in roadmap_flat:
+        rule_tail = roadmap_flat.split(
+            "Closing or authorizing Stage 6b does not automatically authorize", 1
+        )[1][:900]
+        for system in ("Committee V0", "Memory Judge", "project SkillHouse",
+                       "Benchmark Arena", "Trust Registry", "DeepLearn"):
+            if system not in rule_tail:
+                error(
+                    f"docs/strategy roadmap: Stage 6b disposition rule does not "
+                    f"name {system}"
+                )
+
+    # Ambiguous Stage 6 labels: after the 6a/6b split, a bare "Stage 6" label
+    # or a bare "6"/"6+" stage cell no longer identifies a gate.
+    bare_stage6 = re.compile(r"\bStage\s+6(?![ab0-9+/])")
+    bare_cell = re.compile(r"^\(?\s*(?:target\s+)?6\+?\s*\)?$")
+    for path, text in strategy_texts.items():
+        flat = " ".join(text.replace("**", "").split())
+        if bare_stage6.search(flat):
+            error(f"docs/strategy/{path.name}: ambiguous bare 'Stage 6' label (use 6a/6b)")
+        lines = text.splitlines()
+        cell_index = None
+        for lineno, line in enumerate(lines, 1):
+            if line.startswith("| Capability | Category |"):
+                cell_index = 2
+                continue
+            if line.startswith("| Surface | Requirements stage |"):
+                cell_index = 1
+                continue
+            if cell_index is not None:
+                if not line.startswith("|"):
+                    cell_index = None
+                    continue
+                if re.match(r"^\|\s*:?-", line):
+                    continue
+                cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+                if len(cells) > cell_index and bare_cell.match(cells[cell_index]):
+                    error(
+                        f"docs/strategy/{path.name}:{lineno}: ambiguous stage cell "
+                        f"{cells[cell_index]!r} (use 6a/6b)"
+                    )
+
+    # Derived capability-ID collision detection (parents and bundled children).
+    # Kebab normalization collapses separator runs, so a parent kebab never
+    # contains '--' and the '<parent>--<child>' namespace cannot collide with a
+    # parent ID structurally; the shared map still guards both.
+    def kebab(value: str) -> str:
+        return re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+
+    derived: dict[str, tuple[str, int, str]] = {}
+    for path, text in strategy_texts.items():
+        group_no = None
+        in_table = False
+        for lineno, line in enumerate(text.splitlines(), 1):
+            heading = re.match(r"^## Group (\d+)", line)
+            if heading:
+                group_no = int(heading.group(1))
+                in_table = False
+                continue
+            if line.startswith("| Capability | Category |"):
+                in_table = True
+                continue
+            if in_table:
+                if not line.startswith("|"):
+                    in_table = False
+                    continue
+                if re.match(r"^\|\s*:?-", line):
+                    continue
+                cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+                if not cells or not cells[0]:
+                    continue
+                clean = re.sub(r"[*`]", "", cells[0]).strip()
+                if group_no is None:
+                    error(
+                        f"docs/strategy/{path.name}:{lineno}: registry row outside a "
+                        f"numbered Group heading cannot derive a deterministic ID"
+                    )
+                    continue
+                parent_kebab = kebab(clean)
+                if not parent_kebab:
+                    error(
+                        f"docs/strategy/{path.name}:{lineno}: row name {clean!r} "
+                        f"cannot produce a valid deterministic ID"
+                    )
+                    continue
+                parent_id = f"G{group_no:02d}-{parent_kebab}"
+                if parent_id in derived:
+                    prev = derived[parent_id]
+                    error(
+                        f"docs/strategy/{path.name}:{lineno}: duplicate parent "
+                        f"capability ID {parent_id} ({clean!r} vs {prev[2]!r} at "
+                        f"{prev[0]}:{prev[1]})"
+                    )
+                else:
+                    derived[parent_id] = (path.name, lineno, clean)
+                if "/" in clean:
+                    seen_children: set[str] = set()
+                    for part in (piece.strip() for piece in clean.split("/")):
+                        child_kebab = kebab(part)
+                        if not child_kebab:
+                            error(
+                                f"docs/strategy/{path.name}:{lineno}: bundled item "
+                                f"{part!r} cannot produce a valid child ID"
+                            )
+                            continue
+                        if child_kebab in seen_children:
+                            error(
+                                f"docs/strategy/{path.name}:{lineno}: duplicate "
+                                f"bundled child {child_kebab!r} under {parent_id}"
+                            )
+                            continue
+                        seen_children.add(child_kebab)
+                        child_id = f"{parent_id}--{child_kebab}"
+                        if child_id in derived:
+                            prev = derived[child_id]
+                            error(
+                                f"docs/strategy/{path.name}:{lineno}: child ID "
+                                f"{child_id} collides with {prev[0]}:{prev[1]}"
+                            )
+                        else:
+                            derived[child_id] = (path.name, lineno, part)
+
     combined_all_flat = " ".join(combined.replace("**", "").split())
     for needle, description in {
         "WePLD Adoption Gateway": "missing Adoption Gateway capability",
@@ -635,6 +805,9 @@ def validate_strategy(texts: dict[Path, str]) -> None:
         r"Exit\s+Pack\s+is\s+(?:identical\s+to|the\s+same\s+as)[^.\n]{0,30}operational\s+backup":
             "Exit Pack conflated with operational backup",
         r"Conditional,\s*Stage\s*6\+": "Letta adapter scheduled at Stage 6+",
+        r"(?:closing|authorizing)\s+Stage\s*6b\s+(?:automatically\s+)?"
+        r"(?:admits|authorizes)\s+(?:all|every)":
+            "Stage 6b presented as bulk authorization of its systems",
     }
     everything = "\n".join(texts.values())
     for pattern, description in forbidden.items():

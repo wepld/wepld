@@ -94,8 +94,20 @@ exact/LSP/structural selection, redaction, hashes, exclusions; Decision Inbox
 queue in Core. **Dependencies:** S2 (packs travel through the gateway).
 **User-visible value:** explainable context; "Ask Why" answers; fewer
 irrelevant model inputs. **Technical acceptance:** retrieval ablations;
-graph-rebuild-from-ledger drill. **Security acceptance:** redaction fixtures;
-projection hashes. **Evaluation:** EV-S7/EV-S8. **Rollback:** fall back to
+graph-rebuild-from-ledger drill. **Security acceptance:** assessed, terminal
+evidence for every one of: imported-rule injection resistance (malicious
+AGENTS.md/CLAUDE.md/Cursor-rule fixtures survive without becoming
+instructions); repository instruction files remaining untrusted candidates;
+`ConstitutionRuleCandidate` tampering detection (candidate-tampering
+fixtures); context-poisoning resistance; cross-project and cross-tenant
+context isolation (contamination fixtures); secret and sensitive-data
+redaction tests; provider-specific projection integrity; projection-hash
+verification (mismatch fixtures fail closed); candidate provenance and review
+requirements (candidate-admission audit records exist for every admitted
+candidate); deterministic-import kept separate from model-assisted
+extraction; and proof that no imported candidate became policy, command
+authority, capability, Specification, Plan, or Constitution rule
+automatically. **Evaluation:** EV-S7/EV-S8/EV-S18. **Rollback:** fall back to
 exact-only context. **Excluded:** semantic retrieval (conditional on
 ablation), Digital Twin. **Authorization gate:** stage review.
 
@@ -179,6 +191,17 @@ stands alone. **Excluded:** auto-triggered Committees, diversity routing
 (EC-A7/EC-A8 first), global SkillHouse. **Authorization gate:** ADR-0026
 acceptance + product stage review.
 
+**Independent disposition rule.** Closing or authorizing Stage 6b does not
+automatically authorize every system listed under it. Each of the following
+requires its own separate disposition record — independently `Admitted`,
+`Deferred`, `Rejected`, `Disabled`, `ResearchOnly`, or separately authorized
+under its own evidence and policy gate: Committee V0; governed Engineering
+Memory / Memory Judge; project SkillHouse; Benchmark Arena; Model and Agent
+Trust Registry; DeepLearn candidate generation. A successful Committee
+evaluation admits nothing but the Committee; a failed optional subsystem
+blocks an otherwise independent capability only where dependency analysis
+proves it is actually required.
+
 Research implementation authorization ≠ Product implementation authorization
 ≠ Commercial availability. A research harness is never presented as a product
 feature.
@@ -191,8 +214,21 @@ Guardian; Production Truth Loop v1; feature-flag/canary integration; Incident
 Commander. **Dependencies:** S4 (+S6 evidence enrichments). **User-visible
 value:** releases that carry proof; production honesty. **Technical
 acceptance:** release-evidence fixtures; migration drills; SBOM/provenance
-standards adopted. **Security acceptance:** supply-chain threat checks;
-telemetry redaction. **Evaluation:** EV-S17. **Rollback:** ship without the
+standards adopted. **Security acceptance:** assessed, terminal evidence —
+bound to the features and risk tier this stage actually admits, not to every
+conceivable mechanism — for: authenticated, policy-authorized release
+decisions with release *proposal* separated from release *authorization*;
+destructive-migration detection and applied-migration history verification;
+backup/restore readiness demonstrated before any destructive effect; rollback
+evidence bound to the exact release candidate; dependency and supply-chain
+integrity checks; artifact provenance, signing, SBOM and checksum
+verification where those mechanisms are admitted; production telemetry
+redaction with no raw sensitive telemetry entering model context without
+authorization; incident-role capability leasing with expiry and
+least-privilege incident access; secrets and provider data excluded from
+operational logs; uncertain production-effect reconciliation; and rollback
+and incident-recovery evidence retained. **Evaluation:** EV-S17.
+**Rollback:** ship without the
 Guardian (manual release) — never fake its evidence. **Excluded:** automatic
 rollback authority. **Authorization gate:** stage review.
 
