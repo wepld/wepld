@@ -1,6 +1,6 @@
 # ADR-0020 — Separate typed memory and govern consolidation through a Memory Judge
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-07-14
 **Owner:** Architecture Review Board
 **Review:** Before H7 implementation authorization
@@ -38,3 +38,26 @@ Typed memory lets verified experience improve later missions without turning mod
 H7 evidence must prove candidate-only ingestion; evidence/source requirements; deduplication; contradiction quarantine; freshness/expiry; supersession; scope/classification isolation; prompt-injection and authority-confusion defenses; governance precedence; and improvement on a later mission without lowering its quality bar.
 
 Draft PR #1's candidate lesson status, project fingerprint, bounded selection, untrusted labelling, and atomic ledger row are useful candidate inputs. Its Build Feature-only lesson model is not generalized Engineering Memory, and no automatic promotion or conformance is inherited.
+
+## Acceptance disposition (2026-07-18)
+
+Accepted by founder and Mastermind with the following candidate-only V0
+scope. The accepted architecture includes the future Memory Judge boundary,
+but only candidate emission is admitted for V0. This acceptance does not
+authorize reconciliation code.
+
+1. Accepted missions may emit `MemoryCandidate` records.
+2. There is no automatic memory admission.
+3. There is no Memory Judge implementation in V0.
+4. There is no candidate retrieval into model context.
+5. No candidate may affect specifications, plans, effects, evidence
+   acceptance, or completion decisions before judgment.
+6. Direct-to-approved-memory writes are forbidden, and their absence must be
+   test-enforced at reconciliation.
+7. Candidates are evidence-linked, project-scoped, idempotently identified,
+   redacted by construction (evidence references and hashes only, never raw
+   repository content or context), and deletable through project deletion or
+   an explicit founder-authorized purge.
+8. Existing `InsightRecorded` and lesson facts remain historical only.
+9. Historical lessons are never retro-promoted into admitted memory.
+10. Full typed-memory and Memory Judge implementation remains gated at H7.

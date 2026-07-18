@@ -30,7 +30,7 @@ Draft PR #1 is reference material and a candidate prerequisite only. It is open,
 | **Scope** | Candidate contracts, staged plan/completion approvals, ledger/CAS/worktree behavior, DEV disclosure, proposal-ref acceptance, local provider boundary, specification conversion, narrow Engineering Memory, and committed tests/docs. |
 | **Non-goals** | No merge authorization; no claim that V0 implements H1–H9; no Bounded-Auto, hosted provider, general memory, UI, marketplace, or production release. |
 | **Deliverables** | Independent review record; retained/extended/temporary contract matrix; stale-doc reconciliation; security and recovery evidence; explicit accept/return/defer/reject disposition; and either an accepted-prerequisite inventory or an approved replacement-foundation plan for every gap. |
-| **Required ADRs** | None are accepted by implication. Proposed ADR-0015–ADR-0026 may be reviewed in parallel but do not ratify the candidate. |
+| **Required ADRs** | None are accepted by implication. ADR-0015–ADR-0026 may be reviewed in parallel but do not ratify the candidate. |
 | **Acceptance scenarios** | Authenticated plan and completion decisions remain separate; green evidence produces only a proposal ref; `Deferred` remains recoverable; base branch and primary worktree remain unchanged. |
 | **Failure scenarios** | Invalid spec/plan/id/path/ref is rejected without partial state; worker/provider/gate/acceptance interruption becomes failed or uncertain honestly; proposal-ref conflict is not overwritten. |
 | **Security scenarios** | DEV runs disclose ambient host authority; unauthorized repositories are refused; traversal/symlink/ref/URL attacks fail closed; no credential leakage. |

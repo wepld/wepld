@@ -222,26 +222,102 @@ def validate_html(path: Path, text: str, texts: dict[Path, str]) -> None:
                 error(f"{path.relative_to(ROOT)}: missing HTML anchor '{fragment}' in {target.relative_to(ROOT)}")
 
 
+# Governance truth: the exact recorded status of every canonical ADR.
+# Accepted records accept architecture only; they authorize no implementation.
+EXPECTED_ADR_STATUS = {
+    "0015": "Accepted",
+    "0016": "Accepted",
+    "0017": "Proposed",
+    "0018": "Proposed",
+    "0019": "Proposed",
+    "0020": "Accepted",
+    "0021": "Proposed",
+    "0022": "Proposed",
+    "0023": "Proposed",
+    "0024": "Accepted",
+    "0025": "Proposed",
+    "0026": "Proposed",
+}
+
+
 def validate_adrs(texts: dict[Path, str]) -> None:
     adr_files = sorted((DOCS / "adr").glob("ADR-[0-9][0-9][0-9][0-9]-*.md"))
     numbers = [re.match(r"ADR-(\d{4})-", path.name).group(1) for path in adr_files]  # type: ignore[union-attr]
     for number, count in Counter(numbers).items():
         if count > 1:
             error(f"duplicate ADR number: {number}")
-    expected = {f"{number:04d}" for number in range(15, 27)}
-    if set(numbers) != expected:
-        error(f"ADR set mismatch: expected {sorted(expected)}, found {numbers}")
+    if set(numbers) != set(EXPECTED_ADR_STATUS):
+        error(
+            f"ADR set mismatch: expected {sorted(EXPECTED_ADR_STATUS)}, "
+            f"found {sorted(set(numbers))}"
+        )
     index = required_text(texts, DOCS / "adr" / "README.md")
     for path in adr_files:
+        number = re.match(r"ADR-(\d{4})-", path.name).group(1)  # type: ignore[union-attr]
+        expected_status = EXPECTED_ADR_STATUS.get(number)
         text = required_text(texts, path)
         status = re.search(r"^\*\*Status:\*\*\s*(.+?)\s*$", text, re.M)
-        if not status or status.group(1) != "Proposed":
-            error(f"{path.relative_to(ROOT)}: status must be exactly Proposed")
+        found = status.group(1) if status else "(missing)"
+        if expected_status is not None and found != expected_status:
+            error(
+                f"{path.relative_to(ROOT)}: status must be exactly "
+                f"{expected_status}, found {found}"
+            )
         if index.count(path.name) != 1:
             error(f"docs/adr/README.md: {path.name} must appear exactly once in the index")
+        # The index row for this ADR must record the same status as the file.
+        index_row = next(
+            (line for line in index.splitlines() if path.name in line), ""
+        )
+        if expected_status is not None and expected_status not in index_row:
+            error(
+                f"docs/adr/README.md: index row for {path.name} does not record "
+                f"status {expected_status}"
+            )
     indexed = set(re.findall(r"\((ADR-\d{4}-[^)]+\.md)\)", index))
     if indexed != {path.name for path in adr_files}:
         error("docs/adr/README.md: indexed ADR filenames do not match files")
+
+    # Accepted-ADR scope integrity: each acceptance must carry its recorded
+    # V0 scope, and no ADR may convert evidence into authority.
+    def adr_text(prefix: str) -> str:
+        for path in adr_files:
+            if path.name.startswith(f"ADR-{prefix}-"):
+                return " ".join(texts[path.resolve()].replace("*", "").split())
+        return ""
+
+    for needle, description in {
+        "MissionCharter": "ADR-0015 acceptance lacks the MissionCharter boundary",
+        "does not authorize PR #1 changes": "ADR-0015 acceptance lacks the non-authorization clause",
+    }.items():
+        if needle not in adr_text("0015"):
+            error(f"docs/adr ADR-0015: {description}")
+    for needle, description in {
+        "the initial assessment is deterministic only":
+            "ADR-0016 acceptance lacks the deterministic-only initial assessment rule",
+        "cannot create new production missions":
+            "ADR-0016 acceptance lacks the legacy-command bypass prohibition",
+        "IndependentReviewUnavailable": "ADR-0016 acceptance lacks the honest unavailable outcome",
+    }.items():
+        if needle not in adr_text("0016"):
+            error(f"docs/adr ADR-0016: {description}")
+    for needle, description in {
+        "no candidate retrieval into model context":
+            "ADR-0020 acceptance lacks the no-retrieval rule",
+        "no Memory Judge implementation in V0":
+            "ADR-0020 acceptance lacks the candidate-only V0 scope",
+        "Direct-to-approved-memory writes are forbidden":
+            "ADR-0020 acceptance lacks the direct-write prohibition",
+    }.items():
+        if needle.lower() not in adr_text("0020").lower():
+            error(f"docs/adr ADR-0020: {description}")
+    if "cannot authorize implementation" not in adr_text("0024"):
+        error("docs/adr ADR-0024: missing the evidence-cannot-authorize clause")
+    if re.search(
+        r"[Ee]valuation\s+(?:evidence|results?)\s+(?:can|may)\s+"
+        r"(?:authorize|approve)", "\n".join(texts.values())
+    ):
+        error("forbidden claim: evaluation evidence described as authorizing/approving")
 
 
 def h_sections(text: str) -> list[str]:
