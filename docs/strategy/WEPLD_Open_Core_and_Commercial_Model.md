@@ -52,17 +52,28 @@ abstraction) is metered separately from provider usage (tokens/compute passed
 through or resold with margin). Engineering truth is never hostage: export
 works at every tier.
 
-## Moat
+## Moat — stated as hypotheses, not achievements
 
-The moat is not a model and not a prompt library. It is (1) the governed
-delivery substrate — ledgered truth, evidence-bound completion, capability
-leasing; (2) the compounding, judged project intelligence (DNA, Truth Graph,
-memory, certified Skills) that stays with the customer but works best inside
-the method; (3) the certification and trust infrastructure (Arena, Trust
-Registry, SkillHouse certification) whose value grows with ecosystem
-participation; and (4) protocol neutrality itself — the credible promise that
-providers, editors, and agents are replaceable makes WePLD the safe place to
-standardize.
+No 10x advantage is claimed before evaluation. The **smallest near-term
+differentiated product** is: Core durable truth + the claim-to-evidence
+Verification Lab + independent Consulting + Flight Recorder with honest
+recovery + the portable Exit Pack. Everything else compounds later or remains
+unproven:
+
+- the governed substrate is a trust/governance-compounding hypothesis until
+  EV-S1–EV-S5 show it beats unstructured agents on corrections and false
+  completion;
+- Truth Graph and governed memory are compounding hypotheses requiring
+  evidence (EV-S8/EV-S12);
+- the Committee is unproven until the document-37 admission gate passes;
+- SkillHouse is later ecosystem compounding, and certified distribution
+  carries liability, moderation, revocation, and dispute burdens that need an
+  explicit policy before it is a plan;
+- AGILLE terminology is copyable without the implementation — the reference
+  implementation is the defensible part;
+- managed routing is a hosted-tier feature, not a standalone moat;
+- protocol neutrality and the Exit Pack compound trust only while they remain
+  verifiably real.
 
 ## Founder decisions still required
 
@@ -79,3 +90,13 @@ standardize.
 9. Provider partnership posture vs strict neutrality marketing.
 10. Telemetry default (recommendation: off by default at every tier) and the
     pricing metering unit (missions vs seats vs usage).
+11. Entry-mode sequencing: adopt, defer, or reject the Imported Change
+    Assurance entry (import-first wedge) relative to native V0 in commercial
+    sequencing.
+12. First-wedge language family: Rust-first product wedge, TypeScript-first,
+    Python-first, or staged Rust implementation with TypeScript/Python market
+    expansion.
+13. Certified Skill liability, moderation, revocation, and dispute policy —
+    required before any certified distribution tier opens.
+14. Acceptance of the Stage-6a research-implementation carve-out
+    (CommitteeResearchAuthorization as a distinct, non-product gate).

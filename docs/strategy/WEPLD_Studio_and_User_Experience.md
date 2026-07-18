@@ -17,9 +17,35 @@ delivering bounded outcomes on one repository who wants provable results from
 AI capacity without surrendering authority. Teams, security reviewers, and
 enterprises follow the same surfaces with more roles.
 
-## Surface inventory (all projections; staged)
+## Two evaluated entry modes (product hypothesis)
 
-| Surface | Stage | Notes |
+The approved native V0 is not replaced. Two entry modes are defined for
+evaluation, and a founder decision is required before the imported mode may
+precede or replace native V0 in commercial sequencing:
+
+**Native Delivery Entry** — WePLD performs specification → qualified plan →
+bounded build → verification → Consulting → completion decision.
+
+**Imported Change Assurance Entry** — an external human or coding agent
+supplies a change; WePLD performs import → scope reconstruction → claim
+extraction → Verification Lab → independent Consulting → Change Passport →
+explicit completion recommendation. The imported mode grants no trust to the
+producing agent; requires an exact base and diff; treats producer metadata as
+untrusted provenance; cannot silently infer missing acceptance criteria (it
+may stop `MoreSpecificationRequired`); and never merges automatically.
+Evaluated as EV-S14.
+
+## Surface inventory (requirements staging; product GUI gated at H9)
+
+The Stage column below names the stage whose exit produces the surface's
+**requirements and typed query foundations**. Actual Studio product GUI
+surfaces are admitted only at the canonical H9 gate (document 22: H8 closed,
+stable Core contracts, approved surface scope) and land with Stage 8. Before
+that, every workflow below is served by CLI commands, structured JSON output,
+generated reports, and typed query APIs — capability classes the canonical
+milestones already permit.
+
+| Surface | Requirements stage | Notes |
 | --- | --- | --- |
 | Mission dashboard | 5 | the cockpit spine |
 | Outcome + specification views | 5 | review/approve journeys |
@@ -72,10 +98,20 @@ Autonomy is **earned, scoped, expiring, and reversible** — never a switch.
 | 6 | Governed programme autonomy | Stage 9; policy-admitted, never universal |
 
 Rules: promotion requires evidence (accepted-task history, correction rates)
-per capability and risk class; rollback is immediate on regression; every
-grant expires; human override always works; **no universal full-autonomy
-switch exists** at any level — level 6 is still bounded by policy, budgets,
-and the Effect Firewall. Shadow Mode runs the whole method silently against
+per capability and risk class — evidence is produced independently of the
+promoted party, and **no self-promotion** exists in any form; rollback and
+automatic downgrade are immediate on material regression; every grant expires
+and is re-evaluated after any policy, model, or project change; autonomy is
+scoped by project, capability, effect and risk tier and never leaks between
+projects; a capability lease can never exceed the admitted autonomy tier;
+human override always works; every promotion, downgrade, and override is a
+full audit record; **no universal full-autonomy switch exists** at any level —
+level 6 is still bounded by policy, budgets, and the Effect Firewall.
+`HumanAttentionBudget` bundling can never hide an authorization request:
+its never-suppress categories (security authorization, irreversible effects,
+financial commitments, data-egress approval, plan approval, completion
+approval, policy exceptions, capability escalation, production release
+authorization) are invariant. Shadow Mode runs the whole method silently against
 real work to build calibration evidence; its false-warning rate is its own
 rejection criterion.
 

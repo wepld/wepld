@@ -33,7 +33,7 @@ capability manifests, and the Effect Firewall.
 | Artifact storage | Integrate | S3-class behind the artifact-store contract; CAS semantics ours |
 | Model provider APIs | Wrap behind gateway adapters | OpenAI-/Anthropic-/Kimi-/Gemini-compatible families |
 | Local model runtimes | Integrate | llama.cpp/vLLM-class behind the same gateway |
-| External coding agents | Conditional (Stage 6+, Research first) | as governed workers via the Engineering Worker Protocol only |
+| External coding agents | Conditional (Stage 6a-era research first; admission per profile) | as governed workers via the Engineering Worker Protocol only |
 | WordPress | Integrate (marketing/content only, if operationally useful) | never Core, never Studio |
 | WooCommerce | Defer (conditional marketplace evaluation, Stage 9) | rejected for mission state, billing authority, engineering truth |
 
@@ -71,11 +71,35 @@ Skills — measured on repeated-task improvement, unsupported claims, privacy
 violations, and correction rates.
 
 **Proposed disposition:** adopt concepts now; **optional external
-runtime/worker adapter behind the gateway later (Conditional, Stage 6+, own
-ADR candidate ADR-0037)**; AgentFile as an import/export portability adapter
+runtime/worker adapter behind the gateway later (Conditional, Stage 7+ — its
+evaluation arms need the governed-memory and certified-skill foundations that
+exist only after Stage 6b; own ADR candidate ADR-0037)**; AgentFile as an import/export portability adapter
 only — AgentFile is not automatically WePLD's native profile format; reject
 Letta as Core/Hermes replacement or as authoritative memory. No Letta
 integration is implemented by this package.
+
+## Language and toolchain expansion
+
+Honest baseline: the present Draft PR #1 implementation and its fixtures are
+**Rust-only**; the LSP Broker is language-neutral in design, which proves
+nothing about coverage. The first supported language/toolchain is therefore
+**Rust**; the candidate next languages are **TypeScript** and **Python**
+(where the target wedge population concentrates), with the ordering an
+explicit founder decision (Open-Core doc, decision 12).
+
+Support levels: **Experimental** (adapter exists, fixtures partial) →
+**Evaluated** (full admission-criteria evidence on the evaluation spine) →
+**Supported** (product claim permitted) → **Certified** (ADR-0025-class
+scoped certification) → **Unsupported** (stated plainly). No language family
+becomes Supported without evaluated fixtures and exact tool support, and
+broad coverage is never claimed from gateway neutrality alone.
+
+Admission criteria for a language family (all required before Evaluated):
+LSP/toolchain adapter behind the broker; test-runner integration with typed
+results; static-analysis support; package-manager support with pinning and
+checksum discipline; reproducible build environment; security tooling
+(secret/vulnerability scanning) for the ecosystem; an evaluated fixture
+corpus; and spine-recorded evaluation runs for the family.
 
 ## Commercial and public web surfaces
 

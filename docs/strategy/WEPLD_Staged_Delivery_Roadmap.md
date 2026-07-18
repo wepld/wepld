@@ -15,10 +15,10 @@ competing numbering.
 | 2 | H2–H3 | gateway/protocols beside skill-runtime foundations |
 | 3 | H4 | context/LSP/retrieval milestone carries project intelligence |
 | 4 | H5 | loops/sandbox milestone carries verification + recovery |
-| 5 | H6-era + H9-lite | early Mission Control ships as **read-only projections** (the H9 rule: visual surfaces are projections) before full H9 breadth |
-| 6 | H6–H7 | Committee gate is H6 (ADR-0026); memory/learning is H7 |
+| 5 | H6-era | trust-adoption and operator-workflow **foundations** only: CLI commands, structured JSON output, generated reports, typed query APIs, read-only evaluation artifacts — capability classes the canonical milestones already permit. **Studio product surfaces are admitted only at the canonical H9 gate** ([22 — Milestones](../22_Milestones.md): H8 closed, stable Core contracts, approved surface scope); any earlier GUI surface requires a formal amendment of document 22 through normal review (a named amendment candidate below), which this plan does not perform |
+| 6a/6b | H6–H7 | Committee gate is H6 (ADR-0026); memory/learning is H7; research harness precedes product admission |
 | 7 | post-H8 | release/production truth builds on certification-era evidence |
-| 8 | post-H9 | enterprise/team |
+| 8 | post-H9 | enterprise/team; Studio product surfaces land here, behind the canonical H9 gate |
 | 9 | post-H9 | programme/ecosystem |
 
 ## Stage dependency graph
@@ -30,18 +30,22 @@ flowchart LR
     S1 --> S4[Stage 4 verification+recovery]
     S2 --> S3[Stage 3 project intelligence]
     S3 --> S4
-    S4 --> S5[Stage 5 Studio+trust]
-    S3 --> S6[Stage 6 Committee+learning]
-    S4 --> S6
+    S4 --> S5[Stage 5 trust foundations]
+    S3 --> S6A[Stage 6a Committee research harness]
+    S4 --> S6A
+    S6A --> S6B[Stage 6b Committee product admission + private learning]
     S4 --> S7[Stage 7 release+production]
-    S5 --> S8[Stage 8 enterprise]
-    S6 --> S8
+    S5 --> S8[Stage 8 enterprise + Studio product surfaces]
+    S6B --> S8
     S7 --> S8
     S8 --> S9[Stage 9 programme+ecosystem]
 ```
 
-No cycles: each stage consumes only earlier stages' exits. Stages 2/4 and 3/6
-may overlap in calendar time but not in gate order.
+No cycles: each stage consumes only earlier stages' exits — in particular, the
+Committee **evaluation evidence is produced by Stage 6a's research harness**,
+so Stage 6b's product-admission entry criteria are satisfiable rather than
+self-referential. Stages 2/4 and 3/6a may overlap in calendar time but not in
+gate order.
 
 ## Stage 0 — Architecture and baseline settlement
 
@@ -108,37 +112,80 @@ threat checks. **Evaluation:** EV-S4/EV-S5/EV-S15. **Rollback:** the slice
 gates (PR #1 style) remain the floor. **Excluded:** release/production
 machinery. **Authorization gate:** stage review.
 
-## Stage 5 — Studio and trust adoption
+## Stage 5 — Trust Adoption and Operator Workflow Foundations
 
-**Entry criteria:** S4 exit. **Exit criteria:** Mission Control (read/decide
-surfaces over Core projections), Shadow Mode, Autonomy Ladder levels 0–3,
-Policy Studio v1, material-decision filtering, approval expiry.
-**Dependencies:** S4. **User-visible value:** the cockpit; observation without
-interruption. **Technical acceptance:** surface-utility studies; decision
-burden measured. **Security acceptance:** surfaces are projection-only;
-no state bypass. **Evaluation:** EV-S16; Shadow Mode false-warning rate.
-**Rollback:** CLI remains fully sufficient. **Excluded:** full IDE, ladder
-levels 4–6, Mission Simulator claims. **Authorization gate:** stage review.
+**Entry criteria:** S4 exit. **Exit criteria:** Shadow Mode engine and
+reports; Decision Inbox typed artifacts and query API; `HumanAttentionBudget`
+policy live in the Policy Engine with its never-suppress invariants; Autonomy
+Ladder levels 0–3 policy machinery; material-decision filtering; approval
+expiry; read-only evidence exports; CLI/JSON review commands; Studio
+requirements and prototypes **as non-product research only**. **Dependencies:**
+S4. **User-visible value:** calibrated trust and low-noise decisions through
+existing surfaces (CLI, reports, typed queries) — no GUI claim.
+**Technical acceptance:** decision burden and interruption metrics measured;
+Shadow Mode false-warning rate within its preregistered threshold.
+**Security acceptance:** approval spoofing resisted (authenticated command
+submission only); attention-budget abuse and unsafe decision bundling checked
+(never-suppress categories cannot be bundled away); no hidden escalation
+inside bundles; all outputs projection-only with no state bypass.
+**Evaluation:** EV-S16; Shadow Mode false-warning rate; attention-budget
+metrics. **Rollback:** CLI-only operation remains fully sufficient.
+**Excluded:** Studio product GUI surfaces (canonical H9 gate; they land with
+Stage 8), full IDE, ladder levels 4–6, Mission Simulator claims.
+**Authorization gate:** stage review.
 
-## Stage 6 — Committee V0 and private learning
+## Stage 6a — Committee Experimental Harness
 
-**Entry criteria:** S3+S4 exits; doc-37 admission evidence (terminal EC-A1,
-EC-A2, EC-A3, EC-A5, EC-A6; no rejection criterion fired). **Exit criteria:**
-user-triggered three-member Committee V0 per PR #3; Memory Judge + governed
-Engineering Memory; project SkillHouse (kernel, evaluation, canary, no
-marketplace); Benchmark Arena + Trust Registry v1; DeepLearn candidates.
-**Dependencies:** S3, S4. **User-visible value:** deliberation on demand;
-compounding project intelligence. **Technical acceptance:** doc-36/37
-contracts enforced. **Security acceptance:** minority-projection and identity
-assurance boundaries; poisoning defenses. **Evaluation:** doc-37 arms; EV-S6/
-EV-S9/EV-S11/EV-S12. **Rollback:** Committee and learning are disable-safe —
-the delivery loop stands alone. **Excluded:** auto-triggered Committees,
-diversity routing (EC-A7/EC-A8 first), global SkillHouse. **Authorization
-gate:** ADR-0026 acceptance + stage review.
+**Entry criteria:** S3+S4 exits; approved ADR-0024 evaluation spine; accepted
+experimental protocol and frozen fixtures; `CommitteeResearchAuthorization`
+granted — an explicit research gate that **is not
+ProductImplementationAuthorization** and carries no product availability,
+capability-grant, or completion authority. **Exit criteria:** terminal,
+assessed EC-A1, EC-A2, EC-A3, EC-A5, EC-A6; durable
+`CommitteeEvaluationResult`s; explicit admission or rejection evidence; **no
+product Committee capability shipped**; experiment artifacts marked
+non-product; full cleanup, recovery, and reproducibility demonstrated.
+**Dependencies:** S3 (packs/projections), S4 (deterministic evidence for
+EC-A6). **User-visible value:** none claimed — honest evidence only.
+**Technical acceptance:** doc-37 arm mechanics, budget normalization, and
+identity/lineage constraints enforced on the harness. **Security acceptance:**
+synthetic, public, or explicitly approved evaluation data only; no production
+repositories by default; bounded local or explicitly approved test providers;
+hard budget and egress limits; no automatic triggers; no automatic plan
+mutation; no user-facing Critical Review Board; no global learning.
+**Evaluation:** the doc-37 arms themselves. **Rollback:** the harness has an
+explicit disable/remove path if experiments fail — nothing product-facing
+depends on it. **Excluded:** any product availability claim, unmanaged
+provider rollout, EC-A7/EC-A8-dependent claims. **Authorization gate:**
+`CommitteeResearchAuthorization` (research), recorded distinctly from any
+product authorization.
+
+## Stage 6b — Committee Product Admission and Private Learning
+
+**Entry criteria:** Stage 6a closed; terminal assessed EC-A1/A2/A3/A5/A6 with
+no rejection criterion fired; ADR-0026 accepted through normal governance;
+security/privacy assessment complete; explicit product implementation
+authorization; provider and evidence dependencies satisfied. **Exit
+criteria:** user-triggered three-member Committee V0 per PR #3; Memory Judge +
+governed Engineering Memory; project SkillHouse (kernel, evaluation, canary —
+only where separately admitted, no marketplace); Benchmark Arena + Trust
+Registry v1; DeepLearn candidates. **Dependencies:** S6a. **User-visible
+value:** deliberation on demand; compounding project intelligence.
+**Technical acceptance:** doc-36/37 contracts enforced in the product path.
+**Security acceptance:** minority-projection and identity-assurance
+boundaries; poisoning defenses. **Evaluation:** EV-S6/EV-S9/EV-S11/EV-S12.
+**Rollback:** Committee and learning are disable-safe — the delivery loop
+stands alone. **Excluded:** auto-triggered Committees, diversity routing
+(EC-A7/EC-A8 first), global SkillHouse. **Authorization gate:** ADR-0026
+acceptance + product stage review.
+
+Research implementation authorization ≠ Product implementation authorization
+≠ Commercial availability. A research harness is never presented as a product
+feature.
 
 ## Stage 7 — Release and production truth
 
-**Entry criteria:** S4 exit; certification-era evidence maturing. **Exit
+**Entry criteria:** S4 exit; Change Passport v1 recorded on at least one completed mission; SBOM/provenance toolchain selected and exercised on a fixture release. **Exit
 criteria:** Release Guardian; Migration and Data Safety Lab; Supply-Chain
 Guardian; Production Truth Loop v1; feature-flag/canary integration; Incident
 Commander. **Dependencies:** S4 (+S6 evidence enrichments). **User-visible
@@ -151,10 +198,12 @@ rollback authority. **Authorization gate:** stage review.
 
 ## Stage 8 — Team and enterprise
 
-**Entry criteria:** S5–S7 exits. **Exit criteria:** organizations, human–AI
+**Entry criteria:** S5, S6b, and S7 exits; canonical H9 entry gate satisfied per document 22. **Exit criteria:** Studio product
+surfaces (Mission Control GUI) admitted behind the canonical H9 gate;
+organizations, human–AI
 workforce (human TaskPackets), separation of duties, delegation with expiry,
 enterprise policy, audit retention, private gateways/SkillHouse, sovereign
-deployment modes, Sovereignty and Exit Pack. **Dependencies:** S5, S6, S7.
+deployment modes, Sovereignty and Exit Pack. **Dependencies:** S5, S6b, S7.
 **User-visible value:** teams and regulated organizations. **Technical
 acceptance:** tenant-isolation fixtures; export/import round-trip drills.
 **Security acceptance:** cross-project contamination, stale-authorization,
@@ -185,15 +234,39 @@ in Stage 1. The Draft PR #1 slice is V0's unmerged seed; the V0 delta is the
 formal plan-qualification step and the structurally independent Consulting
 review.
 
-**V1 (smallest credible):** V0 + Context Compiler v1 (exact/LSP, redaction,
-hashes) + Verification Lab v1 (claim-to-evidence + proof gaps) + Decision
-Inbox + Flight Recorder projection + Shadow Mode. Still one provider family,
-no Committee, no learning promotion.
+**Release-to-stage mapping rule:** a release consumes **closed stage
+outputs**. A release may pull one capability forward only when that capability
+carries its own dependency, evaluation, security, and authorization gate — and
+every pulled-forward item must be labelled as such in the release definition.
+No release may imply a stage gate that has not closed.
 
-**V2:** V1 + Universal Agent Gateway with a second admitted provider family +
-Project DNA/Constitution v1 + Truth Graph v1 + Change Passport + Committee V0
-(only if the doc-37 gate passes) + project-scoped SkillHouse. Still no
-marketplace, no Program Mode, no global learning.
+**V1 (smallest credible; consumes S3+S4 outputs):** V0 + Context Compiler v1
+(exact/LSP, redaction, hashes) + Verification Lab v1 (claim-to-evidence +
+proof gaps) + evidence freshness + Flight Recorder read/query projection +
+Decision Inbox typed/query foundations. Full Shadow Mode is **not** in V1; if
+a narrow CLI-only advisory Shadow report is wanted earlier, it is a labelled
+pull-forward requiring its own acceptance (false-warning threshold) and
+authorization. Still one provider family, no Committee, no learning promotion.
+
+V2 is decomposed into three independently deliverable sub-releases — they need
+not ship together:
+
+### V2a — Provider and Worker Neutrality
+
+V1 + Universal Agent Gateway + second admitted provider/runtime family +
+capability manifests + routing under policy. No Committee product.
+(Consumes S2.)
+
+### V2b — Project Intelligence and Traceability
+
+Adoption Gateway + Project DNA + Constitution Compiler + Truth Graph v1 +
+Change Passport + context integration. (Consumes S3+S4 outputs.)
+
+### V2c — Committee and Private Learning
+
+Committee V0 **only after Stage 6a evidence and Stage 6b admission**;
+project-scoped SkillHouse only after its own independent gate. No global
+learning. (Consumes S6a+S6b.)
 
 ## Future ADR candidates (named, not created)
 
@@ -206,3 +279,8 @@ tenancy + delegation · ADR-0036 Program Mode · ADR-0037 external
 agent-runtime adapters (including any Letta adapter) · ADR-0038 open
 protocol SDK + marketplace governance. Each is created only when its stage
 gate needs it.
+
+One **canonical milestone-amendment candidate** is also named (not performed
+here): a formal document-22 amendment defining any pre-H8 surface scope, if
+the founder ever wants GUI surfaces earlier than the H9 gate permits. Until
+that amendment passes normal review, no product surface ships before H9.

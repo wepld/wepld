@@ -2,21 +2,58 @@
 
 **Standing:** planning only; nothing here authorizes implementation.
 
-## Layered architecture
+## Layered architecture — five distinct flows
+
+One diagram cannot honestly carry dependency, authority, command, evidence,
+and learning at once, so they are separated. Rules that hold across all five:
+code dependencies point downward only; **authority always terminates at Core
+and authenticated principals**; commands move from Studio/integrations toward
+Core, which authenticates and records them; evidence flows upward as advisory
+input only; production feedback creates candidates, never direct policy;
+recovery observations trigger Core-recorded reconciliation; advisory
+information flow is never authority. Neither Layer 10 nor Studio can mutate
+durable truth directly — every mutation is an authenticated Core command.
+
+**View 1 — module/source dependency direction** (build-time; downward only):
 
 ```mermaid
 flowchart TB
-    L7[Layer 7 — Studio] --> L2
-    L9[Layer 9 — Organization / Programme / Enterprise] --> L1
-    L10[Layer 10 — Production Outcome + Ecosystem Intelligence] --> L5
-    L6[Layer 6 — Memory, SkillHouse, Governed Learning] --> L1
-    L5[Layer 5 — Verification, Assurance, Recovery] --> L1
-    L4[Layer 4 — Context, DNA, Truth Graph, Twin] --> L1
-    L3[Layer 3 — Hermes, Gateway, Agent Hive] --> L2
-    L8[Layer 8 — Integrations + Execution Environments] --> L3
-    L2[Layer 2 — AGILLE Delivery Orchestration] --> L1
-    L1[Layer 1 — Core Authority + Durable Truth]
+    L7[L7 Studio] --> L2
+    L9[L9 Org/Programme/Enterprise] --> L1
+    L10[L10 Production + Ecosystem Intelligence] --> L5
+    L6[L6 Memory + SkillHouse] --> L1
+    L5[L5 Verification + Recovery] --> L1
+    L4[L4 Context + DNA + Truth Graph + Twin] --> L1
+    L3[L3 Hermes + Gateway + Hive] --> L2
+    L8[L8 Integrations + Environments] --> L3
+    L2[L2 AGILLE] --> L1
+    L1[L1 Core Authority + Durable Truth]
 ```
+
+**View 2 — authority, command, evidence, and learning flows** (runtime):
+
+```mermaid
+flowchart LR
+    subgraph advisory [Advisory producers — no authority]
+        L4a[Context / Truth Graph / Twin]
+        L5a[Verification / Recovery findings]
+        L6a[Memory / Skill candidates]
+        L10a[Production observations]
+    end
+    Studio[Studio + Integrations] -- authenticated commands --> Core[Core: sole authority]
+    Core -- leases + TaskPackets --> Hermes[Hermes / Hive / Workers]
+    Hermes -- attempts + evidence --> Core
+    advisory -- evidence + candidates upward, advisory only --> Core
+    Core -- decisions, events, projections --> Studio
+```
+
+| Flow | Direction | Rule |
+| --- | --- | --- |
+| Module dependency | downward only | higher layers import lower contracts, never the reverse |
+| Authority | terminates at Core | only authenticated principals decide; no advisory layer decides |
+| Runtime commands | inward to Core | Studio and integrations submit; Core authenticates, records, executes via the Effect Firewall |
+| Event/evidence | outward/upward as data | findings, observations, and telemetry become evidence candidates — never instructions |
+| Feedback/learning | upward as candidates | production and feedback create MemoryCandidates/requirement proposals; admission is judged, never automatic |
 
 | Layer | Owner | Trusted inputs | Typed outputs | Prohibited responsibilities | Security boundary | Degradation behavior |
 | --- | --- | --- | --- | --- | --- | --- |

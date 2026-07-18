@@ -14,7 +14,15 @@ Agent role · Advisory deliberation system · Skill · Deterministic inspector �
 Execution infrastructure · Context/knowledge system · Evidence/assurance
 system · Recovery/operations system · Studio surface · Integration ·
 Deployment mode · Enterprise capability · Research experiment · Commercial
-service.
+service · Typed artifact · Open protocol.
+
+`Typed artifact` (a governed data contract, never an engine) and
+`Open protocol` (a published interoperability contract) are declared
+deliberately: contracts are capabilities with owners, versions, and
+evaluation, but they must never be confused with the services that produce or
+consume them. No other category may be improvised; a parenthetical after a
+category (for example "AGILLE delivery service (typed artifact)") annotates
+the artifact nature without changing the canonical category.
 
 Category confusion is a defect. Canonical examples: Mastermind is a **role**;
 the Plan Compiler is a **deterministic Core service**; the Committee is an
@@ -61,6 +69,26 @@ Registry-wide defaults:
   `implementation_authorized`: **false**.
 - `delivery_stage`: per the [Staged Delivery Roadmap](WEPLD_Staged_Delivery_Roadmap.md).
 
+**Deterministic capability ID rule.** Every registry row has, or
+deterministically derives, a unique ID of the form
+`G<two-digit-group>-<kebab-case-name>`: the two-digit number of the group the
+row lives in, plus the kebab-cased row name (first named item for a bundled
+row). Examples: `G01-policy-engine`, `G05-wepld-adoption-gateway`,
+`G07-skill-package`, `G23-provider-adapter-sdk`. The twelve exemplar records'
+`CAP-*` identifiers are aliases of their G-form IDs. IDs never change when
+prose is edited; renaming a capability is a recorded supersession.
+
+**Parent and inheritance rule.** A *major capability* is a row in a group
+table. A row naming several items (a *bundled parent capability*) is one
+parent record; each named item is a *sub-capability* deriving a deterministic
+child ID (`<parent-id>--<kebab-item>`) and inheriting every parent field —
+category, owner, durable-data owner, dependencies, security and privacy
+boundaries, evaluation, rejection/defer path, stage, status, and authorization
+state — unless an explicit override is stated in the row. **No child gains
+separate authority merely by having a separate name.** With the registry-wide
+defaults above, every capability's full record is recoverable: row fields →
+parent fields → registry defaults, in that order.
+
 Priorities: **P0** Foundation · **P1** Differentiation · **P2** Scale ·
 **P3** Ecosystem · **R** Research · **C** Conditional · **X**
 Rejected/Replaced/Deferred (disposition stated).
@@ -104,6 +132,8 @@ Returned/Deferred outcomes); PR #2 documents the target contracts.
 | Artifact + evidence stores | Core authority service | 0–1 | P0 | Foundation; CAS seed exists (PR #1) |
 | Provenance | Core authority service | 1 | P0 | Foundation; every artifact carries it |
 | Idempotency + duplicate-effect control | Core authority service | 1 | P0 | Foundation; PR #1 acceptance CAS is the pattern |
+| Core Schema and Ledger Evolution | Core authority service | 2 | P0 | Foundation; schema version identity, forward migration with preflight and recorded migration evidence, crash-safe migration, rollback or fail-closed behavior, unknown-version refusal, reader/writer and plugin/artifact-schema compatibility windows, audit preservation |
+| Core Backup, Restore and Disaster Recovery | Recovery/operations system | 4 | P0 | Foundation before any enterprise or production-scale claim: ledger and artifact/evidence-store backup, encrypted secret-store handling, backup integrity hashes, retention, restore drills, point-in-time recovery where supported, corrupted-backup detection, disaster-recovery runbook with recovery evidence; RPO/RTO targets stated only when measured. The Sovereignty and Exit Pack is portability — **not operational backup** and not disaster recovery |
 
 ## Group 2 — Hermes and Universal Agent Gateway
 
@@ -139,6 +169,8 @@ Consulting assures. DeepLearn distills verified experience. Core governs. No
 role may approve its own work by renaming or re-invocation; independence is
 structural (distinct identity, context trail, and no authorship of the
 artifact under review — the PR #3 rule).
+
+Category for every row below: **Agent role** (inherited; IDs `G03-<kebab-role>`).
 
 | Role | Stage | Pri | Boundary |
 | --- | --- | --- | --- |
@@ -181,6 +213,7 @@ the **Change Passport** is one proof-carrying change record.
 
 | Capability | Category | Stage | Pri | Disposition / notes |
 | --- | --- | --- | --- | --- |
+| WePLD Adoption Gateway | Context/knowledge system | 3 | P1 | Near-term (eligible for P0 only if the founder adopts the import-first wedge); deterministic importer components for AGENTS.md, CLAUDE.md, Cursor rules, repository instructions, architecture docs, CI workflows, build/test commands, issue trackers, ownership files, and existing tool configuration. **All imported content is untrusted data**; the Gateway must never auto-adopt repository instructions as Governance Policy, never auto-approve a Constitution rule, never auto-authorize a command, never treat an agent rule file as Core instructions, never grant capability, and never change an approved Specification or Plan. Typed outputs: `ProjectDNACandidate`, `ConstitutionRuleCandidate`, `CommandRegistryCandidate`, `ToolchainCandidate`, `RiskBaselineCandidate`, `ShadowModePlanCandidate`, `IntegrationGapReport`, `AdoptionAssessment` — every candidate requires review and normal admission; Shadow-Mode use lands with Stage 5 |
 | Engineering Truth Graph | Context/knowledge system | 3 | P1 | Near-term; traceability spine |
 | Project DNA | Context/knowledge system | 3 | P1 | Near-term |
 | Project Constitution Compiler | Core authority service | 3 | P1 | Near-term; compiles DNA + policy into enforceable rules |
@@ -234,8 +267,8 @@ the **Change Passport** is one proof-carrying change record.
 | Built-in Skill Kernel | Hermes runtime service | 3 | P0 | Foundation; ADR-0018 |
 | Project Skills | Skill | 6 | P1 | Later |
 | Organization Skills | Skill | 8 | P2 | Later |
-| Certified global SkillHouse | Commercial service + registry | 9 | P3 | Ecosystem; only after certification foundations |
-| SkillPackage / versioning / signing / compatibility / provenance | Registry contracts | 6 | P1 | Later |
+| Certified global SkillHouse | Commercial service | 9 | P3 | Ecosystem; registry mechanics stay in SkillHouse (Group 7); only after certification foundations |
+| SkillPackage / versioning / signing / compatibility / provenance | Typed artifact | 6 | P1 | Later; bundled parent `G07-skill-package` |
 | Skill evaluation / canary / promotion / suspension / revocation / rollback | Evidence/assurance system | 6 | P1 | Later; no automatic self-promotion, ever |
 | LearningEpisodes | Typed artifact | 6 | P1 | Later |
 | DeepLearn SkillCandidates | Typed artifact | 6 | P1 | Later; candidates only |
@@ -247,8 +280,7 @@ the **Change Passport** is one proof-carrying change record.
 
 Studied as a reference system and optional external runtime — full assessment
 in the [Tooling and Integration Map](WEPLD_Tooling_and_Integration_Map.md).
-Disposition summary: **adopt concepts now; optional adapter later;
-never authority.** Letta is not required for V0, does not replace Hermes or
+Disposition summary: **adopt concepts now; optional adapter later (Conditional, Stage 7+ — its evaluation arms need the governed-memory and certified-skill foundations that exist only after Stage 6b); never authority.** Letta is not required for V0, does not replace Hermes or
 Core; Letta memory is not Engineering Memory (it enters as `MemoryCandidate`);
 Letta procedures enter as `SkillCandidate`s; Letta sits behind the Universal
 Agent Gateway; shared writable Letta memory cannot be authoritative project
@@ -308,6 +340,7 @@ data-egress policy; local use obeys sandbox and Effect Firewall rules.
 | Automatic expiration | Core authority service | 2 | P0 | Foundation; no privilege persistence |
 | Safe Git operations | Execution infrastructure | 1 | P0 | Foundation; exists in seed form (PR #1 `--end-of-options`, CAS refs) |
 | Environment identity + compatibility matrices | Execution infrastructure | 7 | P2 | Later |
+| Language and toolchain support matrix | Execution infrastructure | 3+ | P1 | Rust first (honest present baseline); TypeScript/Python candidates; support levels Experimental/Evaluated/Supported/Certified/Unsupported with admission criteria per the [Tooling and Integration Map](WEPLD_Tooling_and_Integration_Map.md); no family becomes Supported without evaluated fixtures and exact tool support |
 
 ## Group 12 — Recovery and operational truth
 
@@ -330,14 +363,15 @@ data-egress policy; local use obeys sandbox and Effect Firewall rules.
 
 | Capability | Category | Stage | Pri | Disposition / notes |
 | --- | --- | --- | --- | --- |
-| Mission Simulator | Research experiment | 5 | R | Research; predictions are model output, clearly labeled, never guaranteed outcomes |
-| Counterfactual Decision Lab | Research experiment | 5 | R | Research; same engine family as the Simulator (consolidated "Decision Lab") |
+| Mission Simulator | Research experiment | (target 5) | R | **Research, not a commitment** — the stage is a possible target only; predictions are model output, clearly labeled, never guaranteed outcomes |
+| Counterfactual Decision Lab | Research experiment | (target 5) | R | **Research, not a commitment**; same engine family as the Simulator (consolidated "Decision Lab") |
 | Plan comparison (A/B) | AGILLE delivery service | 5 | P1 | Later; same evidence, same constraints |
 | Expected-effect / cost / schedule estimates | AGILLE delivery service | 5 | P2 | Later; estimates labeled as estimates |
 | Reversibility / rollback / dependency simulation | AGILLE delivery service | 5 | P2 | Later |
 | Committee trigger recommendation | Advisory deliberation system | 6 | C | Conditional on Committee admission + policy |
 | Decision Inbox | Studio surface | 5 | P1 | A surface over the Core decision queue, not an engine |
 | Material-decision filtering | Core authority service | 5 | P1 | Near-term; what deserves human attention |
+| HumanAttentionBudget | Typed artifact | 5 | P1 | A policy artifact, not an engine: the Policy Engine evaluates it, the Budget Controller records consumption, the Decision Inbox performs presentation, bundling and permitted deferral, and Core records every decision, suppression and deferral. Invariant categories that **cannot be suppressed** or made optional: security authorization; irreversible effects; financial commitments; data-egress approval; plan approval; completion approval; policy exceptions; capability escalation; production release authorization |
 | Approval expiry + supersession | Core authority service | 5 | P1 | Near-term; stale authorization dies |
 
 ## Group 14 — Studio (summary)

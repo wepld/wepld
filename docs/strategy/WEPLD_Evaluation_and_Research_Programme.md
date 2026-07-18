@@ -22,9 +22,11 @@ honest terminal states. **No strategy claim survives without its experiment.**
 | EV-S11 | optional Letta-backed profiles (A–E memory arms) |
 | EV-S12 | governed memory (MemoryCandidate + Judge) vs bounded/self-editing memory |
 | EV-S13 | mixed external providers under policy |
+| EV-S14 | Imported Change Assurance entry (external-agent change + WePLD verification/Consulting) vs native delivery vs raw external-agent output |
 | EV-S15 | recovery drills (crash matrix, uncertain effects, orphan states) |
 | EV-S16 | Studio surface utility and decision burden |
 | EV-S17 | Production Truth Loop linkage fidelity |
+| EV-S18 | Adoption Gateway: manual onboarding vs no import vs deterministic import only vs deterministic import plus reviewed model-assisted extraction — measuring false rules, missed commands, unsafe imports, onboarding time, and user corrections |
 
 Budget discipline follows document 37: same hard budget class per comparison,
 actual spends recorded, absolute plus cost-normalized reporting — structural
@@ -36,7 +38,7 @@ Accepted-task success · false completion · requirements coverage ·
 regressions · security defects · unsupported claims · human corrections ·
 intervention count · rework · wall time · tokens · cost · context volume ·
 evidence completeness · recovery success · privacy violations · plan churn ·
-repeated-task improvement · decision burden · long-term maintenance burden.
+repeated-task improvement · decision burden · long-term maintenance burden · interruptions per phase · delayed critical decisions · bundled-decision quality · unsafe suppression rate (must be zero) · completion time per unit of human attention.
 
 ## Per-capability rejection, disable, or defer criteria (representative)
 
@@ -50,7 +52,9 @@ repeated-task improvement · decision burden · long-term maintenance burden.
 | Mission Simulator / Decision Lab | predictions mislead (calibration below preregistered floor) — remains Research, never product |
 | Autonomy level N | corrections or trust regress at that level — automatic rollback |
 | A Studio surface | less useful than an existing integration (EV-S16) — dropped |
-| Letta adapter | EV-S11 shows no repeated-task improvement or worse unsupported-claim/privacy metrics — defer or reject |
+| Letta adapter | EV-S11 shows no repeated-task improvement or worse unsupported-claim/privacy metrics — defer or reject; the decision is Stage 7+ because arms D/E need Stage-6b foundations |
+| Adoption Gateway | EV-S18 shows model-assisted extraction adds false rules or unsafe imports beyond deterministic import — restrict to deterministic importers |
+| HumanAttentionBudget | any nonzero unsafe suppression, or bundling degrades decision quality — bundling disabled, invariants retained |
 | Governed memory | fails EV-S12 against simpler bounded memory — simplify |
 | Truth Graph surfaces | no reduction in corrections/unsupported claims — internal index only |
 | Production Truth Loop | linkage unreliable for a product class — reports "unlinked", scope narrowed |
@@ -77,7 +81,16 @@ leakage; excessive context; unauthorized egress; unsafe filesystem effects;
 Git manipulation; migration damage; dependency compromise; poisoned memory,
 Skills, or Committee reports; evidence fabrication; approval spoofing; cost
 amplification; infinite retries; self-promotion; privilege persistence (leases
-expire); stale authorization (approvals expire); cross-project contamination;
+expire); stale authorization (approvals expire); **autonomy escalation and
+evidence gaming** — an autonomy level raised without sufficient evidence, a
+model manipulating metrics to earn autonomy, stale autonomy surviving a
+policy/model/project change, autonomy leaking between projects, failure to
+roll back after regressions, a capability lease exceeding the admitted
+autonomy tier, user-interface approval spoofing, or a bundled decision hiding
+an authorization request — countered by scoped and expiring autonomy,
+independent evidence, automatic downgrade, no self-promotion, full audit,
+human override, and the never-suppress categories; cross-project
+contamination;
 tenant isolation; recovery manipulation; audit deletion (append-only ledger);
 production telemetry leakage (redaction + authorization). Every stage's
 security acceptance in the roadmap cites this register; every new capability

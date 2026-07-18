@@ -507,11 +507,61 @@ def validate_strategy(texts: dict[Path, str]) -> None:
         if needle.lower() not in combined_flat.lower():
             error(f"docs/strategy: {description} (required text absent): {needle}")
 
+    # Registry contract: deterministic IDs, declared taxonomy, inheritance.
+    portfolio = docs["WEPLD_Strategic_Capability_Portfolio.md"]
+    portfolio_flat = " ".join(portfolio.replace("**", "").split())
+    for needle, description in {
+        "Deterministic capability ID rule": "missing deterministic capability ID rule",
+        "Parent and inheritance rule": "missing parent/inheritance rule",
+        "bundled parent capability": "missing bundled-parent semantics",
+    }.items():
+        if needle not in portfolio_flat:
+            error(f"docs/strategy portfolio: {description}: {needle}")
+    if not re.search(r"G\d{2}-[a-z0-9]+(?:-[a-z0-9]+)*", portfolio):
+        error("docs/strategy portfolio: no G<nn>-<kebab> capability ID example present")
+
+    taxonomy = {
+        "Core authority service", "AGILLE delivery service", "Hermes runtime service",
+        "Agent role", "Advisory deliberation system", "Skill", "Deterministic inspector",
+        "Execution infrastructure", "Context/knowledge system", "Evidence/assurance system",
+        "Recovery/operations system", "Studio surface", "Integration", "Deployment mode",
+        "Enterprise capability", "Research experiment", "Commercial service",
+        "Typed artifact", "Open protocol", "—",
+    }
+    strategy_texts = {
+        path: text for path, text in texts.items()
+        if strategy.resolve() in path.parents and path.suffix.lower() == ".md"
+    }
+    for path, text in strategy_texts.items():
+        name = path.name
+        lines = text.splitlines()
+        in_registry_table = False
+        for lineno, line in enumerate(lines, 1):
+            if line.startswith("| Capability | Category |"):
+                in_registry_table = True
+                continue
+            if in_registry_table:
+                if not line.startswith("|"):
+                    in_registry_table = False
+                    continue
+                if re.match(r"^\|\s*:?-", line):
+                    continue
+                cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+                if len(cells) < 2:
+                    continue
+                category = re.sub(r"\s*\([^)]*\)\s*$", "", cells[1]).strip()
+                if category and category not in taxonomy:
+                    error(
+                        f"docs/strategy/{name}:{lineno}: undeclared capability "
+                        f"category {category!r} (row {cells[0][:40]!r})"
+                    )
+
     # Every roadmap stage carries its full gate contract.
     roadmap = docs["WEPLD_Staged_Delivery_Roadmap.md"]
+    roadmap_flat = " ".join(roadmap.replace("**", "").split())
     stages = re.split(r"(?=^## Stage \d)", roadmap, flags=re.M)[1:]
-    if len(stages) != 10:
-        error(f"docs/strategy roadmap: expected 10 stages, found {len(stages)}")
+    if len(stages) != 11:
+        error(f"docs/strategy roadmap: expected 11 stages (0-5, 6a, 6b, 7-9), found {len(stages)}")
     for stage in stages:
         title = stage.splitlines()[0].strip("# ").strip()
         stage_flat = " ".join(stage.split())
@@ -523,12 +573,68 @@ def validate_strategy(texts: dict[Path, str]) -> None:
             if marker not in stage_flat:
                 error(f"docs/strategy roadmap: {title}: missing {marker}")
 
+    # Stage 6a/6b research-vs-product separation.
+    for needle, description in {
+        "## Stage 6a": "missing Stage 6a (Committee experimental harness)",
+        "## Stage 6b": "missing Stage 6b (Committee product admission)",
+        "### V2a": "missing V2a sub-release",
+        "### V2b": "missing V2b sub-release",
+        "### V2c": "missing V2c sub-release",
+    }.items():
+        if needle not in roadmap:
+            error(f"docs/strategy roadmap: {description}")
+    for needle, description in {
+        "CommitteeResearchAuthorization": "missing research-authorization gate name",
+        "is not ProductImplementationAuthorization": "research gate not distinguished from product gate",
+        "Research implementation authorization ≠ Product implementation authorization ≠ Commercial availability":
+            "missing research/product/commercial separation statement",
+    }.items():
+        if needle not in roadmap_flat:
+            error(f"docs/strategy roadmap: {description}: {needle[:60]}")
+    if "## Stage 6b" in roadmap:
+        stage_6b_flat = " ".join(
+            roadmap.split("## Stage 6b", 1)[1].split("## Stage 7", 1)[0].split()
+        )
+        if "Stage 6a closed" not in stage_6b_flat:
+            error(
+                "docs/strategy roadmap: Stage 6b entry does not require Stage 6a "
+                "closure and its evaluation evidence"
+            )
+
+    combined_all_flat = " ".join(combined.replace("**", "").split())
+    for needle, description in {
+        "WePLD Adoption Gateway": "missing Adoption Gateway capability",
+        "never auto-adopt repository instructions": "imported rules not held to candidate-only admission",
+        "every candidate requires review and normal admission": "missing candidate-review rule",
+        "HumanAttentionBudget": "missing HumanAttentionBudget policy artifact",
+        "cannot be suppressed": "missing never-suppress invariant",
+        "completion approval": "never-suppress list lacks completion approval",
+        "Autonomy escalation": "missing autonomy-escalation threat",
+        "Core Schema and Ledger Evolution": "missing Core schema/ledger evolution capability",
+        "Core Backup, Restore and Disaster Recovery": "missing Core backup/restore capability",
+        "not operational backup": "Exit Pack not distinguished from operational backup",
+        "adapter later (Conditional, Stage 7+": "Letta adapter scheduled before its evaluation prerequisites",
+    }.items():
+        if needle.lower() not in combined_all_flat.lower():
+            error(f"docs/strategy: {description} (required text absent): {needle[:60]}")
+
     forbidden = {
         r"implementation_status:\s*Implemented": "planned capability marked implemented",
         r"(?:pack|installation)\s+(?:automatically\s+)?guarantees\s+(?:legal\s+)?compliance":
             "automatic legal-compliance claim",
         r"global\s+learning\s+is\s+(?:enabled|on)\s+by\s+default": "global learning default-on",
         r"contribution\s+is\s+opt-out": "opt-out learning default",
+        r"H9-lite": "H9 capability smuggled ahead of its canonical gate",
+        r"product\s+surfaces?\s+ship\s+in\s+Stage\s*[2-5]\b":
+            "Studio product surface scheduled before the H9 gate",
+        r"automatically\s+adopts?\s+repository\s+instructions":
+            "imported rules automatically becoming policy",
+        r"(?:may|can)\s+suppress\s+[^.\n]{0,40}completion\s+approval":
+            "attention budget suppressing completion approval",
+        r"self-promote\w*\s+(?:their\s+)?autonomy": "autonomy self-promotion",
+        r"Exit\s+Pack\s+is\s+(?:identical\s+to|the\s+same\s+as)[^.\n]{0,30}operational\s+backup":
+            "Exit Pack conflated with operational backup",
+        r"Conditional,\s*Stage\s*6\+": "Letta adapter scheduled at Stage 6+",
     }
     everything = "\n".join(texts.values())
     for pattern, description in forbidden.items():
