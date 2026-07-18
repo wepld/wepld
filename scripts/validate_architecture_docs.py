@@ -476,6 +476,67 @@ def validate_committee(texts: dict[Path, str]) -> None:
             error(f"forbidden Committee claim ({description}): {match.group(0)!r}")
 
 
+def validate_strategy(texts: dict[Path, str]) -> None:
+    strategy = DOCS / "strategy"
+    if not strategy.exists():
+        return
+    names = (
+        "README.md",
+        "WEPLD_Strategic_Capability_Portfolio.md",
+        "WEPLD_Product_Architecture_Map.md",
+        "WEPLD_Staged_Delivery_Roadmap.md",
+        "WEPLD_Studio_and_User_Experience.md",
+        "WEPLD_Tooling_and_Integration_Map.md",
+        "WEPLD_Evaluation_and_Research_Programme.md",
+        "WEPLD_Open_Core_and_Commercial_Model.md",
+    )
+    docs = {name: required_text(texts, strategy / name) for name in names}
+    combined = "\n".join(docs.values())
+    combined_flat = " ".join(combined.replace("**", "").split())
+
+    # Planning-only posture: planned/research status and unauthorized default
+    # must be stated; nothing may claim implemented status.
+    for needle, description in {
+        "implementation_authorized: false": "missing unauthorized-implementation default",
+        "Planned or Research": "missing planned/research status default",
+        "rejection, disable, or defer path": "missing universal rejection-path rule",
+        "no universal full-autonomy switch": "missing bounded-autonomy guarantee",
+        "No pack may claim automatic legal compliance": "missing compliance-claim boundary",
+        "opt-in only, never default": "missing opt-in learning boundary",
+    }.items():
+        if needle.lower() not in combined_flat.lower():
+            error(f"docs/strategy: {description} (required text absent): {needle}")
+
+    # Every roadmap stage carries its full gate contract.
+    roadmap = docs["WEPLD_Staged_Delivery_Roadmap.md"]
+    stages = re.split(r"(?=^## Stage \d)", roadmap, flags=re.M)[1:]
+    if len(stages) != 10:
+        error(f"docs/strategy roadmap: expected 10 stages, found {len(stages)}")
+    for stage in stages:
+        title = stage.splitlines()[0].strip("# ").strip()
+        stage_flat = " ".join(stage.split())
+        for marker in (
+            "**Entry criteria:**", "**Exit criteria:**", "**Dependencies:**",
+            "**Evaluation:**", "**Rollback:**", "**Excluded",
+            "**Authorization gate:**",
+        ):
+            if marker not in stage_flat:
+                error(f"docs/strategy roadmap: {title}: missing {marker}")
+
+    forbidden = {
+        r"implementation_status:\s*Implemented": "planned capability marked implemented",
+        r"(?:pack|installation)\s+(?:automatically\s+)?guarantees\s+(?:legal\s+)?compliance":
+            "automatic legal-compliance claim",
+        r"global\s+learning\s+is\s+(?:enabled|on)\s+by\s+default": "global learning default-on",
+        r"contribution\s+is\s+opt-out": "opt-out learning default",
+    }
+    everything = "\n".join(texts.values())
+    for pattern, description in forbidden.items():
+        match = re.search(pattern, everything, re.I)
+        if match:
+            error(f"forbidden strategy claim ({description}): {match.group(0)!r}")
+
+
 def validate_stale_claims(texts: dict[Path, str]) -> None:
     combined = "\n".join(texts.values())
     stale = {
@@ -547,6 +608,7 @@ def main() -> int:
     validate_roadmap(texts)
     validate_reference_study(texts)
     validate_committee(texts)
+    validate_strategy(texts)
     validate_stale_claims(texts)
     validate_changed_scope(args.base)
 
