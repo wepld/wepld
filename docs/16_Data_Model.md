@@ -1,79 +1,139 @@
 # 16 — Data Model
 
-## Purpose and scope
+## Purpose, source of truth, and authority
 
-This document defines the canonical domain records that support a durable, explainable engineering organization. It is normative for boundary semantics, not a physical database schema. The V1 implementation may use relational tables and document/artifact stores, but no adapter may alter the meanings, ownership, or identities below.
+This document defines canonical domain records for durable, explainable engineering delivery. It is normative for boundary semantics, not a physical database schema. The detailed governed-artifact schemas and transitions live in [31_Governed_Specification_Workflow.md](31_Governed_Specification_Workflow.md).
 
-## Identity and common metadata
+Structured Core state is authoritative. Markdown, diagrams, reports, Git notes, and chat are projections, exports, or source artifacts; none is the sole source of specification, approval, workflow, budget, effect, or completion truth. Git is authoritative for the source snapshot/history it records, not for WePLD governance state.
 
-Every domain record has a globally unique opaque identifier, a type, creation/update timestamps, owner/project scope, schema version, classification, and optimistic-concurrency revision where it is mutable. Records that affect audit also have actor, correlation, and causation identifiers. Display names are mutable aliases, never foreign keys.
+Core alone commits durable governance/workflow truth, policy and approval records, capability issuance, budget accounting, transitions, effect intent/result, completion, and recovery. Other bounded contexts own domain interpretation and may submit commands or observations, but they do not write authoritative records directly.
 
-## Core entities
+## Governing hierarchy
 
-| Entity | Purpose | Owner | Key relationships |
+Every executable instruction resolves this precedence chain and exact versions:
+
+1. WePLD governance policy
+2. Approved `EngineeringSpecification`
+3. Approved `OutcomeContract`
+4. Approved `DeliveryPlan`
+5. Approved `PhasePlan`
+6. `TaskPacket`
+7. `ToolAction`
+
+A lower record may narrow a higher envelope but cannot redefine requirements, acceptance, scope, policy, or authority. Core rejects or quarantines a contradictory record.
+
+`SOPGraph`, its RoleNodes/contracts/edges, `RoleInputProjection`, and `ToolCatalogManifest` are deterministic or capability-derived execution projections beneath `TaskPacket`; they are not additional authority layers. Any mismatch with an exact approved parent or active capability fails closed.
+
+## Identity and common contract metadata
+
+Every domain record has an opaque globally unique ID, type, schema version, creation/record/update times, organization/project/mission scope, classification, provenance, actor, correlation and causation IDs, and optimistic-concurrency revision where mutable. Display names are mutable aliases, never keys.
+
+Every governed artifact additionally declares purpose, authority/trust class, required fields, lifecycle state, artifact version, validation status, proposer, approval authority and decision where applicable, exact upstream/downstream trace links, supersession, retention, and content hash or immutable body reference. “Authoritative” means Core recorded the required approval or observation under policy; “derived” and “untrusted” remain visibly distinct.
+
+## Required governed artifacts
+
+| Artifact | Purpose and minimum entity content | Lifecycle and authority | Required trace |
 | --- | --- | --- | --- |
-| Organization / User / Principal | identity and authorization scope | Identity / Policy | authorizes commands and decisions |
-| Project | repository and policy boundary | Mission & Portfolio | contains missions, artifacts, configurations |
-| Mission | executive outcome with scope, success, mode, budget | Mission & Portfolio | has plans, runs, decisions, milestones |
-| Plan | versioned decomposition and acceptance matrix | Orchestration | proposes task DAG for a mission |
-| Task | bounded unit of work and dependency node | Orchestration | has attempts, input/output artifacts, gates |
-| Run / Attempt / Lease | execution history and worker allocation | Orchestration | binds task, worker, capability, sandbox |
-| Worker Profile / Session | role policy and live compatible executor | Worker Registry | selected for attempts |
-| Brain Profile / Invocation | provider-neutral reasoning configuration and evidence | Brain Gateway | used by worker attempt |
-| Skill / Plugin Package | versioned reusable capability | Registry | resolved into profile/task |
-| Policy / Decision | rule set and evaluated allow/deny/approval outcome | Policy & Security | guards command/action/egress |
-| Tool Action | requested and observed effect | Tool & Workspace | has capability token, idempotency and evidence |
-| Artifact | immutable content-addressed body or Git reference | Artifact Manager | supports evidence and handoff |
-| Check / Finding / Gate | quality, test, security, review, benchmark result | Quality / Security | gates task/mission progression |
-| Knowledge Record / Claim / Link | source-backed organizational memory | Knowledge | references artifacts and decisions |
-| Conversation / Delivery | Messenger interaction and channel receipt | Messenger | normalizes user intent |
-| Event | immutable domain fact | Event Ledger | source for projections and audit |
+| `MissionCharter` | user outcome, boundaries, owner, priority, classification, initial budget/deadline | Draft → ClarificationRequired → ReadyForReview → Approved → Superseded/Cancelled; user/Brain may draft, only sponsor authority approves | principal/project → specification |
+| `EngineeringSpecification` | **what** success means: functional/non-functional requirements, constraints, exclusions, assumptions, questions, acceptance criteria, verification bindings, risks, evidence needs | Draft → ClarificationRequired → ReadyForReview → Approved → Superseded → Completed/Cancelled; Brain/user may propose, only authorized principal approves; approved versions immutable | charter → outcome contract, plans, change request |
+| `OutcomeContract` | contract-equivalence dimensions, acceptance thresholds, public/architecture/security constraints, regression and unresolved-risk limits | Draft → ReadyForReview → Approved → Active → Satisfied/Unsatisfied → Superseded/Cancelled; planning/quality may propose, required specification/quality/security authority approves | specification requirements → evidence requirements/completion |
+| `PlanProposal` | Brain Agent delivery strategy, tailored phase graph, dependencies, requirement allocation, risks, estimates, budgets, verification, stop/escalation, assumptions and uncertainty | Draft → Submitted → Compiled/Rejected/Superseded; always an untrusted proposal; the Brain Agent or authorized architect may propose but never approve | specification/outcome/context provenance → candidate DeliveryPlan |
+| `PlanAssessment` | assessment of specification/outcome coverage, acceptance/evidence, DAG, architecture, proportionality, risk, budget/WIP, rollback/recovery, assumptions/uncertainty, alternatives, reviewer identity/independence, blockers and readiness | `Pending` → one of `StructurallyInvalid`, `ReviewRequired`, `Ready`, or `Blocked`; `ReviewRequired` → new `Ready` or `Blocked` assessment version after separate reviews; replaced versions → `Superseded`; Core binds exact required records and policy/risk tier; assessment is evidence, not approval | proposal + candidate + exact reviews → finalized assessment → PlanDecision |
+| `PlanDecision` | exact candidate/assessment versions and hashes, exact policy/risk-tier version, required independent-review record IDs/versions/hashes, disposition (`Approve`, `Return`, `Defer`, `Reject`), authenticated authority, rationale, conditions and timestamp | Recorded once and immutable; only policy-authorized user/plan authority decides and Core records; model votes and recommendations have no authority | assessment + exact reviews → approved DeliveryPlan or returned/deferred/rejected proposal |
+| `DeliveryPlan` | normalized, assessed delivery strategy and exact phase graph authorized by a PlanDecision | Candidate → ValidationFailed/Assessed → Approved → Active → ChangePending → Superseded → Closed/Cancelled; only the exact candidate named by an approving PlanDecision becomes authoritative | specification/outcome + proposal/assessment/decision → phase plans |
+| `PhasePlan` | phase objective, entry/exit, dependencies, skills/tools, writable/forbidden scope, tasks, WIP, budget, controls, evidence, gate, escalation | Draft → Ready → Approved → Active → GateReview → Closed/Returned/Deferred/Cancelled; Brain or Hermes may propose; Core records delegated/human approval under policy | delivery plan → Task Packets/evidence/gate |
+| `TaskPacket` | bounded builder/subagent objective, inputs/outputs, dependencies, acceptance/evidence, context references, capabilities, scopes, model/skill constraints, budget, stop rules | Draft → Validated → Ready → Leased → Active → Review → Verification → Done, with explicit exceptional states; Hermes derives/proposes from an approved Phase Plan, Core validates/authorizes, executor cannot redefine it | phase/requirements → attempts/actions/evidence |
+| `SOPGraph` | deterministic execution projection with compiler/schema version, exact approved `DeliveryPlan`/`PhasePlan`/`TaskPacket` refs and hashes, RoleNodes, contracts, typed edges and graph hash | Compiled → ValidationFailed/Validated → Active → Superseded/Revoked/Closed; Core alone validates and activates; graph never replaces or broadens its parents | exact approved parents → role assignments, projections, outputs and evidence |
+| `RoleNode` | graph-scoped role identity, objective/task, required profile, permissions/capabilities, budget/WIP, lifecycle, contract refs and isolation boundary | Compiled → Eligible → Active → Waiting/Stopped/Completed/Revoked; state is Core-projected under the active SOPGraph | SOPGraph/TaskPacket → authorized inputs, actions and outputs |
+| `ActionContract` | role/task, allowed proposed action types, tool/resource/parameter bounds, pre/postconditions, idempotency, writable/forbidden scope, budget and denial behavior | Compiled → Validated → Active → Revoked/Expired/Superseded with parent graph; derived constraint only, never a capability | RoleNode + TaskPacket + capability policy → ToolActions/results |
+| `InputSubscription` | Core-authorized event/artifact types and IDs, filters, classification/redaction, cursor/replay bounds, purpose, expiry and revocation | Proposed → Authorized → Active → Revoked/Expired/Superseded; a role cannot create, widen or renew its own subscription | RoleNode/TaskPacket → RoleInputProjection |
+| `RoleInputProjection` | immutable Core-produced batch/snapshot with subscription/version, source event/artifact refs and hashes, cursor, redactions/omissions and projection hash | Produced → Delivered/Acknowledged → Superseded/Expired; derived context only and never authority | authorized InputSubscription + Core ledger/artifacts → one RoleNode |
+| `OutputContract` | allowed output schemas, evidence/provenance requirements, destinations, size/classification limits, completion/stop semantics and rejection handling | Compiled → Validated → Active → Revoked/Expired/Superseded with parent graph | RoleNode/TaskPacket → Core-validated artifacts/findings/results |
+| `SOPControlEdge` | typed `Dependency`, `Evidence`, `Stop`, or `Escalation` edge with source/target, condition, required fact, deadline/budget and policy reference | Compiled → Validated → Active → Satisfied/Triggered/Invalidated/Superseded; Core alone evaluates authoritative edge state | SOPGraph nodes/contracts → scheduling, gates, stop/escalation events |
+| `MissionExplorationBranch` | read-only mission branch with parent, objective, ContextPack hash, permissions, budget, status, findings/evidence and accepted-or-rejected contribution record | Proposed → Authorized → Active → FindingsSubmitted → ContributionAccepted/ContributionRejected; or Expired/Cancelled; Core authorizes and disposes contribution | mission/phase/task/context → findings/evidence → proposal, assessment, memory or evaluation |
+| `CompactionRecord` | compacted scope/range, source/session/branch hashes, retained summary, explicit omissions, compiler/model version, mandatory authority-rehydration set/hash and validation | Draft → Validated/Rejected → Active → Superseded/Expired; never authority and unusable until Core rehydrates current governing records | source context/events/artifacts → resumed session plus exact authority refs |
+| `RiskItem` | threat/opportunity, likelihood, impact, trigger, exposure, mitigation, contingency, owner, review date, residual decision | Proposed → Open → Mitigating → Monitoring → Accepted/Closed/Expired; revisions preserve history and high/critical residual acceptance needs named authority | charter/spec/plan/phase/evidence/decision |
+| `Assumption` | explicit proposition, rationale, confidence, validation method, owner, expiry and consequence if false | Proposed → Validating → Confirmed/Invalidated/AcceptedRisk → Superseded; never silently treated as fact | specification/plan/risk/change |
+| `DecisionRequest` | question, options, evidence, recommendation, authority, deadline, default/no-decision consequence, blocked dependents | Draft → Pending → Answered/Deferred/Expired/Cancelled; components request, Core opens/records, authorized principal answers | affected artifact/version → decision event/transitions |
+| `ChangeRequest` | kind (`SpecificationChange` or `PlanChange`), rationale, requested delta, impact, risk, migration/rollback, replacement versions | Proposed → ImpactAnalysis → PendingApproval → Approved/Rejected/Withdrawn → Applied; WHAT changes create new specification/outcome versions, HOW-only changes replace plan/phase | old contracts → decision → replacements/tasks |
+| `EvidenceRequirement` | claim/criterion, method, source type, independence, environment, threshold, freshness, validator, gate effect | Draft → Bound → Active → Satisfied/Failed/Waived → Superseded; authoritative when bound by approved outcome/plan/policy | requirement/outcome/phase/task → bundles/gates |
+| `EvidenceBundle` | referenced artifacts, checks, observations, environment/tool/model versions, hashes, producer, confidence, gaps, validation | Collecting → Submitted → Validating → Validated/Rejected/Stale → Superseded; producer output is untrusted until validated; Core records satisfaction | requirement/action/task → completion proposal |
+| `ToolCatalogManifest` | capability-projected tools/actions for one subject and task, exact capability/governing versions, schemas, resource/parameter bounds, catalog compiler version, hash, expiry and revocation | Projected → Active → Revoked/Expired/Superseded; derived by Core and never grants authority absent the bound active capabilities | RoleNode/ActionContract/capabilities → allowed tool proposals |
+| `BoundedToolResult` | ToolAction/capability refs, disposition/exit, bounded stdout/stderr summaries, truncation, timings/resources, postcondition probe, errors and output-artifact refs | Reported → Validated/Rejected/Uncertain → Superseded; tool boundary reports, Core validates and records | authorized ToolAction → evidence, ToolOutputArtifact or SandboxFailureResult |
+| `ToolOutputArtifact` | immutable large/binary tool output with content hash, media/schema, size, truncation/chunking, classification, tool/version, producer, source action and retention | Recorded → Validated/Rejected/Stale → Superseded/Expired; content carrier only, never success or evidence satisfaction by itself | BoundedToolResult → EvidenceBundle/reviewer projection |
+| `SandboxFailureResult` | denied/violated/timed-out/crashed/resource-exhausted action, sandbox/profile, observed partial effects, uncertainty, diagnostics, probe and recovery recommendation | Reported → Validated → Recovered/RetryAuthorized/Blocked/Uncertain/Closed; failure cannot be converted into success by summary | ToolAction/sandbox → recovery, decision, risk and evidence |
+| `VisualEvidenceCapture` | screenshot/frame-set/video artifact refs plus build/commit, route/state, viewport/DPI, theme/locale, input fixture, capture tool/version, timestamp, masking and classification | Recorded → Validating → Validated/Rejected/Stale → Superseded; capture producer cannot establish acceptance | visual EvidenceRequirement → VisualComparisonResult/EvidenceBundle |
+| `VisualComparisonResult` | expected/baseline/observed capture refs, regions/annotations, criteria, perceptual/structural/accessibility findings, evaluator identity/independence, uncertainty and disposition | Draft → Reviewed → Validated/Rejected → Superseded; independent validation required when acceptance-critical | visual captures + requirement → EvidenceBundle/gate |
+| `CompletionProposal` | scope/results summary, requirement-evidence matrix, gate state, residual risk, deviations, budget, recommended disposition | Draft → ReadyForReview → Submitted → Returned/Withdrawn/Decided; Hermes/Core completion evaluator may assemble, no executor may accept | specification/outcome/plan/phases/evidence → decision |
+| `CompletionDecision` | exact proposal/version, decision (`Accept`, `Return`, `Defer`, `Cancel`), authority, rationale, conditions and follow-up | Recorded once then immutable; superseding decisions are new records; only authorized principal decides and Core records completion | proposal → mission state/memory candidates |
+| `MemoryCandidate` | evidence-derived lesson, type/scope, sources, confidence, contradiction/freshness/expiry, proposed retrieval terms | Proposed → Judging → Approved/Rejected/Quarantined → Consolidated/Superseded/Expired; untrusted until Memory Judge and policy admit it | evidence/decision/retrospective → typed memory |
+| `Retrospective` | outcome vs plan, delivery/evidence metrics, incidents, decisions, loop and model/skill performance, lessons and actions | Draft → Reviewed → Finalized → Archived/Superseded; derived analysis, not governance authority | completed/cancelled mission → risks, evaluations, memory candidates |
+| `EvaluationCase` | versioned question or fixture, problem statement, expected benefit, Outcome Contract/evidence bindings, cohort, risk class, controls, acceptance metrics and rejection/rollback criterion | Draft → Reviewed → Approved → Active → Retired/Superseded; evaluation owner proposes, authorized evaluation policy owner approves | architecture hypothesis/risk → treatment arms and runs |
+| `TreatmentArm` | one controlled configuration: independent variable, fixed controls, profile/harness settings, expected direction and allocation rule | Draft → Validated → Frozen → Retired/Superseded; frozen before allocation and never edited for an active run | EvaluationCase → RunManifest/EvaluationRun |
+| `EvaluationRun` | one run identity, case/arm/manifest refs, status, attempt/correlation refs, start/end, deviations and result ref | Registered → Ready → Running → Completed/Failed/Aborted → Assessed; Core records transitions from authenticated observations | case + arm + manifest → observations/deviations/result |
+| `RunManifest` | immutable exact provenance: fixture/source hashes, governing artifact versions, repository/worktree commit, profile/provider/model/adapter/settings, prompt/context/skill/tool versions, environment, seed where supported, budgets, and manifest creation/freeze/allocation timestamps | Draft → Frozen → Used/Invalidated; any material change creates a new manifest; observed run start/end remain on `EvaluationRun` | treatment arm + run → reproducible inputs and raw evidence |
+| `MetricObservation` | metric ID/version, value/unit, measurement method, sample, threshold, observation time, producer, confidence and raw evidence refs | Append-only Recorded → Validated/Invalidated; corrections are new linked observations | run/acceptance metric → EvaluationResult |
+| `ProtocolDeviation` | expected protocol step, observed deviation, cause, timing, affected metrics/runs, severity, impact analysis and disposition | Open → Assessed → Accepted/ExcludesRun/Resolved; cannot be hidden by result aggregation | run/manifest → EvaluationResult and audit |
+| `EvaluationResult` | derived comparison, baseline and regression deltas, uncertainty, acceptance-metric disposition, harms, limitations and recommendation | Draft → Reviewed → Finalized/Superseded; evidence for policy/certification only, never certification authority by itself | runs + observations + deviations → milestone gate/profile decision |
+| `ControlledMultiRouteRace` | bounded parallel routes with fixed parent task/outcome/context, isolated route profiles, per-route and total budgets, allocation/cancellation, selection metric, independent evaluator and evaluation artifact refs | Proposed → PolicyValidated → Authorized → Active → Completed/Aborted → Assessed/Superseded; selected route remains an untrusted candidate subject to normal gates | TaskPacket + EvaluationCase/TreatmentArms/RunManifests → EvaluationRuns/Result and candidate contribution |
 
-## Key relationships
+## Supporting execution and intelligence entities
 
-~~~mermaid
-erDiagram
-  PROJECT ||--o{ MISSION : contains
-  MISSION ||--o{ PLAN : has
-  PLAN ||--o{ TASK : decomposes_to
-  TASK ||--o{ ATTEMPT : executes_as
-  ATTEMPT }o--|| WORKER_PROFILE : uses
-  ATTEMPT }o--|| BRAIN_PROFILE : requests
-  ATTEMPT ||--o{ TOOL_ACTION : proposes
-  ATTEMPT ||--o{ ARTIFACT : produces
-  TASK ||--o{ GATE : requires
-  GATE ||--o{ CHECK : evidenced_by
-  ARTIFACT ||--o{ KNOWLEDGE_RECORD : sources
-  MISSION ||--o{ DECISION : requires
-  EVENT }o--|| MISSION : relates_to
-  EVENT }o--|| TASK : relates_to
-~~~
+| Entity | Purpose | Authority relationship |
+| --- | --- | --- |
+| Organization / Principal / Project | identity, repository and policy scope | authenticates commands and approval authority |
+| Phase Runtime | current phase state, WIP, budget, gate and active plan version | Core projection of an approved Phase Plan |
+| Task / Kanban Record | operational task state and dependency node | Core transitions under Task Packet and WIP rules |
+| Attempt / Lease / Hermes Session | execution history, supervisor and worker allocation | Core issues/revokes lease; participants report observations |
+| Brain / Builder / Subagent Invocation | selected profile, request/context/output schema, usage and result | proposal/evidence only; never approval |
+| Skill / Hook / Plugin Package | versioned executable capability and trust evidence | Registry stages; Core approves/activates/revokes |
+| Policy Rule / Policy Decision / Approval | rule, evaluation, and authorized human/enterprise decision | separate immutable records; not a combined boolean |
+| Capability | scoped permission for one subject/action/resource/envelope | issued and revoked only by Core |
+| `ToolAction` / Effect Result | proposed action, durable intent, observed postcondition and evidence | boundary executes; Core records intent/result |
+| Artifact | immutable content-addressed body or stable Git/external reference | payload/evidence carrier, not acceptance by itself |
+| Check / Finding / Gate | reproducible validation, issue and transition constraint | validators report; Core derives/records gate state |
+| Typed Memory Record | Working, Mission, Engineering, Skill, Provider/Model Performance, Governance | trust, scope, freshness and authority differ by type |
+| Context Pack / Retrieval Item | minimal task context and per-item provenance/trust/ranking | derived, reproducible input; cannot override governance |
+| Loop Iteration / Hook Invocation | hypothesis/action/result/confidence and typed lifecycle hook | bounded operational evidence, selectively durable |
+| Evaluation fixture / cohort / allocation | reusable input corpus, cohort selection and randomized or deterministic allocation | supporting data referenced by governed EvaluationCase, TreatmentArm and RunManifest versions |
+| Event | immutable typed domain fact recorded by Core | ledger source for projections and audit |
+
+## Phase, Kanban, and WIP model
+
+Phase lifecycle is `Pending`, `Ready`, `Active`, `Blocked`, `Review`, `Verification`, `Closed`, `Returned`, `Deferred`, `Uncertain`, or `Cancelled`. Task flow is `Backlog → Ready → InProgress → Review → Verification → Done`, with `Blocked`, `NeedsClarification`, `NeedsApproval`, `Returned`, `Deferred`, `Uncertain`, and `Cancelled` exceptional states.
+
+State transitions carry expected revision, actor, governing contract versions, policy/approval references, gate/evidence references, and reason. `Done` means the Task Packet’s required evidence passed; it does not accept a phase or mission. `Closed` means phase exit conditions and gate passed; it does not create a Completion Decision.
+
+WIP policies define scope, counter, limit, admission rules, expiry, and exception authority. Initial constraints are at most one writable implementation task in an isolated worktree unless Core proves disjoint writable scopes, bounded read-only research, bounded unresolved decisions, and bounded pending protected effects. Core owns counters and admission; Hermes schedules eligible work within them.
 
 ## Record invariants
 
-- A Mission declares executive outcome, scope boundary, acceptance criteria, autonomy mode, budget, data classification, priority, and owner. Scope changes create a revision and may require a decision.
-- A Task has one owning mission/plan, typed inputs/outputs, dependency edges, acceptance criteria, required gates, and an allowed capability envelope. A completed task never becomes mutable; a replacement task supersedes it.
-- An Attempt has at most one active lease. A lease has expiry and heartbeat policy. Multiple attempts may exist for retry, but their causation and idempotency relationship are explicit.
-- An Artifact has a content hash, media/type schema, producer, provenance, classification, retention, and immutable body or a stable external/Git reference.
-- A Policy Decision binds subject, action, resource, context, rule version, outcome, conditions, authority, expiry, and evidence. It is not merely a boolean.
-- A Check is reproducible enough to identify command/toolchain/environment, artifact version, status, measurement, threshold, and raw evidence reference.
-- A Knowledge Claim cannot be canonical without at least one source artifact, freshness/validity status, confidence, and access classification.
+- An approved specification, outcome, delivery plan, or phase plan is immutable; a change creates a typed request and replacement version.
+- A Specification Change Request changes WHAT; a Plan Change Request changes only HOW. Core rejects a mislabeled request whose impact crosses that boundary.
+- A Brain Agent produces a `PlanProposal`, never an approved plan. Deterministic normalization creates a candidate. Structural validation creates an initial assessment; when policy requires reviews it remains `ReviewRequired` until separate immutable review records exist, then Core finalizes a new `Ready` assessment version bound to the exact policy/risk-tier version and every required review record ID/version/hash. Core records a separate authenticated `PlanDecision` only against that final assessment. Low risk may reach `Ready` after deterministic validation when the exact policy requires no independent-review set. The producer cannot approve or be the sole acceptance-critical reviewer, and model voting is never authority.
+- Alternative `PlanProposal` versions are requested only when risk, uncertainty, material architectural choice, or failed assessment warrants comparison; multiple plans are not a universal gate.
+- Evaluation provenance is exact and immutable at run start. An `EvaluationResult` that lacks its case, treatment arm, frozen manifest, observations, deviations, raw evidence and governing versions cannot support a milestone gate or profile decision.
+- SOP compilation is deterministic for the same compiler/schema and exact approved parent hashes. A RoleNode receives only Core-produced `RoleInputProjection` records under authorized `InputSubscription` versions and returns only its `OutputContract`; self-subscription, peer broadcast, free chat, and observation of a shared ambient environment are invalid.
+- A `MissionExplorationBranch` is read-only and budgeted. Its findings remain untrusted until Core records contribution acceptance; rejection preserves the branch and evidence without contaminating governing artifacts or memory.
+- A `CompactionRecord` never replaces source evidence or authority. Resume requires Core to rehydrate and version-check policy, specification, outcome, plan, phase, task, decisions, capabilities and applicable SOP contracts, while exposing declared omissions.
+- A `ToolCatalogManifest` is only a capability projection. A listed tool still requires an active capability and Effect Firewall admission; an omitted tool is unavailable. Large output becomes a `ToolOutputArtifact`, and sandbox denial/failure is a typed `SandboxFailureResult`, never fabricated success.
+- A `ControlledMultiRouteRace` isolates routes and binds each route to evaluation-spine provenance. Selection is evidence, not voting or approval; the candidate must pass ordinary review, evidence and authority gates. Acceptance-critical visual claims require validated `VisualEvidenceCapture` and `VisualComparisonResult` records with reproducible UI state.
+- A Task Packet has one owning phase/version, bounded inputs/outputs, capabilities, evidence requirements, and writable/forbidden scope. An executor may return it as invalid but cannot rewrite it.
+- An attempt has at most one active lease. Retries preserve causation, hypothesis, budget and idempotency relationships.
+- An artifact records producer, provenance, classification, retention and content identity. An Evidence Bundle additionally binds artifacts to a claim and validation.
+- Completion requires a validated proposal followed by an authorized Completion Decision; worker success events are insufficient.
+- Governance Memory remains authoritative within its valid scope. Other memory cannot supersede policy, approved specifications, ADRs, or exact current source evidence.
 
-## Data ownership and access
+## Data access, storage, and retention
 
-Contexts own writes to their records. A projection may duplicate read models but cannot establish a new source of truth. The UI, brain adapters, workers, plugins, and integrations access data only through scoped query/artifact ports. Database tables, local files, and secrets are never public extension APIs.
+UI, CLI, MCP, APIs, brain adapters, Hermes, workers, plugins, and integrations access data through scoped command/query/artifact ports. A role cannot query the ledger/artifact store or a peer directly; Core alone materializes event/artifact batches allowed by an active `InputSubscription`. Database tables, local files, shared ambient environments, model context caches, and secrets are never public extension APIs.
 
-## Storage strategy
+V1 uses a local transactional operational database for Core records and event ledger, a content-addressed artifact store for large immutable bodies, Git for source history, and staged derived indexes: exact/full-text/Git plus one `rust-analyzer` adapter at H4.1; structural/impact indexes and additional qualified LSP adapters only at H4.2; semantic indexes absent/disabled until an H4.3 ablation passes. The database has one local Core writer; WAL is a local optimization, not network-shared storage. Raw telemetry and large logs use bounded stores rather than event-sourcing every byte.
 
-V1 uses a local transactional operational database for domain records/event ledger, a content-addressed local artifact store for larger immutable bodies, Git for source-history truth, and derived indexes for full-text/semantic knowledge retrieval. The database serves one local Core writer; WAL is a local concurrency optimization, not a network-shared storage design. Raw telemetry and large logs are retained separately with bounded policy, rather than event-sourcing every byte.
+Commands carry expected revisions and/or idempotency keys. Workflow state is never CRDT-merged. Retention uses tombstone, redaction, and supersession references so ordinary retrieval can exclude expired/corrected data while preserving policy-permitted audit identity and proof. Legal hold and enterprise retention override ordinary expiry.
 
-## Concurrency and deletion
+## Classification
 
-Commands carry expected revisions or idempotency keys. Conflicts create a visible rejection/retry flow; only document-like content may later use CRDTs. Workflow state is not CRDT-merged. Retention uses tombstone/supersession references so a removed or corrected record is excluded from normal retrieval without destroying allowed audit evidence. Legal holds and enterprise retention policy override ordinary expiration.
+The baseline taxonomy is Public, Internal, Confidential, Restricted, and Secret. Classification travels with artifacts, context items, memory, mission contracts, model/tool requests, events, and exports. Policy maps it to allowed storage, profiles, channels, retrieval, retention, export, and redaction. Secret is reference-only by default and must not appear in ordinary prompts or artifacts.
 
-## Data classifications
-
-The baseline taxonomy is Public, Internal, Confidential, Restricted, and Secret. Classifications travel with artifacts, knowledge, mission context, and provider/tool requests. Policy maps classifications to allowed storage, brain profiles, channels, retention, export, and redaction behavior. Secret is reference-only by default and must not appear in ordinary artifacts or prompts.
-
-See also: [08_Knowledge_System.md](08_Knowledge_System.md), [14_Security_Architecture.md](14_Security_Architecture.md), [17_Event_System.md](17_Event_System.md), and [18_API_Architecture.md](18_API_Architecture.md).
-
+See [32_Hermes_Engineering_Intelligence_Runtime.md](32_Hermes_Engineering_Intelligence_Runtime.md), [33_Model_Independent_Outcome_Convergence.md](33_Model_Independent_Outcome_Convergence.md), [34_Harness_Evaluation_Protocol.md](34_Harness_Evaluation_Protocol.md), [35_Reference_Systems_and_Competitive_Architecture.md](35_Reference_Systems_and_Competitive_Architecture.md), [08_Knowledge_System.md](08_Knowledge_System.md), [14_Security_Architecture.md](14_Security_Architecture.md), [17_Event_System.md](17_Event_System.md), and [18_API_Architecture.md](18_API_Architecture.md). The governing record decisions are Proposed ADRs 0015–0017, 0020, and 0024; their Proposed status does not authorize implementation.
