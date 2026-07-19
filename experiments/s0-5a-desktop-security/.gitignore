@@ -6,3 +6,4 @@ app/tauri-host/gen/
 *.log
 selftest-*.json
 bench-*.json
+artifact-out/

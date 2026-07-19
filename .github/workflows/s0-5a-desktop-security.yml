@@ -110,3 +110,63 @@ jobs:
       - name: Build the Tauri host (locked)
         working-directory: experiments/s0-5a-desktop-security/app/tauri-host
         run: cargo build --locked
+
+  # ARTIFACT PACKAGING (evidence support): assemble a runnable UNPACKED
+  # (no installer), UNSIGNED, founder-testable artifact per OS with a
+  # SHA-256 manifest and BUILD_INFO. Short retention (1 day), no release,
+  # no tag, no secrets, no signing. Downloadable only via this private
+  # repo's workflow. Not safe for distribution.
+  package:
+    name: package ${{ matrix.label }} (EXPERIMENTAL)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            label: linux
+          - os: windows-2022
+            label: windows
+          - os: macos-14
+            label: macos
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Record source commit
+        id: src
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Linux WebView + build deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev patchelf libayatana-appindicator3-dev
+      - name: Node
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: "22"
+      - name: Build frontend
+        working-directory: experiments/s0-5a-desktop-security/app
+        run: |
+          npm ci --ignore-scripts
+          npm run build
+      - name: Build core (release, locked)
+        working-directory: experiments/s0-5a-desktop-security
+        run: cargo build --locked --release
+      - name: Build Tauri host (release, locked)
+        working-directory: experiments/s0-5a-desktop-security/app/tauri-host
+        run: cargo build --locked --release
+      - name: Assemble unpacked artifact
+        working-directory: experiments/s0-5a-desktop-security
+        run: bash scripts/assemble-artifact.sh "${{ matrix.label }}" "artifact-out"
+      - name: SHA-256 manifest
+        working-directory: experiments/s0-5a-desktop-security
+        run: bash scripts/make-checksums.sh "artifact-out"
+      - name: Upload artifact (short retention, unsigned, never merge)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: EXPERIMENTAL-NEVER-MERGE-wepld-s05a-${{ matrix.label }}
+          path: experiments/s0-5a-desktop-security/artifact-out
+          retention-days: 1
+          if-no-files-found: error
