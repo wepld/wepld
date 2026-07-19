@@ -1,0 +1,9 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "EXPERIMENTAL — NEVER MERGE. Minimal capability set: the WebView receives NO core, fs, shell, http, dialog, or process plugin permissions. Only the app's own single command (core_request) is reachable, and app-scoped commands are allowed by default in Tauri 2. No plugin permissions are granted here.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default"
+  ]
+}
