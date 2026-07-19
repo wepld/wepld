@@ -1,7 +1,8 @@
 # TDR-002 — Desktop Shell Selection
 
-- **Status:** **Provisionally Approved — Prototype Evidence Required**
-  (founder decision, 2026-07-19)
+- **Status:** **Partially Ratified — Windows Personal Alpha; macOS/Linux
+  Runtime Evidence Required** (founder decision, 2026-07-19; amended by
+  the S0.5A outcome, 2026-07-20)
 - **Prerequisites:** TDR-001, SDR-002
 
 ## Context
@@ -35,6 +36,36 @@ which no document can resolve.
 - **Failure of the prototype triggers fallback review** (an explicit
   founder decision over Electron or another evaluated option) — never
   silent continuation with a failed candidate.
+
+## S0.5A outcome amendment (2026-07-20)
+
+The S0.5A Desktop Security Prototype ran (evidence PR #9, never-merge;
+final head `ffbb1a26881bbd8b9479e88e7d621f7cbc2190c4`; base
+`e124e293a46b960589cf3d2b37adefe8d6353eaf`; final provenance-bound run
+`29702954386`). Full evidence:
+[S0-5A-WINDOWS-DESKTOP-SECURITY-EVIDENCE.md](../evidence/S0-5A-WINDOWS-DESKTOP-SECURITY-EVIDENCE.md).
+
+Founder platform-scoped ruling:
+
+- **Tauri 2 is ratified for founder-controlled Windows Personal Alpha**,
+  together with the **separate Rust trusted-core process** topology, for
+  that scope only.
+- **UI-zero-authority remains a final constitutional rule** (unchanged;
+  it does not depend on the shell outcome).
+- **macOS and Linux are build-supported only.** Their runtime,
+  accessibility, and performance are **unverified**; interactive macOS
+  and Linux support is **not** ratified.
+- **The overall cross-platform shell decision is NOT fully frozen** and
+  is **not** marked Accepted.
+- **Electron remains the fallback, but no fallback review is currently
+  triggered.**
+- **Windows Beta and external evaluation require additional gates:**
+  numeric startup timing, a refined Windows working-set measurement
+  methodology and optimization gate, installer/packaging, code signing,
+  and independent security and accessibility review.
+
+This amendment records a platform-scoped ratification; it does not
+authorize product implementation, and PR #9 is never merged.
 
 ## Rationale
 
