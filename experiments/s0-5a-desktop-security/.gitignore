@@ -1,7 +1,8 @@
 target/
 app/node_modules/
-app/frontend/dist/
+app/dist/
 app/tauri-host/target/
+app/tauri-host/gen/
 *.log
 selftest-*.json
 bench-*.json

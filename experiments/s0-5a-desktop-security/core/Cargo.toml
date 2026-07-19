@@ -1,0 +1,17 @@
+[package]
+name = "s05a-core"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+# Zero third-party dependencies by design. See DEPENDENCY_EVIDENCE.md.
+[dependencies]
+s05a-protocol = { path = "../protocol" }
+
+[[bin]]
+name = "s05a-core"
+path = "src/main.rs"
+
+[[bin]]
+name = "s05a-bench"
+path = "src/bin/s05a_bench.rs"

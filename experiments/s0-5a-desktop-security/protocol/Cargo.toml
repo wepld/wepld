@@ -1,0 +1,10 @@
+[package]
+name = "s05a-protocol"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+# Zero third-party dependencies by design: no build scripts, no
+# procedural macros, smallest possible supply-chain surface for an
+# evidence spike. See DEPENDENCY_EVIDENCE.md.
+[dependencies]

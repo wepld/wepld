@@ -1,0 +1,1 @@
+S0.5A fixture: the only file the read capability may reach.

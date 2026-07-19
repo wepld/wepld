@@ -1,0 +1,10 @@
+[workspace]
+resolver = "2"
+members = ["protocol", "core"]
+# The Tauri host is intentionally NOT a member: it has its own heavy
+# dependency tree and its own lockfile under app/tauri-host.
+exclude = ["app"]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2021"
