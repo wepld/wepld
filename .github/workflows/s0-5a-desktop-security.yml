@@ -37,6 +37,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     defaults:
       run:
+        shell: bash
         working-directory: experiments/s0-5a-desktop-security
     steps:
       - name: Checkout reviewed head
@@ -70,6 +71,7 @@ jobs:
     runs-on: ubuntu-24.04
     defaults:
       run:
+        shell: bash
         working-directory: experiments/s0-5a-desktop-security/app
     steps:
       - name: Checkout reviewed head
