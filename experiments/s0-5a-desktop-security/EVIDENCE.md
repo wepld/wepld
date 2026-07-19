@@ -78,6 +78,67 @@ gate passes. macOS/Linux runtime remains NOT TESTED.
 **Post-fix artifact commit:** recorded in the corrected artifact run (see
 "Corrected artifact inventory" in the task report / the PR checks).
 
+## S05A-PROVENANCE-001 — artifact source-commit mismatch (PRESERVED)
+
+Historical finding; preserved, not erased.
+
+```
+S05A-PROVENANCE-001 — ARTIFACT SOURCE COMMIT MISMATCH
+
+Observed (founder, Windows):
+The downloaded Windows artifact binaries matched the corrected-run hashes
+  host: b08a21449988408930a851a739eb03d331e28e1c454f94205573eb84803027f4
+  core: b6efaa75fe439a1fb4f2b0bbd374194998063f403ce04b6a0eea0dc3c270dbbc
+but BUILD_INFO.txt reported
+  source_commit: a7f61d7c9e40b0081166d4dc6f9f2a2fefae1036
+while the reviewed PR head was
+  76c55580e19e6c3c3b528d8878293063e1cf2e51
+Also: BUILD_INFO em dash rendered as mojibake in Windows PowerShell.
+```
+
+**Root cause (demonstrated, not assumed).** `refs/pull/9/merge` resolves
+to `a7f61d7c9e40b0081166d4dc6f9f2a2fefae1036`, a synthetic GitHub merge
+commit whose two parents are `e124e293…` (base / canonical main) and
+`76c5558…` (reviewed head). On `pull_request` events `github.sha` is that
+merge commit and `actions/checkout`'s **default** checks out
+`refs/pull/N/merge`; the old `assemble-artifact.sh` recorded
+`git rev-parse HEAD` (= the merge SHA) as `source_commit`. So the label
+was the merge ref, not the reviewed head.
+
+**Identical vs different tree content.** The built content was **identical
+to the reviewed head**: `git rev-parse 76c5558:experiments/s0-5a-desktop-security`
+and `…a7f61d7:experiments/s0-5a-desktop-security` are the same tree
+(`8c01f0ec…`), because the base does not touch the experiment paths, so
+the merge's experiment subtree equals the head's. **This was a provenance
+labeling defect, not a different-binary defect** — but the artifact could
+not be unambiguously attributed to the reviewed branch head, which is
+blocking for provenance.
+
+**Security interpretation.** No security-semantic conclusion changes: the
+binaries were byte-for-byte what the reviewed head produces. The defect is
+attribution integrity, not behavior.
+
+**Correction.** (1) The workflow now checks out
+`github.event.pull_request.head.sha` explicitly (manual runs require an
+explicit `source_ref`) and **every job fails unless `git rev-parse HEAD`
+equals that head**. (2) A five-field provenance model is recorded
+distinctly — `source_head_sha`, `checked_out_sha`, `workflow_sha`,
+`base_sha`, `artifact_tree_sha` — in `BUILD_INFO.txt` and a machine-
+readable `PROVENANCE.json`; `workflow_sha` is never called `source_commit`.
+(3) Packaging **fails closed** (no artifact) unless
+`source_head_sha == checked_out_sha`. (4) `verify-provenance.sh` gates
+upload: valid JSON, all fields, source==checked, BUILD_INFO/PROVENANCE
+agreement, SHA256SUMS match, ASCII-only, expected-head match; plus a
+`--selftest` that proves assembly fails on a forged head. (5) Provenance
+files are **ASCII** (`EXPERIMENTAL - NEVER MERGE`, hyphen not em dash),
+fixing the PowerShell mojibake.
+
+**Required founder rerun:** re-verify the fresh artifact's hashes,
+`BUILD_INFO.txt`, and `PROVENANCE.json` (source_head_sha == checked_out_sha
+== reviewed head), then repeat the six-operation smoke gate, process
+topology, and host/core TCP check. Crash/recovery, accessibility, and
+final performance remain paused until provenance passes.
+
 ## Toolchains
 
 - rustc / cargo **1.97.0** (host). CI prints the runner default.

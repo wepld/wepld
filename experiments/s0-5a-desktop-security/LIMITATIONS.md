@@ -4,6 +4,19 @@
 guarantees. It does not prove WePLD is secure. Read every limitation
 below as a bound on what the evidence can support.
 
+## Artifact provenance (S05A-PROVENANCE-001)
+
+The first corrected artifact's `BUILD_INFO.txt` labeled its source as the
+synthetic GitHub pull-request merge SHA (`a7f61d7…`) rather than the
+reviewed head (`76c5558…`); the built content was proven identical to the
+head (a labeling defect, not a different binary). The workflow now checks
+out the exact head, fails closed on mismatch, and every artifact carries a
+distinct five-field provenance model plus `PROVENANCE.json`. **A founder
+provenance-verification rerun is required** before trusting a fresh
+artifact; runtime/accessibility/performance testing stays paused until
+provenance passes. CI cannot prove the founder's local hash/BUILD_INFO
+verification — that step is the founder's.
+
 ## Runtime response contract (S05A-RUNTIME-001)
 
 The founder's Windows run found every UI operation rendering `undefined`

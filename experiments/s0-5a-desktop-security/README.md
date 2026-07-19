@@ -6,6 +6,15 @@ selection). It is not product code, it is not approved for reuse, and
 its pull request must be closed unmerged after founder review. No
 dependency used here becomes production-approved by appearing here.
 
+**Artifact provenance (S05A-PROVENANCE-001).** CI artifacts are built
+from the exact reviewed PR head (not the synthetic pull-request merge
+ref) and packaging fails closed unless `git rev-parse HEAD` equals that
+head. Each artifact carries `BUILD_INFO.txt` + `PROVENANCE.json` with a
+distinct five-field model (`source_head_sha`, `checked_out_sha`,
+`workflow_sha`, `base_sha`, `artifact_tree_sha`); trust a build only if
+`source_head_sha == checked_out_sha` and equals the reviewed head.
+Provenance files are ASCII. See `scripts/verify-provenance.sh`.
+
 ## Purpose
 
 Evaluate, with reproducible evidence, whether Tauri 2 plus a **separate

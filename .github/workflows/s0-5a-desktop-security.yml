@@ -1,11 +1,20 @@
-name: S0.5A desktop security prototype (EXPERIMENTAL — never merge)
+name: S0.5A desktop security prototype (EXPERIMENTAL - never merge)
 
 # Evidence-only workflow for TDR-002. Scoped to the experiment paths and
 # manual dispatch. Least-privilege token, SHA-pinned actions, locked
 # dependency installs, no secrets, no signing, no releases.
+#
+# Provenance (S05A-PROVENANCE-001): pull-request runs check out the exact
+# reviewed PR head (github.event.pull_request.head.sha), NOT the default
+# synthetic merge ref, and every job fails unless HEAD == that head.
+# Manual runs REQUIRE an explicit reviewed source_ref.
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: "Exact reviewed commit SHA to build (required; no default)"
+        required: true
   pull_request:
     paths:
       - "experiments/s0-5a-desktop-security/**"
@@ -19,8 +28,6 @@ defaults:
     shell: bash
 
 jobs:
-  # PRIMARY EVIDENCE: the zero-dependency core + protocol + security
-  # tests + bench, built and run on all three target OSes.
   core:
     name: core (${{ matrix.os }})
     strategy:
@@ -32,10 +39,19 @@ jobs:
       run:
         working-directory: experiments/s0-5a-desktop-security
     steps:
-      - name: Checkout
+      - name: Checkout reviewed head
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.event.inputs.source_ref }}
           persist-credentials: false
+      - name: Verify checkout is the reviewed head
+        run: |
+          EXPECTED="${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.event.inputs.source_ref }}"
+          if [ -z "$EXPECTED" ]; then echo "::error::no source ref provided"; exit 1; fi
+          EXPECTED_FULL="$(git rev-parse "${EXPECTED}^{commit}")"
+          ACTUAL="$(git rev-parse HEAD)"
+          echo "expected=$EXPECTED_FULL actual=$ACTUAL"
+          [ "$EXPECTED_FULL" = "$ACTUAL" ] || { echo "::error::checkout SHA mismatch"; exit 1; }
       - name: Toolchain
         run: rustc --version && cargo --version
       - name: Clippy (deny warnings)
@@ -49,8 +65,6 @@ jobs:
         env:
           S05A_BENCH_ITERS: "3000"
 
-  # SECONDARY EVIDENCE: the untrusted frontend typechecks strictly and
-  # bundles to a static artifact (no remote origins).
   frontend:
     name: frontend typecheck + build
     runs-on: ubuntu-24.04
@@ -58,10 +72,16 @@ jobs:
       run:
         working-directory: experiments/s0-5a-desktop-security/app
     steps:
-      - name: Checkout
+      - name: Checkout reviewed head
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.event.inputs.source_ref }}
           persist-credentials: false
+      - name: Verify checkout is the reviewed head
+        run: |
+          EXPECTED="${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.event.inputs.source_ref }}"
+          if [ -z "$EXPECTED" ]; then echo "::error::no source ref provided"; exit 1; fi
+          [ "$(git rev-parse "${EXPECTED}^{commit}")" = "$(git rev-parse HEAD)" ] || { echo "::error::checkout SHA mismatch"; exit 1; }
       - name: Node
         uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
@@ -80,11 +100,6 @@ jobs:
           S05A_CORE_BIN: ${{ github.workspace }}/experiments/s0-5a-desktop-security/target/release/s05a-core
         run: npm test
 
-  # BUILD-ONLY ATTEMPT: the Tauri host is a proc-macro/build-script-heavy
-  # crate that cannot be built under the founder host's Application
-  # Control policy. This job attempts a real cross-platform compile so
-  # the shell has honest build evidence. Runtime/WebView/accessibility
-  # are NOT exercised here (headless) and remain recorded gaps.
   tauri-host:
     name: tauri-host build (${{ matrix.os }})
     strategy:
@@ -93,10 +108,16 @@ jobs:
         os: [ubuntu-24.04, windows-2022, macos-14]
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Checkout
+      - name: Checkout reviewed head
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.event.inputs.source_ref }}
           persist-credentials: false
+      - name: Verify checkout is the reviewed head
+        run: |
+          EXPECTED="${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.event.inputs.source_ref }}"
+          if [ -z "$EXPECTED" ]; then echo "::error::no source ref provided"; exit 1; fi
+          [ "$(git rev-parse "${EXPECTED}^{commit}")" = "$(git rev-parse HEAD)" ] || { echo "::error::checkout SHA mismatch"; exit 1; }
       - name: Linux WebView + build deps
         if: runner.os == 'Linux'
         run: |
@@ -118,11 +139,6 @@ jobs:
         working-directory: experiments/s0-5a-desktop-security/app/tauri-host
         run: cargo build --locked
 
-  # ARTIFACT PACKAGING (evidence support): assemble a runnable UNPACKED
-  # (no installer), UNSIGNED, founder-testable artifact per OS with a
-  # SHA-256 manifest and BUILD_INFO. Short retention (1 day), no release,
-  # no tag, no secrets, no signing. Downloadable only via this private
-  # repo's workflow. Not safe for distribution.
   package:
     name: package ${{ matrix.label }} (EXPERIMENTAL)
     strategy:
@@ -137,13 +153,21 @@ jobs:
             label: macos
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Checkout
+      - name: Checkout reviewed head
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.event.inputs.source_ref }}
           persist-credentials: false
-      - name: Record source commit
-        id: src
-        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Verify checkout is the reviewed head
+        working-directory: experiments/s0-5a-desktop-security
+        run: |
+          EXPECTED="${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.event.inputs.source_ref }}"
+          if [ -z "$EXPECTED" ]; then echo "::error::no source ref provided"; exit 1; fi
+          [ "$(git rev-parse "${EXPECTED}^{commit}")" = "$(git rev-parse HEAD)" ] || { echo "::error::checkout SHA mismatch"; exit 1; }
+      - name: Provenance self-test (packaging must fail on a forged head)
+        if: runner.os == 'Linux'
+        working-directory: experiments/s0-5a-desktop-security
+        run: bash scripts/verify-provenance.sh --selftest
       - name: Linux WebView + build deps
         if: runner.os == 'Linux'
         run: |
@@ -164,12 +188,21 @@ jobs:
       - name: Build Tauri host (release, locked)
         working-directory: experiments/s0-5a-desktop-security/app/tauri-host
         run: cargo build --locked --release
-      - name: Assemble unpacked artifact
+      - name: Assemble unpacked artifact (fails closed on provenance mismatch)
         working-directory: experiments/s0-5a-desktop-security
+        env:
+          S05A_SOURCE_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.event.inputs.source_ref }}
+          S05A_WORKFLOW_SHA: ${{ github.sha }}
+          S05A_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          S05A_WORKFLOW_RUN_ID: ${{ github.run_id }}
+          S05A_REPOSITORY: ${{ github.repository }}
         run: bash scripts/assemble-artifact.sh "${{ matrix.label }}" "artifact-out"
       - name: SHA-256 manifest
         working-directory: experiments/s0-5a-desktop-security
         run: bash scripts/make-checksums.sh "artifact-out"
+      - name: Verify provenance (fail closed; no upload on mismatch)
+        working-directory: experiments/s0-5a-desktop-security
+        run: bash scripts/verify-provenance.sh "artifact-out" "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.event.inputs.source_ref }}"
       - name: Upload artifact (short retention, unsigned, never merge)
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

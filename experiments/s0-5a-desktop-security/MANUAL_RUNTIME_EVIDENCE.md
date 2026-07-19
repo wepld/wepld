@@ -36,6 +36,25 @@ renders explicit typed results. Fill in the smoke-gate table below from
 that rerun; crash/restart, accessibility, and performance stay paused
 until the smoke gate passes.
 
+## S05A-PROVENANCE-001 — provenance rerun gate (do first)
+
+The prior corrected artifact bound to a synthetic merge SHA
+(`a7f61d7…`) in `BUILD_INFO.txt` instead of the reviewed head
+(`76c5558…`). The workflow now checks out the exact head and fails
+closed on mismatch, and each artifact carries `PROVENANCE.json`. Before
+re-running the runtime smoke gate, verify provenance:
+
+| Provenance check | Expected | Result |
+| --- | --- | --- |
+| artifact host/core SHA-256 match the fresh run | matches K in report | NOT VERIFIED |
+| `BUILD_INFO.txt` `source_head_sha == checked_out_sha` | equal | NOT VERIFIED |
+| that value == reviewed PR head | equal | NOT VERIFIED |
+| `workflow_sha` recorded separately (may be a merge SHA) | present, distinct | NOT VERIFIED |
+| `PROVENANCE.json` valid, agrees with `BUILD_INFO.txt` and `SHA256SUMS.txt` | agree | NOT VERIFIED |
+| provenance files display as clean ASCII in PowerShell (no `â€”`) | clean | NOT VERIFIED |
+
+Only if all pass, proceed to the runtime smoke gate below.
+
 ## Post-fix smoke gate (corrected artifact)
 
 | Step | Expected | Result |
