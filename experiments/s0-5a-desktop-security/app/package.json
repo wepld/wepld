@@ -7,6 +7,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit && vite build",
+    "test": "tsc -p tsconfig.test.json && node --test frontend/bridge.unit.test.mjs frontend/bridge.realcore.test.mjs",
     "dev": "vite"
   },
   "dependencies": {

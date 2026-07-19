@@ -4,6 +4,80 @@
 evidence is Windows-only; Linux/macOS is CI build/test only. Compilation
 is not runtime; one OS is not another.
 
+## S05A-RUNTIME-001 — end-to-end response contract defect (PRESERVED)
+
+This is a historical pre-fix finding. It is preserved verbatim and must
+not be erased or rewritten after the fix.
+
+```
+S05A-RUNTIME-001
+
+Environment:
+Founder-controlled Windows 11 device
+
+Observed:
+The assembled Tauri application launched and rendered, but all six
+operation results appeared as `undefined`.
+
+Classification:
+Blocking end-to-end response contract defect.
+
+Security interpretation:
+No conclusion may be drawn from the UI about whether the underlying
+operation succeeded or was denied. Existing isolated core tests remain
+separate evidence.
+
+Disposition:
+Correction required and founder runtime rerun required.
+```
+
+**Root cause (affected layer = frontend runtime interpretation).** The
+Tauri host command `core_request` returns `Result<String, String>` — a
+JSON *string* (the core envelope). The pre-fix `ipc.ts` called
+`invoke<CoreResponse>("core_request", …)` and read `.kind` off the
+result. `invoke<T>` is a compile-time-only assertion; at runtime the
+value is a **string**, so `string.kind` is `undefined`, and `App.tsx`
+rendered `` `${resp.kind}` `` → `"undefined"` for every operation. The
+core, IPC framing, capability enforcement, and denial reasons were all
+correct and unchanged — the defect was purely that the UI treated a JSON
+string as an object and never parsed/validated it.
+
+**Why typecheck/CI missed it:** `invoke<CoreResponse>` asserts a type the
+compiler trusts without runtime proof; there was no runtime UI/bridge
+test (headless CI cannot drive the WebView), and the core tests exercise
+the core, not the JS bridge. The regression tests below close that gap.
+
+**Correction (frontend-only; no core/host security change).** A single
+canonical bridge contract (`frontend/bridge.ts`): the raw `invoke()`
+result is parsed **exactly once**, validated at runtime, and normalized
+into `BridgeResponse { requestId, status: ok|denied|error, code,
+message, data?, sessionId? }`; a rejected `invoke()` maps to a distinct
+`bridge-invoke-rejected` error (never a success or a denial). The UI
+renders a deterministic sanitized line into the semantic live region and
+never displays `undefined` / `null` / `[object Object]`. Core capability
+grants, allowed paths, denial precedence, session semantics, frame-size
+ceilings, CSP, Tauri capabilities, navigation, network, and process
+isolation are unchanged.
+
+**Regression tests:** `frontend/bridge.unit.test.mjs` (18 assertions
+incl. success/denial/error, malformed, missing-field, unsupported kind,
+request-id mismatch, empty reason, raw-string, double-encoded, invoke
+rejection, all six real envelopes, classification, no-bad-tokens) and
+`frontend/bridge.realcore.test.mjs` (spawns the REAL core, runs the six
+operations, normalizes the real envelopes, asserts classification and a
+stale-session denial). Both via the Node built-in test runner (no new
+dependency). Local: **18/18 pass with the real core; 17 pass + 1 skip
+without a core binary.** Existing core security suite: unchanged.
+
+**Residual limitations:** this fix restores the response *contract*; it
+does not by itself prove the assembled Windows UI now renders correctly
+end-to-end — that requires the founder smoke rerun (Test M). Crash/
+restart, accessibility, and performance remain paused until the smoke
+gate passes. macOS/Linux runtime remains NOT TESTED.
+
+**Post-fix artifact commit:** recorded in the corrected artifact run (see
+"Corrected artifact inventory" in the task report / the PR checks).
+
 ## Toolchains
 
 - rustc / cargo **1.97.0** (host). CI prints the runner default.

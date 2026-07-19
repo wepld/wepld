@@ -72,6 +72,13 @@ jobs:
         run: npm run typecheck
       - name: Build static bundle
         run: npm run build
+      - name: Build core for the real-core bridge test
+        working-directory: experiments/s0-5a-desktop-security
+        run: cargo build --locked --release --bin s05a-core
+      - name: Bridge response-contract tests (unit + REAL core)
+        env:
+          S05A_CORE_BIN: ${{ github.workspace }}/experiments/s0-5a-desktop-security/target/release/s05a-core
+        run: npm test
 
   # BUILD-ONLY ATTEMPT: the Tauri host is a proc-macro/build-script-heavy
   # crate that cannot be built under the founder host's Application

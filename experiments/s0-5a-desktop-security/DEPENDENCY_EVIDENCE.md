@@ -76,6 +76,15 @@ Installed with `npm ci --ignore-scripts`; no install-time scripts were
 executed. License identifiers are upstream declarations pending
 independent verification; none is production-approved here.
 
+**Response-contract fix (S05A-RUNTIME-001) added NO new dependency.** The
+regression tests use the **Node built-in test runner** (`node:test`,
+`node:assert`, `node:child_process`, `node:fs`, `node:os`, `node:path`)
+and are plain `.mjs` (no TypeScript type packages needed); the pure
+`frontend/bridge.ts` is compiled to `test-build/` with the already-present
+`typescript`. `@types/node` was deliberately **not** added (the
+dependency-free `.mjs` path was chosen instead). `package-lock.json`
+package count is unchanged at 68.
+
 ## No secrets, no network dependencies
 
 No API keys, credentials, tokens, or remote runtime assets exist

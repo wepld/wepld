@@ -5,6 +5,53 @@ Nothing here is verified yet. Every status starts `NOT TESTED` and must
 be changed only from a real interactive run on a founder-controlled
 machine. Do not paste secrets or environment values.
 
+## S05A-RUNTIME-001 — preserved pre-fix finding (do not erase)
+
+```
+S05A-RUNTIME-001
+
+Environment:
+Founder-controlled Windows 11 device
+
+Observed:
+The assembled Tauri application launched and rendered, but all six
+operation results appeared as `undefined`.
+
+Classification:
+Blocking end-to-end response contract defect.
+
+Security interpretation:
+No conclusion may be drawn from the UI about whether the underlying
+operation succeeded or was denied. Existing isolated core tests remain
+separate evidence.
+
+Disposition:
+Correction required and founder runtime rerun required.
+```
+
+**Status after correction:** the frontend response-contract fix has
+landed (see EVIDENCE.md → S05A-RUNTIME-001). A **founder smoke rerun on
+the corrected Windows artifact is still required** to confirm the UI now
+renders explicit typed results. Fill in the smoke-gate table below from
+that rerun; crash/restart, accessibility, and performance stay paused
+until the smoke gate passes.
+
+## Post-fix smoke gate (corrected artifact)
+
+| Step | Expected | Result |
+| --- | --- | --- |
+| verify new artifact SHA-256 + source commit | matches corrected run | NOT TESTED |
+| launch app | window + WebView render | NOT TESTED |
+| Core health | `OK — protocol s05a/1, session established` | NOT TESTED |
+| Read scoped fixture | `OK — …` | NOT TESTED |
+| Read traversal | `DENIED — traversal-or-prefix-rejected` | NOT TESTED |
+| Write scoped output | `OK — …` | NOT TESTED |
+| Write to .git | `DENIED — git-metadata-access-rejected` | NOT TESTED |
+| Unknown operation | `DENIED — unknown-operation:shell_exec` | NOT TESTED |
+| every result explicit and non-empty | no `undefined` | NOT TESTED |
+| allowed → OK; prohibited → DENIED (sanitized) | correct classes | NOT TESTED |
+| UI remains responsive | yes | NOT TESTED |
+
 ## Run header
 
 - artifact tested: `EXPERIMENTAL-NEVER-MERGE-wepld-s05a-windows`

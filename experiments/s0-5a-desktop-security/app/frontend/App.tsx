@@ -6,7 +6,8 @@
 // requirement: semantic controls, labels, a live region, keyboard
 // operation, and an RTL toggle for Arabic smoke testing.
 import { useCallback, useState } from "react";
-import { coreRequest, type CoreResponse } from "./ipc.ts";
+import { coreRequest, type BridgeResponse } from "./ipc.ts";
+import { formatBridgeResult } from "./bridge.ts";
 
 interface Row {
   label: string;
@@ -30,21 +31,17 @@ const ROWS: Row[] = [
 export function App(): JSX.Element {
   const [status, setStatus] = useState<string>("Idle. Activate an operation.");
   const [dir, setDir] = useState<"ltr" | "rtl">("ltr");
-  const [rows, setRows] = useState<Record<string, CoreResponse | undefined>>({});
+  const [rows, setRows] = useState<Record<string, BridgeResponse | undefined>>({});
 
   const run = useCallback(async (row: Row) => {
     setStatus(`Requesting: ${row.label}…`);
-    try {
-      const resp = await coreRequest(row.op, row.capability, row.paramsJson);
-      setRows((prev) => ({ ...prev, [row.label]: resp }));
-      setStatus(`${row.label}: ${resp.kind}${resp.reason ? ` — ${resp.reason}` : ""}`);
-    } catch (e) {
-      // The host returns a typed error rather than throwing in normal
-      // operation; a throw means the bridge itself failed (e.g. core
-      // crashed). Surface it as visible, sanitized status.
-      setRows((prev) => ({ ...prev, [row.label]: { kind: "Error", reason: "bridge-unavailable" } }));
-      setStatus(`${row.label}: bridge unavailable (core may have stopped). ${String(e)}`);
-    }
+    // coreRequest never throws: it always resolves to a validated
+    // BridgeResponse (ok / denied / error). The single-line result is
+    // written into the semantic live region below so keyboard and
+    // screen-reader users receive the same information.
+    const resp = await coreRequest(row.op, row.capability, row.paramsJson);
+    setRows((prev) => ({ ...prev, [row.label]: resp }));
+    setStatus(formatBridgeResult(row.label, resp));
   }, []);
 
   return (
@@ -77,10 +74,7 @@ export function App(): JSX.Element {
                 <span style={styles.expect}>expects: {row.expect}</span>
                 {resp && (
                   <span role="note" style={styles.result}>
-                    → {resp.kind}
-                    {resp.reason ? ` (${resp.reason})` : ""}
-                    {resp.capability ? ` [${resp.capability}]` : ""}
-                    {resp.resource ? ` {${resp.resource}}` : ""}
+                    → {resp.status.toUpperCase()} — {resp.code}
                   </span>
                 )}
               </li>

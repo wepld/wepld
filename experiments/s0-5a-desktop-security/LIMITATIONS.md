@@ -4,6 +4,18 @@
 guarantees. It does not prove WePLD is secure. Read every limitation
 below as a bound on what the evidence can support.
 
+## Runtime response contract (S05A-RUNTIME-001)
+
+The founder's Windows run found every UI operation rendering `undefined`
+(a frontend response-contract defect; the core was correct). A
+frontend-only fix now parses the host response exactly once, validates
+it, and renders a canonical typed result, with unit + real-core
+regression tests. **This restores the contract but does not by itself
+prove the assembled Windows UI renders correctly end-to-end** — a
+founder smoke rerun on the corrected artifact is required. Crash/restart,
+accessibility, and performance testing remain **paused** until that smoke
+gate passes. No core/host security semantic was changed by the fix.
+
 ## Threat-scope limits
 
 - **Full OS compromise is out of scope.** If the user's operating system
