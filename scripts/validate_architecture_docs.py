@@ -934,7 +934,15 @@ def validate_changed_scope(base: str) -> None:
             error(f"git {' '.join(args)} failed:\n{os.fsdecode(result.stdout)}{os.fsdecode(result.stderr)}")
             continue
         names.update(os.fsdecode(item) for item in result.stdout.split(b"\0") if item)
-    allowed_exact = {"README.md", ".github/workflows/docs-validation.yml", "scripts/validate_architecture_docs.py"}
+    allowed_exact = {
+        "README.md",
+        ".github/workflows/docs-validation.yml",
+        "scripts/validate_architecture_docs.py",
+        # Root records of the proprietary governance package (GDR-001/002/006).
+        "LICENSE",
+        "COPYRIGHT",
+        "CONTRIBUTING.md",
+    }
     forbidden = [name for name in names if name not in allowed_exact and not name.startswith("docs/")]
     if forbidden:
         error(f"production/non-documentation paths changed: {sorted(forbidden)}")

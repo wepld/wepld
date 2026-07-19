@@ -1,0 +1,22 @@
+Copyright © 2026 Abdulaziz M. Alshehri
+All rights reserved.
+
+OWNERSHIP RECORD
+
+1. The materials authored in this repository are owned by the individual
+   founder, Abdulaziz M. Alshehri. No company or other legal entity is
+   currently represented as the owner, because no such entity exists for
+   WePLD at the date of this record.
+
+2. Any future transfer of WePLD intellectual property to a company or
+   other entity requires a separate, written assignment executed at that
+   time, with its own legal review. This file records ownership as it is,
+   not as it may later become.
+
+3. Third-party components (including Rust crates and any other external
+   dependencies) remain owned and licensed by their respective owners
+   under their own terms. This record claims nothing over them. See
+   docs/governance/DEPENDENCY_REGISTER.md.
+
+4. Governing decision records: docs/governance/decisions/GDR-001 and
+   GDR-002.

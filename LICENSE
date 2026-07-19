@@ -1,0 +1,36 @@
+WePLD — Proprietary Software. All Rights Reserved.
+
+Copyright © 2026 Abdulaziz M. Alshehri
+
+WePLD is proprietary, closed-source software. This repository and its
+materials are proprietary and, except where expressly approved for
+disclosure, confidential.
+
+1. NO RIGHTS GRANTED. Access to this repository — including by invitation,
+   cloning, forking, viewing, or possession of any copy — does NOT grant
+   any right to use, copy, modify, distribute, sublicense, disclose,
+   commercialize, reverse engineer, train machine-learning models on, or
+   create derivative works from any material in it. No license, express or
+   implied, is granted by access, cloning, viewing, or possession.
+
+2. WRITTEN AUTHORIZATION REQUIRED. Any external permission — including
+   evaluation, demonstration, publication, distribution, or commercial
+   use — requires explicit prior written authorization from the copyright
+   owner. See docs/governance/ for the governing policies and decision
+   records (GDR-001 through GDR-008).
+
+3. THIRD-PARTY MATERIALS. Third-party dependencies and components remain
+   governed exclusively by their own licenses and their own owners' terms
+   (see docs/governance/DEPENDENCY_REGISTER.md). Nothing in this notice
+   claims ownership of, or alters the licensing of, any third-party
+   material.
+
+4. SCOPE OF THIS NOTICE. This is a repository-level reservation-of-rights
+   notice. It is not a customer agreement, evaluation agreement, or other
+   complete commercial contract, and no such agreement exists or is
+   implied by it.
+
+STATUS. This notice is an internally adopted proprietary posture record
+(GDR-001). It must receive review by qualified legal counsel in the
+relevant jurisdiction(s) before it is relied upon in any external
+contractual context. It is a governance record, not legal advice.
