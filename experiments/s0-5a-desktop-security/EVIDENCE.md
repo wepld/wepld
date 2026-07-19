@@ -99,13 +99,23 @@ no local runtime evidence. This is itself relevant TDR-002 evidence:
 Tauri's build surface is large enough to be blocked by a strict endpoint
 policy.
 
-## Cross-platform matrix (CI)
+## Cross-platform matrix (CI — recorded from run 29690991358, PR #9)
 
-CI workflow `.github/workflows/s0-5a-desktop-security.yml`. Jobs:
-`core` (ubuntu-24.04 / windows-2022 / macos-14), `frontend` (ubuntu),
-`tauri-host` build (three OSes). Final CI states are recorded in the
-finalization commit and the PR report (see the PR checks). CI build
-success is **not** runtime or screen-reader evidence.
+CI workflow `.github/workflows/s0-5a-desktop-security.yml`. **All 7 jobs
+passed.** CI build success is **not** runtime or screen-reader evidence.
+
+| Job | ubuntu-24.04 | windows-2022 | macos-14 |
+| --- | --- | --- | --- |
+| core: clippy -D warnings + test --locked + release build + bench | PASS (23s) | PASS (44s) | PASS (12s) |
+| frontend: strict typecheck + vite build | PASS (15s, ubuntu) | — | — |
+| tauri-host: frontend build + core build + `cargo build --locked` | PASS (3m58s) | PASS (5m20s) | PASS (1m9s) |
+
+Interpretation, honestly bounded: the **separate core + typed IPC +
+security suite build and pass on all three OSes** (strong evidence for
+those components); the **Tauri host compiles on all three OSes**
+(build-only evidence for the shell — a headless runner does not open a
+real WebView window, drive it, or run a screen reader). Runtime and
+accessibility remain untested (see LIMITATIONS).
 
 ## Accessibility
 
