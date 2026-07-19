@@ -1,9 +1,21 @@
 # WePLD Desktop Architecture (Provisional)
 
 **Status:** approved direction (S0-A, founder decision, 2026-07-19);
-process-topology and shell clauses are provisional pending S0.5A
-prototype evidence. This document authorizes no implementation and no
-prototype.
+amended by the S0.5A outcome (2026-07-20). This document authorizes no
+implementation and no prototype.
+
+**S0.5A platform-scoped update (2026-07-20).** The S0.5A prototype
+produced evidence (PR #9, never-merge; head
+`ffbb1a26881bbd8b9479e88e7d621f7cbc2190c4`; see
+[evidence record](evidence/S0-5A-WINDOWS-DESKTOP-SECURITY-EVIDENCE.md)
+and [TDR-002](decisions/TDR-002-desktop-shell-selection.md)). Founder
+ruling: **Tauri 2 and the separate-process Rust core are ratified for
+founder-controlled Windows Personal Alpha only**; UI-zero-authority
+remains final; **macOS and Linux are build-supported only** with runtime,
+accessibility, and performance **unverified**; the cross-platform shell
+decision is **not** frozen; Electron remains fallback with **no** fallback
+review triggered. The provisional topology below is therefore
+Windows-validated for Personal Alpha and remains provisional elsewhere.
 
 WePLD is a cross-platform, local-first desktop application — not
 primarily a website. Personal Mode works offline, without a WePLD
